@@ -34,8 +34,15 @@ export interface Monat {
   status: MonatsStatus;
 }
 
+/** Offener Betrag aus der Zeit vor dem Start der Mietkontrolle (Startsaldo). */
+export interface Vortrag {
+  stichtag: string; // JJJJ-MM-TT: Stand des Saldos (= Beginn der Mietkontrolle)
+  betrag: number; // > 0: Mieter schuldet noch; < 0: Guthaben des Mieters
+}
+
 export interface Ergebnis {
   monate: Monat[];
+  vortragOffen: number; // noch offener Teil des Startsaldos
   sollMonat: number; // aktuelles monatliches Soll
   summeSoll: number;
   summeIst: number;
@@ -65,6 +72,14 @@ export function sollImMonat(k: Kostenzeile, monat: string): number {
 export function letzterTag(monat: string): string {
   const [j, m] = monat.split("-").map(Number);
   return new Date(Date.UTC(j, m, 0)).toISOString().slice(0, 10);
+}
+
+/** Fälligkeit eines Monats: vereinbarter Zahltag (1–31) oder 3. Werktag. */
+export function faelligkeit(monat: string, zahltag?: number | null): string {
+  if (!zahltag || zahltag < 1) return dritterWerktag(monat);
+  const letzter = letzterTag(monat);
+  const tag = Math.min(Math.round(zahltag), Number(letzter.slice(8, 10)));
+  return `${monat}-${String(tag).padStart(2, "0")}`;
 }
 
 /** 3. Werktag eines Monats (Mo–Fr; Samstag zählt für die Mietzahlung nicht). */
@@ -102,19 +117,38 @@ export function monateZwischen(vonMonat: string, bisMonat: string): string[] {
 }
 
 /**
- * Abgleich nach festen Regeln: Zahlungen werden dem ältesten offenen Monat
- * zugeordnet (eine Überzahlung gleicht also frühere Rückstände aus).
+ * Abgleich nach festen Regeln: Zahlungen werden dem ältesten offenen Posten
+ * zugeordnet – zuerst dem Startsaldo, dann den Monaten (eine Überzahlung
+ * gleicht also frühere Rückstände aus, vgl. § 366 Abs. 2 BGB).
+ * Negative Beträge (Rückzahlungen an den Mieter, zurückgegebene Lastschriften)
+ * mindern das Ist: zuerst ein vorhandenes Guthaben, dann die zuletzt bezahlten Monate.
  */
-export function abgleich(opts: { kosten: Kostenzeile[]; zahlungen: Zahlung[]; vonMonat: string; bisMonat: string; heute: string; toleranz?: number }): Ergebnis {
+export function abgleich(opts: {
+  kosten: Kostenzeile[];
+  zahlungen: Zahlung[];
+  vonMonat: string;
+  bisMonat: string;
+  heute: string;
+  toleranz?: number;
+  zahltag?: number | null;
+  vortrag?: Vortrag | null;
+}): Ergebnis {
   const tol = opts.toleranz ?? 1;
   const monate: Monat[] = monateZwischen(opts.vonMonat, opts.bisMonat).map((monat) => {
     const soll = r2(opts.kosten.reduce((s, k) => s + sollImMonat(k, monat), 0));
-    return { monat, faellig: dritterWerktag(monat), soll, bezahlt: 0, bezahltAm: null, status: soll > 0 ? "offen" : "kein_soll" };
+    return { monat, faellig: faelligkeit(monat, opts.zahltag), soll, bezahlt: 0, bezahltAm: null, status: soll > 0 ? "offen" : "kein_soll" };
   });
+  const vortragSoll = opts.vortrag && opts.vortrag.betrag > 0 ? r2(opts.vortrag.betrag) : 0;
+  let vortragBezahlt = 0;
   const zahlungen = [...opts.zahlungen].sort((a, b) => a.datum.localeCompare(b.datum));
-  let rest = 0;
-  for (const z of zahlungen) {
-    rest = r2(rest + z.betrag);
+  // ein Guthaben aus der Zeit vor dem Start steht von Anfang an zur Verfügung
+  let rest = opts.vortrag && opts.vortrag.betrag < 0 ? r2(-opts.vortrag.betrag) : 0;
+  const verteilen = (datum: string) => {
+    if (rest > 0 && vortragSoll - vortragBezahlt > 0) {
+      const teil = Math.min(r2(vortragSoll - vortragBezahlt), rest);
+      vortragBezahlt = r2(vortragBezahlt + teil);
+      rest = r2(rest - teil);
+    }
     for (const mo of monate) {
       if (rest <= 0) break;
       const fehlt = r2(mo.soll - mo.bezahlt);
@@ -122,9 +156,35 @@ export function abgleich(opts: { kosten: Kostenzeile[]; zahlungen: Zahlung[]; vo
       const teil = Math.min(fehlt, rest);
       mo.bezahlt = r2(mo.bezahlt + teil);
       rest = r2(rest - teil);
-      if (mo.soll - mo.bezahlt <= tol && !mo.bezahltAm) mo.bezahltAm = z.datum;
+      if (mo.soll - mo.bezahlt <= tol && !mo.bezahltAm) mo.bezahltAm = datum;
     }
+  };
+  const zuruecknehmen = () => {
+    // rest ist negativ: zuerst zuletzt bezahlte Monate, zuletzt den Startsaldo wieder öffnen
+    for (let i = monate.length - 1; i >= 0 && rest < 0; i--) {
+      const mo = monate[i];
+      if (mo.bezahlt <= 0) continue;
+      const teil = Math.min(mo.bezahlt, -rest);
+      mo.bezahlt = r2(mo.bezahlt - teil);
+      rest = r2(rest + teil);
+      if (mo.soll - mo.bezahlt > tol) mo.bezahltAm = null;
+    }
+    if (rest < 0 && vortragBezahlt > 0) {
+      const teil = Math.min(vortragBezahlt, -rest);
+      vortragBezahlt = r2(vortragBezahlt - teil);
+      rest = r2(rest + teil);
+    }
+  };
+  verteilen(opts.vonMonat + "-01");
+  for (const z of zahlungen) {
+    rest = r2(rest + z.betrag);
+    if (rest < 0) zuruecknehmen();
+    else verteilen(z.datum);
   }
+  // was dann noch negativ ist (mehr zurückgezahlt als eingezahlt), wird zur Forderung
+  const mehrZurueck = rest < 0 ? r2(-rest) : 0;
+  if (rest < 0) rest = 0;
+
   for (const mo of monate) {
     if (mo.soll <= 0) continue;
     if (mo.soll - mo.bezahlt <= tol) mo.status = mo.bezahltAm && mo.bezahltAm <= mo.faellig ? "puenktlich" : "verspaetet";
@@ -132,20 +192,23 @@ export function abgleich(opts: { kosten: Kostenzeile[]; zahlungen: Zahlung[]; vo
   }
   // Monate, deren Fälligkeit noch nicht erreicht ist, zählen nicht als offen
   const faellige = monate.filter((m) => m.faellig < opts.heute || m.status === "puenktlich" || m.status === "verspaetet");
-  const summeSoll = r2(faellige.reduce((s, m) => s + m.soll, 0));
+  const vortragOffen = r2(vortragSoll - vortragBezahlt + mehrZurueck);
+  const summeSoll = r2(faellige.reduce((s, m) => s + m.soll, 0) + vortragSoll);
   const summeIst = r2(zahlungen.reduce((s, z) => s + z.betrag, 0));
   const offen = faellige.filter((m) => m.status === "offen" || m.status === "zu_wenig");
-  const rueckstand = r2(offen.reduce((s, m) => s + (m.soll - m.bezahlt), 0));
+  const rueckstand = r2(offen.reduce((s, m) => s + (m.soll - m.bezahlt), 0) + vortragOffen);
   const aktuell = monate.at(-1);
+  const aeltesteFaelligkeit = vortragOffen > tol && opts.vortrag ? opts.vortrag.stichtag : (offen[0]?.faellig ?? null);
   return {
     monate,
+    vortragOffen: vortragOffen > tol ? vortragOffen : 0,
     sollMonat: aktuell ? aktuell.soll : 0,
     summeSoll,
     summeIst,
     rueckstand: rueckstand > tol ? rueckstand : 0,
     guthaben: rest > tol ? rest : 0,
     offeneMonate: offen,
-    aeltesteFaelligkeit: offen[0]?.faellig ?? null,
+    aeltesteFaelligkeit: rueckstand > tol ? aeltesteFaelligkeit : null,
   };
 }
 
@@ -169,7 +232,8 @@ export function naechsteStufe(opts: {
   if (e.rueckstand <= 0 || !e.aeltesteFaelligkeit) return null;
   const erinnerungNach = opts.erinnerungNach ?? 5;
   const abstand = opts.abstand ?? 14;
-  const zweiMieten = e.sollMonat > 0 && e.rueckstand >= 2 * e.sollMonat - 0.01;
+  // „Kündigung prüfen" nur für Rückstände aus laufenden Monaten, nicht für den Startsaldo
+  const zweiMieten = e.sollMonat > 0 && e.rueckstand - e.vortragOffen >= 2 * e.sollMonat - 0.01;
   const l = opts.letzteVersendet;
 
   let stufe: Stufe;
@@ -191,18 +255,21 @@ export function naechsteStufe(opts: {
 }
 
 const MONATSNAMEN = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
-export const monatsName = (monat: string) => `${MONATSNAMEN[Number(monat.slice(5, 7)) - 1]} ${monat.slice(0, 4)}`;
+export const monatsName = (monat: string) => monat === "vortrag" ? "Rückstand aus der Zeit davor" : `${MONATSNAMEN[Number(monat.slice(5, 7)) - 1]} ${monat.slice(0, 4)}`;
 const euro = (n: number) => n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
 const datumDe = (iso: string) => iso.split("-").reverse().join(".");
 
 /** Standardschreiben je Stufe (Betreff, Text, Posten). */
 export function schreiben(opts: { stufe: Stufe; anrede: string; offen: Monat[]; frist: string; objekt: string }) {
   const posten = opts.offen.map((m) => ({
-    text: m.bezahlt > 0 ? `Miete ${monatsName(m.monat)} (Differenz)` : `Miete ${monatsName(m.monat)}`,
+    text: m.monat === "vortrag" ? "Rückstand aus der Zeit vor der laufenden Kontrolle" : m.bezahlt > 0 ? `Miete ${monatsName(m.monat)} (Differenz)` : `Miete ${monatsName(m.monat)}`,
     betrag: r2(m.soll - m.bezahlt),
   }));
   const summe = r2(posten.reduce((s, p) => s + p.betrag, 0));
-  const zeitraum = opts.offen.length > 1 ? `${monatsName(opts.offen[0].monat)} bis ${monatsName(opts.offen.at(-1)!.monat)}` : monatsName(opts.offen[0]?.monat ?? "");
+  const echteMonate = opts.offen.filter((m) => m.monat !== "vortrag");
+  const zeitraum = echteMonate.length > 1
+    ? `${monatsName(echteMonate[0].monat)} bis ${monatsName(echteMonate.at(-1)!.monat)}`
+    : echteMonate.length === 1 ? monatsName(echteMonate[0].monat) : "Mietrückstand";
   const titel = { erinnerung: "Zahlungserinnerung", mahnung1: "1. Mahnung", mahnung2: "2. Mahnung" }[opts.stufe];
   const einleitung =
     opts.stufe === "erinnerung"

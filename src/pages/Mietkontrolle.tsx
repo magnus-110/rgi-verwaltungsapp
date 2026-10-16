@@ -5,6 +5,7 @@ import { Bot, Download, Loader2, MessageSquareText, RefreshCw, Send } from "luci
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -35,6 +36,8 @@ async function rufe(aktion: string, daten: Record<string, unknown> = {}) {
 /** Ergebnis eines Mieters in einem Wort (für Liste und Detail). */
 function ergebnis(x: any): { kurz: string; lang: string; stil: string } {
   const f = x.fall;
+  if (x.ehemalig && x.rueckstand > 0)
+    return { kurz: "ehemalig – offen", lang: "Ehemaliger Mieter mit offenem Betrag – keine automatische Mahnung, bitte von Hand verfolgen", stil: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200" };
   if (x.ohneDaten)
     return { kurz: "keine Kontodaten", lang: "Für dieses Objekt liegen keine Kontoauszüge vor – kein Abgleich, keine Mahnung", stil: "bg-muted text-muted-foreground" };
   if (x.datenAlt)
@@ -71,6 +74,8 @@ export default function Mietkontrolle() {
   const [entwurf, setEntwurf] = useState("");
   const [arbeitet, setArbeitet] = useState<string | null>(null);
   const [aussetzenGrund, setAussetzenGrund] = useState<string | null>(null);
+  // Mieterkonto-Einstellungen des gewählten Mieters (Zahltag, Startsaldo)
+  const [kontoEdit, setKontoEdit] = useState<{ id: string; zahltag: string; startDatum: string; startSaldo: string } | null>(null);
 
   const { data: u, isLoading } = useQuery({
     queryKey: ["mietkontrolle", "uebersicht"],
@@ -255,6 +260,7 @@ export default function Mietkontrolle() {
                         <span className="min-w-0">
                           <span className="flex items-center gap-1.5 truncate font-semibold">
                             {x.name}
+                            {x.ehemalig && <span className="shrink-0 rounded-full bg-muted px-1.5 py-px text-[10px] font-semibold text-muted-foreground">ehemalig</span>}
                             {x.infos.length > 0 && <MessageSquareText className="h-3.5 w-3.5 shrink-0 text-primary" aria-label="Info hinterlegt" />}
                           </span>
                           <span className="block truncate text-xs text-muted-foreground">
@@ -297,7 +303,10 @@ export default function Mietkontrolle() {
                   <div className="text-sm text-muted-foreground">
                     {sel.haus} · {sel.einheit || "–"}
                   </div>
-                  <div className="mt-0.5 text-xl font-bold">{sel.name}</div>
+                  <div className="mt-0.5 flex items-center gap-2 text-xl font-bold">
+                    {sel.name}
+                    {sel.ehemalig && <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">ehemalig</span>}
+                  </div>
                   <div className="mt-0.5 text-sm text-muted-foreground">
                     Soll {euro(sel.sollMonat)} · Rückstand {sel.rueckstand > 0 ? euro(sel.rueckstand) : "—"}
                     {sel.guthaben > 0 && ` · Guthaben ${euro(sel.guthaben)}`}
@@ -311,10 +320,12 @@ export default function Mietkontrolle() {
                     ? sel.monate.some((m: any) => m.status === "verspaetet")
                       ? "Kein Betrag offen. Einige Zahlungen kamen nach dem 3. Werktag; spätere Zahlungen wurden dem ältesten offenen Monat zugeordnet."
                       : "Alle Mieten pünktlich und vollständig."
-                    : `Offen: ${sel.monate
-                        .filter((m: any) => m.status === "offen" || m.status === "zu_wenig")
-                        .map((m: any) => `${MONAT_KURZ[Number(m.monat.slice(5, 7)) - 1]} ${euro(m.soll - m.bezahlt)}`)
-                        .join(", ")}.`}
+                    : `Offen: ${[
+                        ...(sel.vortragOffen > 0 ? [`Startsaldo ${euro(sel.vortragOffen)}`] : []),
+                        ...sel.monate
+                          .filter((m: any) => m.status === "offen" || m.status === "zu_wenig")
+                          .map((m: any) => `${MONAT_KURZ[Number(m.monat.slice(5, 7)) - 1]} ${euro(m.soll - m.bezahlt)}`),
+                      ].join(", ")}.`}
                 </Schritt>
                 {sel.rueckstand > 0 && sel.infos.length > 0 && (
                   <Schritt nr="2" titel="KI-Prüfung mit deinen Infos" ki>
@@ -324,6 +335,26 @@ export default function Mietkontrolle() {
                 <Schritt nr={sel.rueckstand > 0 && sel.infos.length ? "3" : "2"} titel="Ergebnis">
                   <span className={cn("inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold", ergebnis(sel).stil)}>{ergebnis(sel).lang}</span>
                 </Schritt>
+
+                <MieterkontoKarte
+                  x={sel}
+                  edit={kontoEdit?.id === sel.assignmentId ? kontoEdit : null}
+                  setEdit={setKontoEdit}
+                  arbeitet={arbeitet}
+                  speichern={(e) =>
+                    machen(
+                      "konto",
+                      () =>
+                        rufe("mieter_einstellungen", {
+                          assignmentId: sel.assignmentId,
+                          zahltag: e.zahltag.trim() === "" ? null : Number(e.zahltag),
+                          startDatum: e.startDatum || null,
+                          startSaldo: e.startSaldo.trim() === "" ? null : Number(e.startSaldo.replace(/\./g, "").replace(",", ".")),
+                        }),
+                      "Gespeichert und neu abgeglichen",
+                    ).then(() => setKontoEdit(null))
+                  }
+                />
 
                 <div className="rounded-xl border p-4">
                   <div className="flex items-center justify-between gap-2">
@@ -364,7 +395,9 @@ export default function Mietkontrolle() {
                         <tr key={z.id} className="border-t">
                           <td className="whitespace-nowrap py-1.5 text-muted-foreground">{datum(z.datum)}</td>
                           <td className="truncate px-2 py-1.5">{z.text}</td>
-                          <td className="py-1.5 text-right tabular-nums text-green-700 dark:text-green-400">+{euro(z.betrag)}</td>
+                          <td className={cn("py-1.5 text-right tabular-nums", z.betrag < 0 ? "text-red-700 dark:text-red-400" : "text-green-700 dark:text-green-400")}>
+                            {z.betrag < 0 ? `−${euro(-z.betrag)}` : `+${euro(z.betrag)}`}
+                          </td>
                         </tr>
                       ))}
                       {!sel.letzteZahlungen.length && (
@@ -512,7 +545,10 @@ export default function Mietkontrolle() {
             <details className="rounded-xl border bg-card p-4 text-sm leading-relaxed">
               <summary className="min-h-[28px] cursor-pointer font-semibold">Mahnregeln</summary>
               <div className="mt-2 space-y-1">
-                <div>• Zahlungserinnerung {einstellungen?.erinnerung_nach_tagen ?? 5} Tage nach Fälligkeit (Miete: 3. Werktag, § 556b Abs. 1 BGB)</div>
+                <div>• Zahlungserinnerung {einstellungen?.erinnerung_nach_tagen ?? 5} Tage nach Fälligkeit (Miete: 3. Werktag, § 556b Abs. 1 BGB – oder der beim Mieter hinterlegte Zahltag)</div>
+                <div>• Alle Einheiten eines Mieters im selben Objekt (Wohnung, Garage, Stellplätze) bilden ein Mieterkonto – Sammelüberweisungen werden so richtig zugeordnet</div>
+                <div>• Rückzahlungen an den Mieter und zurückgegebene Lastschriften mindern das Ist</div>
+                <div>• Ehemalige Mieter mit offenem Betrag bleiben sichtbar, werden aber nie automatisch gemahnt</div>
                 <div>• 1. Mahnung {einstellungen?.mahnung_abstand_tagen ?? 14} Tage nach der Erinnerung, 2. Mahnung {einstellungen?.mahnung_abstand_tagen ?? 14} Tage später; danach entscheidest du</div>
                 <div>• Ab zwei offenen Monatsmieten sofort 1. Mahnung + Aufgabe „Kündigung prüfen“ (§ 543 Abs. 2 Nr. 3 BGB) – die App kündigt nie selbst</div>
                 <div>• Hinweis auf Verzugszinsen (5 Prozentpunkte über Basiszinssatz, § 288 Abs. 1 BGB); keine Mahngebühren</div>
@@ -575,6 +611,105 @@ function FallZeile({ f, aktiv, onWahl, grund, children }: { f: any; aktiv: boole
         <span className="shrink-0 whitespace-nowrap font-semibold tabular-nums">{euro(Number(f.betrag))}</span>
       </button>
       {children}
+    </div>
+  );
+}
+
+/** Zahltag und Startsaldo eines Mieterkontos – gilt für alle Einheiten des Mieters im Objekt. */
+function MieterkontoKarte({
+  x,
+  edit,
+  setEdit,
+  arbeitet,
+  speichern,
+}: {
+  x: any;
+  edit: { id: string; zahltag: string; startDatum: string; startSaldo: string } | null;
+  setEdit: (e: { id: string; zahltag: string; startDatum: string; startSaldo: string } | null) => void;
+  arbeitet: string | null;
+  speichern: (e: { zahltag: string; startDatum: string; startSaldo: string }) => void;
+}) {
+  const startText = x.vortrag
+    ? `${Number(x.vortrag.betrag) >= 0 ? "Rückstand" : "Guthaben"} ${euro(Math.abs(Number(x.vortrag.betrag)))} zum ${datum(x.vortrag.stichtag)}`
+    : "keiner";
+  if (!edit)
+    return (
+      <div className="rounded-xl border p-4">
+        <div className="flex items-center justify-between gap-2">
+          <span className="font-semibold">Mieterkonto</span>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() =>
+              setEdit({
+                id: x.assignmentId,
+                zahltag: x.zahltag ? String(x.zahltag) : "",
+                startDatum: x.vortrag?.stichtag ?? "",
+                startSaldo: x.vortrag ? String(x.vortrag.betrag).replace(".", ",") : "",
+              })
+            }
+          >
+            Ändern
+          </Button>
+        </div>
+        <dl className="mt-1 grid grid-cols-[110px_1fr] gap-x-3 gap-y-1 text-sm">
+          <dt className="text-muted-foreground">Einheiten</dt>
+          <dd>{x.einheit || "–"}</dd>
+          <dt className="text-muted-foreground">Zahltag</dt>
+          <dd>{x.zahltag ? `${x.zahltag}. des Monats` : "3. Werktag (gesetzlich)"}</dd>
+          <dt className="text-muted-foreground">Startsaldo</dt>
+          <dd>{startText}</dd>
+        </dl>
+      </div>
+    );
+  return (
+    <div className="space-y-3 rounded-xl border p-4">
+      <div className="font-semibold">Mieterkonto ändern</div>
+      <label className="block space-y-1.5 text-xs text-muted-foreground">
+        Vereinbarter Zahltag (leer = 3. Werktag)
+        <Input
+          type="number"
+          min={1}
+          max={31}
+          inputMode="numeric"
+          placeholder="z. B. 15"
+          value={edit.zahltag}
+          onChange={(e) => setEdit({ ...edit, zahltag: e.target.value })}
+          className="h-10 w-32 text-sm text-foreground"
+        />
+      </label>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="block space-y-1.5 text-xs text-muted-foreground">
+          Startsaldo in € (Rückstand positiv, Guthaben mit Minus)
+          <Input
+            inputMode="decimal"
+            placeholder="z. B. 1.122,10"
+            value={edit.startSaldo}
+            onChange={(e) => setEdit({ ...edit, startSaldo: e.target.value })}
+            className="h-10 text-sm text-foreground"
+          />
+        </label>
+        <label className="block space-y-1.5 text-xs text-muted-foreground">
+          Stand zum (ab hier rechnet die App)
+          <Input type="date" value={edit.startDatum} onChange={(e) => setEdit({ ...edit, startDatum: e.target.value })} className="h-10 text-sm text-foreground" />
+        </label>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Der Startsaldo ist der offene Betrag aus der Zeit vor dem Stichtag, z. B. aus der bisherigen Excel-Liste. Ab dem Stichtag gleicht die App selbst ab. Zum Entfernen beide Felder leeren.
+      </p>
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          disabled={!!arbeitet || (!!edit.startSaldo.trim() !== !!edit.startDatum)}
+          onClick={() => speichern(edit)}
+        >
+          {arbeitet === "konto" && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
+          Speichern &amp; neu abgleichen
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => setEdit(null)}>
+          Abbrechen
+        </Button>
+      </div>
     </div>
   );
 }

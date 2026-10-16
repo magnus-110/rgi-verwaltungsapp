@@ -13,13 +13,20 @@
 //  - "pruefen"        {}                              → Abgleich + Mahnungen planen (ohne Versand)
 //  - "lauf"           { token }                       → täglich 8:00: pruefen + Versand, falls eingeschaltet
 //
+//  - "mieter_einstellungen" { assignmentId, zahltag?, startDatum?, startSaldo? }
+//
 // Die App kündigt nie selbst und verschickt nie per Post. Ab zwei
 // Monatsmieten Rückstand entsteht eine Aufgabe „Kündigung prüfen".
+//
+// Mieterkonto: Alle Einheiten eines Mieters im selben Objekt (Wohnung,
+// Garage, Stellplätze) werden zu einem Konto zusammengefasst, damit eine
+// Sammelüberweisung zugeordnet werden kann. Ehemalige Mieter bleiben mit
+// offenem Betrag sichtbar, werden aber nie automatisch gemahnt.
 
 import { createClient } from "npm:@supabase/supabase-js@2.52.1";
 import nodemailer from "npm:nodemailer@6.9.16";
 import { requireAdmin } from "../_shared/require-admin.ts";
-import { abgleich, naechsteStufe, plusTage, schreiben, type Ergebnis, type Stufe, type Zahlung } from "../_shared/miete.ts";
+import { abgleich, naechsteStufe, plusTage, schreiben, type Ergebnis, type Stufe, type Vortrag, type Zahlung } from "../_shared/miete.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -92,6 +99,27 @@ Deno.serve(async (req) => {
       return json({ ok: true });
     }
     if (aktion === "senden") return json(await senden(admin, String(body.caseId)));
+    if (aktion === "mieter_einstellungen") {
+      const upd: any = {};
+      if ("zahltag" in body) {
+        const t = body.zahltag === null || body.zahltag === "" ? null : Math.round(Number(body.zahltag));
+        if (t !== null && (!Number.isFinite(t) || t < 1 || t > 31)) return json({ error: "Zahltag muss zwischen 1 und 31 liegen" }, 400);
+        upd.mk_zahltag = t;
+      }
+      if ("startDatum" in body || "startSaldo" in body) {
+        const datum = body.startDatum ? String(body.startDatum).slice(0, 10) : null;
+        const saldo = body.startSaldo === null || body.startSaldo === "" || body.startSaldo === undefined ? null : Number(body.startSaldo);
+        if (saldo !== null && !Number.isFinite(saldo)) return json({ error: "Startsaldo ist keine Zahl" }, 400);
+        if ((datum && saldo === null) || (!datum && saldo !== null)) return json({ error: "Startsaldo braucht Betrag und Stichtag" }, 400);
+        upd.mk_start_datum = datum;
+        upd.mk_start_saldo = saldo;
+      }
+      if (!Object.keys(upd).length) return json({ error: "Nichts zu speichern" }, 400);
+      const { data: a, error } = await admin.from("contact_building_assignments").update(upd).eq("id", body.assignmentId).select("building_id").single();
+      if (error || !a) return json({ error: error?.message ?? "Mieter nicht gefunden" }, 404);
+      await pruefen(admin, a.building_id, String(body.assignmentId));
+      return json({ ok: true });
+    }
     if (aktion === "einstellungen") {
       const upd: any = { updated_at: new Date().toISOString() };
       if (typeof body.auto_versand === "boolean") upd.auto_versand = body.auto_versand;
@@ -118,7 +146,11 @@ function infoArt(grund: string): string {
 // ── Daten laden ─────────────────────────────────────────────────────────────
 
 interface Mieter {
-  assignmentId: string;
+  assignmentId: string; // Haupt-Zuordnung (Schlüssel für Mahnfälle und Infos)
+  assignmentIds: string[]; // alle Einheiten dieses Mieters im Objekt
+  ehemalig: boolean;
+  zahltag: number | null;
+  vortrag: Vortrag | null;
   buildingId: string;
   haus: string;
   contactId: string;
@@ -141,17 +173,23 @@ async function ladeMieter(admin: any, buildingId: string | null): Promise<{ miet
   const ids = (haeuser ?? []).map((h: any) => h.id);
   if (!ids.length) return { mieter: [], haeuser: [] };
 
-  const { data: zuordnungen } = await admin
+  const h = heute();
+  const vor12 = plusTage(h, -366);
+  const { data: alleZuordnungen } = await admin
     .from("contact_building_assignments")
     .select(
-      "id, building_id, contact_id, unit_number, usage_since, valid_from, iban_override, emails_override, salutation_override, first_name_override, last_name_override, company_name_override, " +
+      "id, building_id, contact_id, unit_number, usage_since, valid_from, valid_to, is_active, mk_zahltag, mk_start_datum, mk_start_saldo, iban_override, emails_override, salutation_override, first_name_override, last_name_override, company_name_override, " +
         "contacts(id, user_id, salutation, first_name, last_name, company_name, short_name), contact_bank_accounts!contact_building_assignments_bank_account_id_fkey(iban)",
     )
     .in("building_id", ids)
-    .eq("is_active", true)
     .eq("role_in_building", "mieter");
-  const aIds = (zuordnungen ?? []).map((a: any) => a.id);
-  const cIds = [...new Set((zuordnungen ?? []).map((a: any) => a.contact_id))];
+  // aktuell = aktiv und nicht ausgelaufen; ehemalige nur mit Startsaldo oder Auszug in den letzten 12 Monaten
+  const aktuell = (a: any) => a.is_active && !(a.valid_to && a.valid_to < h);
+  const zuordnungen = (alleZuordnungen ?? []).filter(
+    (a: any) => aktuell(a) || a.mk_start_saldo != null || (a.valid_to && a.valid_to >= vor12),
+  );
+  const aIds = zuordnungen.map((a: any) => a.id);
+  const cIds = [...new Set(zuordnungen.map((a: any) => a.contact_id))];
   if (!aIds.length) return { mieter: [], haeuser: haeuser ?? [] };
 
   const blocks = async (table: string, sel: string, col: string, werte: string[]) => {
@@ -169,7 +207,32 @@ async function ladeMieter(admin: any, buildingId: string | null): Promise<{ miet
     blocks("contact_bank_accounts", "contact_id, iban", "contact_id", cIds as string[]),
   ]);
 
-  const mieter = (zuordnungen ?? []).map((a: any): Mieter => {
+  // Kosten einer Einheit enden spätestens mit deren Ende; eine beendete Einheit
+  // ohne Enddatum trägt nur noch ihren Startsaldo
+  const kostenVon = (a: any) => {
+    if (!aktuell(a) && !a.valid_to) return [];
+    return kosten
+      .filter((k) => k.assignment_id === a.id)
+      .map((k) => (a.valid_to && (!k.valid_to || k.valid_to > a.valid_to) ? { ...k, valid_to: a.valid_to } : k));
+  };
+
+  // je Objekt und Kontakt ein Mieterkonto
+  const gruppen = new Map<string, any[]>();
+  for (const a of zuordnungen) {
+    const key = `${a.building_id}|${a.contact_id}`;
+    gruppen.set(key, [...(gruppen.get(key) ?? []), a]);
+  }
+
+  const mieter: Mieter[] = [];
+  for (const liste of gruppen.values()) {
+    // Haupt-Zuordnung: aktuell vor ehemalig, dann die älteste (meist die Wohnung) – stabil, damit Mahnfälle nicht springen
+    liste.sort(
+      (x: any, y: any) =>
+        Number(aktuell(y)) - Number(aktuell(x)) ||
+        String(x.usage_since || x.valid_from || "9999").localeCompare(String(y.usage_since || y.valid_from || "9999")) ||
+        String(x.id).localeCompare(String(y.id)),
+    );
+    const a = liste[0];
     const c = a.contacts ?? {};
     const firma = a.company_name_override || c.company_name;
     const vor = a.first_name_override || c.first_name;
@@ -183,31 +246,49 @@ async function ladeMieter(admin: any, buildingId: string | null): Promise<{ miet
         : /herr/i.test(anredeWort ?? "")
           ? `Sehr geehrter Herr ${nach ?? name}`
           : "Sehr geehrte Damen und Herren";
-    const eigeneMails = Array.isArray(a.emails_override) && a.emails_override.length
-      ? a.emails_override.map((e: any) => (typeof e === "string" ? e : e?.email)).filter(Boolean)
+    const overrideMails = liste.flatMap((z: any) =>
+      Array.isArray(z.emails_override) ? z.emails_override.map((e: any) => (typeof e === "string" ? e : e?.email)).filter(Boolean) : [],
+    );
+    const eigeneMails = overrideMails.length
+      ? overrideMails
       : emails.filter((e) => e.contact_id === a.contact_id).sort((x, y) => Number(y.is_primary) - Number(x.is_primary)).map((e) => e.email);
-    const ibans = [a.iban_override, a.contact_bank_accounts?.iban, ...konten.filter((k) => k.contact_id === a.contact_id).map((k) => k.iban)]
+    const ibans = [
+      ...liste.flatMap((z: any) => [z.iban_override, z.contact_bank_accounts?.iban]),
+      ...konten.filter((k) => k.contact_id === a.contact_id).map((k) => k.iban),
+    ]
       .map(cleanIban)
       .filter((i) => i.length >= 15);
-    const eigeneKosten = kosten.filter((k) => k.assignment_id === a.id);
+    const eigeneKosten = liste.flatMap(kostenVon);
     const ersterKosten = eigeneKosten.map((k) => k.valid_from).filter(Boolean).sort()[0] ?? null;
-    return {
+    const beginne = liste.map((z: any) => z.usage_since || z.valid_from).filter(Boolean).sort();
+    const einheiten = [...new Set(liste.map((z: any) => z.unit_number).filter(Boolean))].sort((x: any, y: any) =>
+      String(x).localeCompare(String(y), "de", { numeric: true }),
+    );
+    // Startsaldo und Zahltag: von der Haupt-Zuordnung, sonst von einer anderen Einheit
+    const mitStart = liste.find((z: any) => z.mk_start_datum && z.mk_start_saldo != null);
+    const zahltag = liste.map((z: any) => z.mk_zahltag).find((t: any) => t != null) ?? null;
+    const gIds = liste.map((z: any) => z.id);
+    mieter.push({
       assignmentId: a.id,
+      assignmentIds: gIds,
+      ehemalig: !liste.some(aktuell),
+      zahltag: zahltag != null ? Number(zahltag) : null,
+      vortrag: mitStart ? { stichtag: mitStart.mk_start_datum, betrag: Number(mitStart.mk_start_saldo) } : null,
       buildingId: a.building_id,
-      haus: (haeuser ?? []).find((h: any) => h.id === a.building_id)?.name ?? "",
+      haus: (haeuser ?? []).find((hh: any) => hh.id === a.building_id)?.name ?? "",
       contactId: a.contact_id,
       userId: c.user_id ?? null,
       name,
       anrede,
-      einheit: a.unit_number ?? "",
+      einheit: einheiten.join(" + "),
       ibans: [...new Set(ibans)],
       nachname: norm(firma || nach || name),
       emails: [...new Set(eigeneMails as string[])],
-      beginn: a.usage_since || a.valid_from || ersterKosten,
+      beginn: beginne[0] || ersterKosten,
       kosten: eigeneKosten,
-      infos: infos.filter((i) => i.assignment_id === a.id && (!i.gueltig_bis || i.gueltig_bis >= heute())),
-    };
-  });
+      infos: infos.filter((i) => gIds.includes(i.assignment_id) && (!i.gueltig_bis || i.gueltig_bis >= h)),
+    });
+  }
   return { mieter, haeuser: haeuser ?? [] };
 }
 
@@ -241,9 +322,9 @@ async function ladeZahlungen(admin: any, mieter: Mieter[], ab: string) {
     for (let seite = 0; seite < 20; seite++) {
       const { data } = await admin
         .from("bank_transactions")
-        .select("id, booking_date, amount, debtor_iban, debtor_name, purpose")
+        .select("id, booking_date, amount, debtor_iban, debtor_name, creditor_iban, creditor_name, purpose")
         .eq("building_id", hausId)
-        .gt("amount", 0)
+        .neq("amount", 0)
         .gte("booking_date", ab)
         .order("booking_date")
         .range(seite * 1000, seite * 1000 + 999);
@@ -251,9 +332,12 @@ async function ladeZahlungen(admin: any, mieter: Mieter[], ab: string) {
       if (!data || data.length < 1000) break;
     }
     for (const t of alle) {
-      const iban = cleanIban(t.debtor_iban);
+      // Eingang: Zahler ist der Mieter. Ausgang (Rückzahlung, zurückgegebene
+      // Lastschrift): Empfänger ist der Mieter – nur über die IBAN, nie über den Namen.
+      const eingang = Number(t.amount) > 0;
+      const iban = cleanIban(eingang ? t.debtor_iban : t.creditor_iban);
       let treffer = iban ? liste.filter((m) => m.ibans.includes(iban)) : [];
-      if (treffer.length !== 1) {
+      if (treffer.length !== 1 && eingang) {
         const text = norm(`${t.debtor_name ?? ""} ${t.purpose ?? ""}`);
         treffer = liste.filter((m) => m.nachname.length >= 4 && text.includes(m.nachname));
         // mehrere gleichnamige? Einheit im Verwendungszweck entscheidet
@@ -265,7 +349,10 @@ async function ladeZahlungen(admin: any, mieter: Mieter[], ab: string) {
       }
       if (treffer.length === 1) {
         const id = treffer[0].assignmentId;
-        zahlungen.set(id, [...(zahlungen.get(id) ?? []), { id: t.id, datum: t.booking_date, betrag: Number(t.amount), text: t.purpose ?? t.debtor_name ?? "" }]);
+        zahlungen.set(id, [
+          ...(zahlungen.get(id) ?? []),
+          { id: t.id, datum: t.booking_date, betrag: Number(t.amount), text: t.purpose ?? (eingang ? t.debtor_name : t.creditor_name) ?? "" },
+        ]);
       }
     }
   }
@@ -274,8 +361,9 @@ async function ladeZahlungen(admin: any, mieter: Mieter[], ab: string) {
 
 function zeitraum(m: Mieter, datenAb: string | undefined, h: string) {
   const vor12 = `${Number(h.slice(0, 4)) - 1}-${h.slice(5, 7)}`;
-  const kandidaten = [vor12];
-  if (m.beginn) kandidaten.push(m.beginn.slice(0, 7));
+  // Mit Startsaldo beginnt die Kontrolle am Stichtag (auch wenn er länger zurückliegt)
+  const kandidaten = [m.vortrag ? m.vortrag.stichtag.slice(0, 7) : vor12];
+  if (m.beginn && !m.vortrag) kandidaten.push(m.beginn.slice(0, 7));
   if (datenAb) kandidaten.push(datenAb.slice(0, 7));
   // erster vollständiger Monat mit Kontodaten
   if (datenAb && datenAb.slice(8, 10) !== "01") {
@@ -290,11 +378,12 @@ function zeitraum(m: Mieter, datenAb: string | undefined, h: string) {
 async function rechne(admin: any, buildingId: string | null) {
   const { mieter, haeuser } = await ladeMieter(admin, buildingId);
   const h = heute();
-  const ab = `${Number(h.slice(0, 4)) - 1}-${h.slice(5, 7)}-01`;
+  const starts = mieter.map((m) => m.vortrag?.stichtag).filter(Boolean).sort() as string[];
+  const ab = [`${Number(h.slice(0, 4)) - 1}-${h.slice(5, 7)}-01`, starts[0] ? `${starts[0].slice(0, 7)}-01` : null].filter(Boolean).sort()[0] as string;
   const { zahlungen, datenAb, datenBis } = await ladeZahlungen(admin, mieter, ab);
   const { data: e } = await admin.from("mietkontrolle_einstellungen").select("*").eq("id", 1).single();
   const ergebnisse = mieter
-    .filter((m) => m.kosten.length > 0)
+    .filter((m) => m.kosten.length > 0 || m.vortrag)
     .map((m) => {
       // Ohne Kontoauszüge kein Abgleich (sonst wäre jeder Mieter „offen");
       // gerechnet wird nur bis zum letzten Tag mit Kontodaten.
@@ -310,6 +399,8 @@ async function rechne(admin: any, buildingId: string | null) {
         bisMonat: z.bisMonat,
         heute: stichtag,
         toleranz: Number(e?.toleranz_euro ?? 1),
+        zahltag: m.zahltag,
+        vortrag: m.vortrag,
       });
       return { m, ergebnis, zahlungen: zahlungen.get(m.assignmentId) ?? [], ohneDaten, datenAlt, datenBis: bis ?? null };
     });
@@ -320,7 +411,10 @@ async function rechne(admin: any, buildingId: string | null) {
 async function kiPruefung(m: Mieter, e: Ergebnis): Promise<{ mahnen: boolean; begruendung: string; am: string } | null> {
   const key = Deno.env.get("MISTRAL_API_KEY");
   if (!key || !m.infos.length) return null;
-  const monate = e.offeneMonate.map((x) => `${x.monat}: Soll ${x.soll.toFixed(2)} €, bezahlt ${x.bezahlt.toFixed(2)} €`).join("; ");
+  const monate = [
+    ...(e.vortragOffen > 0 && m.vortrag ? [`Rückstand aus der Zeit vor dem ${m.vortrag.stichtag}: ${e.vortragOffen.toFixed(2)} €`] : []),
+    ...e.offeneMonate.map((x) => `${x.monat}: Soll ${x.soll.toFixed(2)} €, bezahlt ${x.bezahlt.toFixed(2)} €`),
+  ].join("; ");
   const infos = m.infos.map((i) => `${i.created_at.slice(0, 10)} (${i.art}): ${i.text}`).join("\n");
   try {
     const res = await fetch("https://api.mistral.ai/v1/chat/completions", {
@@ -339,7 +433,7 @@ async function kiPruefung(m: Mieter, e: Ergebnis): Promise<{ mahnen: boolean; be
               "laufender Widerspruch gegen genau diese Forderung; vereinbarter späterer Zahltag; angekündigte Zahlung mit Datum in der Zukunft). " +
               "Allgemeine oder abgelaufene Infos erklären nichts. Antworte nur als JSON: {\"mahnen\": true|false, \"begruendung\": \"ein bis zwei kurze Sätze auf Deutsch\"}.",
           },
-          { role: "user", content: `Heute: ${heute()}\nMieter: ${m.name}, ${m.haus} ${m.einheit}\nOffen: ${e.rueckstand.toFixed(2)} € (${monate})\nHinterlegte Infos:\n${infos}` },
+          { role: "user", content: `Heute: ${heute()}\nMieter: ${m.name}, ${m.haus} ${m.einheit}${m.zahltag ? ` (vereinbarter Zahltag: ${m.zahltag}. des Monats)` : ""}\nOffen: ${e.rueckstand.toFixed(2)} € (${monate})\nHinterlegte Infos:\n${infos}` },
         ],
       }),
     });
@@ -364,7 +458,7 @@ async function pruefen(admin: any, buildingId: string | null, nurAssignment?: st
   let erledigt = 0;
   const ohneAktuelleDaten: string[] = [];
   for (const { m, ergebnis, ohneDaten, datenAlt } of ergebnisse) {
-    if (nurAssignment && m.assignmentId !== nurAssignment) continue;
+    if (nurAssignment && !m.assignmentIds.includes(nurAssignment)) continue;
     // ohne aktuelle Kontodaten wird nichts geplant und nichts erledigt
     if (ohneDaten || datenAlt) {
       ohneAktuelleDaten.push(m.assignmentId);
@@ -373,7 +467,7 @@ async function pruefen(admin: any, buildingId: string | null, nurAssignment?: st
     const { data: faelle } = await admin
       .from("dunning_cases")
       .select("*")
-      .eq("assignment_id", m.assignmentId)
+      .in("assignment_id", m.assignmentIds)
       .order("created_at", { ascending: false })
       .limit(20);
     const offen = (faelle ?? []).find((f: any) => ["geplant", "ausgesetzt", "fehler"].includes(f.status));
@@ -381,6 +475,13 @@ async function pruefen(admin: any, buildingId: string | null, nurAssignment?: st
     // eine Mahnserie endet mit dem Ausgleich: danach beginnt sie wieder bei der Erinnerung
     const letzteErledigt = (faelle ?? []).find((f: any) => f.status === "erledigt");
     const letzte = versendet.find((f: any) => !letzteErledigt || f.versendet_am > letzteErledigt.updated_at);
+
+    // ehemalige Mieter: nie automatisch mahnen, offene Planung zurücknehmen
+    if (m.ehemalig) {
+      if (offen && offen.status !== "ausgesetzt")
+        await admin.from("dunning_cases").update({ status: "ausgesetzt", ausgesetzt_grund: "Ehemaliger Mieter – keine automatische Mahnung", updated_at: new Date().toISOString() }).eq("id", offen.id);
+      continue;
+    }
 
     if (ergebnis.rueckstand <= 0) {
       if (offen) {
@@ -402,7 +503,10 @@ async function pruefen(admin: any, buildingId: string | null, nurAssignment?: st
     });
     if (!plan) continue;
 
-    const posten = ergebnis.offeneMonate.map((x) => ({ monat: x.monat, soll: x.soll, bezahlt: x.bezahlt, offen: Math.round((x.soll - x.bezahlt) * 100) / 100 }));
+    const posten = [
+      ...(ergebnis.vortragOffen > 0 ? [{ monat: "vortrag", soll: ergebnis.vortragOffen, bezahlt: 0, offen: ergebnis.vortragOffen }] : []),
+      ...ergebnis.offeneMonate.map((x) => ({ monat: x.monat, soll: x.soll, bezahlt: x.bezahlt, offen: Math.round((x.soll - x.bezahlt) * 100) / 100 })),
+    ];
     const betragGeaendert = !offen || Math.abs(Number(offen.betrag) - ergebnis.rueckstand) > 0.01;
     let ki = offen?.ki_pruefung ?? null;
     if (m.infos.length && (kiNeu || betragGeaendert || !ki)) ki = await kiPruefung(m, ergebnis);
@@ -477,7 +581,7 @@ async function vorschau(admin: any, caseId: string) {
   const { data: f } = await admin.from("dunning_cases").select("*").eq("id", caseId).single();
   if (!f) throw new Error("Mahnung nicht gefunden");
   const { mieter } = await ladeMieter(admin, f.building_id);
-  const m = mieter.find((x) => x.assignmentId === f.assignment_id);
+  const m = mieter.find((x) => x.assignmentIds.includes(f.assignment_id));
   if (!m) throw new Error("Mieter nicht gefunden");
   const offen = (f.posten ?? []).map((p: any) => ({ monat: p.monat, faellig: "", soll: p.soll, bezahlt: p.bezahlt, bezahltAm: null, status: "offen" as const }));
   const s = schreiben({ stufe: f.stufe, anrede: m.anrede, offen, frist: f.frist_bis ?? plusTage(heute(), 10), objekt: `${m.haus}${m.einheit ? `, ${m.einheit}` : ""}` });
@@ -496,7 +600,7 @@ async function senden(admin: any, caseId: string): Promise<{ ok: boolean; fehler
 
   const v = await vorschau(admin, caseId);
   const { mieter } = await ladeMieter(admin, f.building_id);
-  const m = mieter.find((x) => x.assignmentId === f.assignment_id)!;
+  const m = mieter.find((x) => x.assignmentIds.includes(f.assignment_id))!;
   const kanaele: string[] = [];
   let fehlerText: string | null = null;
 
@@ -571,15 +675,17 @@ async function emailSenden(admin: any, accountId: string, an: string, betreff: s
 
 async function uebersicht(admin: any, buildingId: string | null) {
   const { ergebnisse, haeuser, einstellungen } = await rechne(admin, buildingId);
-  const ids = ergebnisse.map((x) => x.m.assignmentId);
+  const ids = ergebnisse.flatMap((x) => x.m.assignmentIds);
   const faelle: any[] = [];
   for (let i = 0; i < ids.length; i += 150) {
     const { data } = await admin.from("dunning_cases").select("*").in("assignment_id", ids.slice(i, i + 150)).in("status", ["geplant", "ausgesetzt", "fehler"]);
     faelle.push(...(data ?? []));
   }
   const mieter = ergebnisse
+    // ehemalige nur, solange noch etwas offen ist (oder ein Guthaben besteht)
+    .filter(({ m, ergebnis, ohneDaten }) => !m.ehemalig || (!ohneDaten && (ergebnis.rueckstand > 0 || ergebnis.guthaben > 0)) || (ohneDaten && !!m.vortrag))
     .map(({ m, ergebnis, zahlungen, ohneDaten, datenAlt, datenBis }) => {
-      const fall = faelle.find((f) => f.assignment_id === m.assignmentId) ?? null;
+      const fall = faelle.find((f) => m.assignmentIds.includes(f.assignment_id)) ?? null;
       return {
         assignmentId: m.assignmentId,
         buildingId: m.buildingId,
@@ -588,13 +694,18 @@ async function uebersicht(admin: any, buildingId: string | null) {
         einheit: m.einheit,
         email: m.emails[0] ?? null,
         app: !!m.userId,
+        assignmentIds: m.assignmentIds,
+        ehemalig: m.ehemalig,
+        zahltag: m.zahltag,
+        vortrag: m.vortrag,
+        vortragOffen: ohneDaten ? 0 : ergebnis.vortragOffen,
         sollMonat: ergebnis.sollMonat,
         rueckstand: ohneDaten ? 0 : ergebnis.rueckstand,
         guthaben: ergebnis.guthaben,
         monate: ergebnis.monate.slice(-12),
         infos: m.infos,
         fall,
-        letzteZahlungen: zahlungen.slice(-8).reverse(),
+        letzteZahlungen: [...zahlungen].sort((x, y) => x.datum.localeCompare(y.datum)).slice(-8).reverse(),
         ohneDaten,
         datenAlt,
         datenBis,
@@ -637,15 +748,15 @@ async function fallpaket(admin: any, assignmentId: string) {
   const { data: a } = await admin.from("contact_building_assignments").select("building_id").eq("id", assignmentId).single();
   if (!a) throw new Error("Mieter nicht gefunden");
   const { ergebnisse } = await rechne(admin, a.building_id);
-  const x = ergebnisse.find((r) => r.m.assignmentId === assignmentId);
+  const x = ergebnisse.find((r) => r.m.assignmentIds.includes(assignmentId));
   if (!x) throw new Error("Für diesen Mieter ist keine Soll-Miete hinterlegt");
-  const { data: faelle } = await admin.from("dunning_cases").select("stufe, status, betrag, geplant_am, versendet_am, ausgesetzt_grund, ki_pruefung").eq("assignment_id", assignmentId).order("created_at");
+  const { data: faelle } = await admin.from("dunning_cases").select("stufe, status, betrag, geplant_am, versendet_am, ausgesetzt_grund, ki_pruefung").in("assignment_id", x.m.assignmentIds).order("created_at");
   return {
     erstellt: new Date().toISOString(),
     hinweis: "Fallpaket aus der RGI-Verwaltungsapp für den Claude-Skill „Mieterkonto“. Enthält nur Daten dieses Mieters.",
-    mieter: { name: x.m.name, objekt: x.m.haus, einheit: x.m.einheit, mietbeginn: x.m.beginn },
+    mieter: { name: x.m.name, objekt: x.m.haus, einheit: x.m.einheit, mietbeginn: x.m.beginn, ehemalig: x.m.ehemalig, zahltag: x.m.zahltag ?? "3. Werktag", startsaldo: x.m.vortrag },
     soll: x.m.kosten,
-    abgleich: { rueckstand: x.ergebnis.rueckstand, guthaben: x.ergebnis.guthaben, monate: x.ergebnis.monate },
+    abgleich: { rueckstand: x.ergebnis.rueckstand, davonStartsaldo: x.ergebnis.vortragOffen, guthaben: x.ergebnis.guthaben, monate: x.ergebnis.monate },
     zahlungen: x.zahlungen,
     infos: x.m.infos,
     mahnungen: faelle ?? [],
