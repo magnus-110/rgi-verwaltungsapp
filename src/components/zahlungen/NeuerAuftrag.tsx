@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, Loader2, Plus, Trash2 } from "lucide-react";
+import { AlertCircle, ArrowDownLeft, ArrowUpRight, Check, CheckCircle2, ChevronLeft, Info, Landmark, Loader2, Plus, Repeat, ShieldCheck, Trash2 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -94,7 +95,12 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
       setZweck((z) => z || "Hausgeld {monat} - {einheit} {lage}");
       setTitel((t) => t || "Hausgeld");
     }
-    else if (quelle === "wirtschaftsplan") setQuelle("fest");
+    else {
+      if (quelle === "wirtschaftsplan") setQuelle("fest");
+      // Vorgaben der Dauerlastschrift nicht in andere Arten mitnehmen
+      setZweck((z) => (z.includes("{") ? "" : z));
+      setTitel((t) => (t === "Hausgeld" ? "" : t));
+    }
     if (art === "einzug") setFaellig(fruehesterEinzug());
     if (art === "ueberweisung") setFaellig(heuteIso());
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -242,332 +248,581 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
     }
   };
 
-  const typKarte = (wert: AuftragsArt, t: string, u: string) => (
-    <button
-      type="button"
-      onClick={() => setArt(wert)}
-      className={cn(
-        "flex-1 basis-56 rounded-xl border bg-card p-4 text-left transition-colors",
-        art === wert ? "border-primary ring-2 ring-primary/20" : "hover:border-foreground/30",
-      )}
-    >
-      <div className="text-base font-bold">{t}</div>
-      <div className="mt-1 text-sm text-muted-foreground">{u}</div>
-    </button>
-  );
+  const konto = auswahlListe.find((k) => k.building_id === buildingId && k.iban === kontoIban) ?? null;
+  const offenerFehler = fehler();
+  const rhythmusText = { monatlich: "Monat", quartal: "Quartal", halbjahr: "Halbjahr", jahr: "Jahr" }[rhythmus];
+  const datumDe = (d: string) => d.split("-").reverse().join(".");
+  const beispielZweck = (() => {
+    const e = ausgewaehlt[0] ?? eigentuemer[0];
+    const m = erster.slice(5, 7) + "/" + erster.slice(2, 4);
+    const einheit = e?.einheit ? (/^\d+$/.test(e.einheit) ? e.einheit.padStart(4, "0") : e.einheit) : "0002";
+    return (zweck || "Hausgeld {monat} - {einheit} {lage}")
+      .replace(/\{monat\}/g, m)
+      .replace(/\{einheit\}/g, einheit)
+      .replace(/\{lage\}/g, e?.lage ?? "EG links")
+      .replace(/\s+/g, " ")
+      .trim();
+  })();
+  const setzeEmpfaenger = (i: number, feld: keyof Empfaenger, wert: string) => setEmpfaenger((l) => l.map((x, j) => (j === i ? { ...x, [feld]: wert } : x)));
 
-  const quelleKnopf = (wert: Betragsquelle, t: string) => (
-    <button
-      type="button"
-      onClick={() => setQuelle(wert)}
-      className={cn("min-h-[40px] rounded-lg px-4 text-sm font-medium", quelle === wert ? "bg-background font-semibold shadow-sm" : "text-muted-foreground")}
-    >
-      {t}
-    </button>
-  );
+  const ARTEN: { wert: AuftragsArt; titel: string; text: string; icon: typeof ArrowUpRight }[] = [
+    { wert: "ueberweisung", titel: "Überweisung", text: "Geld an einen oder mehrere Empfänger", icon: ArrowUpRight },
+    { wert: "einzug", titel: "Einzug", text: "einmalige Lastschrift von Eigentümern", icon: ArrowDownLeft },
+    { wert: "dauerlastschrift", titel: "Dauerlastschrift", text: "regelmäßig, z. B. Hausgeld", icon: Repeat },
+  ];
 
   return (
-    <div className="mx-auto max-w-4xl space-y-5">
-      <button type="button" onClick={onAbbrechen} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-        <ChevronLeft className="h-4 w-4" /> Zahlungen
-      </button>
-      <h1 className="text-2xl font-bold md:text-3xl">Neuer Auftrag</h1>
-
-      <div className="flex flex-wrap gap-3" role="group" aria-label="Art des Auftrags">
-        {typKarte("ueberweisung", "Überweisung", "einmalig an einen oder mehrere Empfänger")}
-        {typKarte("einzug", "Einzug", "einmalige Lastschrift von einem oder mehreren Eigentümern")}
-        {typKarte("dauerlastschrift", "Dauerlastschrift", "regelmäßig, z. B. Hausgeld jeden Monat")}
+    <div className="mx-auto w-full min-w-0 max-w-6xl space-y-6">
+      <div>
+        <button type="button" onClick={onAbbrechen} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+          <ChevronLeft className="h-4 w-4" /> Zahlungen
+        </button>
+        <h1 className="mt-2 text-2xl font-bold md:text-3xl">Neuer Auftrag</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Alles landet zuerst in der Freigabe – Geld bewegt sich erst mit deiner TAN.</p>
       </div>
 
-      <section className="space-y-5 rounded-xl border bg-card p-5 md:p-6">
-        <label className="block space-y-1.5 text-sm font-medium">
-          Liegenschaft und Konto
-          <Select
-            value={kontoIban ? `${buildingId}|${kontoIban}` : ""}
-            onValueChange={(v) => {
-              const [b, i] = v.split("|");
-              setBuildingId(b);
-              setKontoIban(i);
-            }}
-          >
-            <SelectTrigger className="h-11">
-              <SelectValue placeholder="Konto wählen …" />
-            </SelectTrigger>
-            <SelectContent>
-              {auswahlListe.map((k) => (
-                <SelectItem key={`${k.building_id}|${k.iban}`} value={`${k.building_id}|${k.iban}`}>
-                  {k.haus} · {k.display_name || "Konto"} ({bankName(k.iban, null)}) · {ibanFormatiert(k.iban)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </label>
+      {/* Art */}
+      <div className="grid gap-3 sm:grid-cols-3" role="radiogroup" aria-label="Art des Auftrags">
+        {ARTEN.map(({ wert, titel: t, text, icon: Icon }) => {
+          const aktiv = art === wert;
+          return (
+            <button
+              key={wert}
+              type="button"
+              role="radio"
+              aria-checked={aktiv}
+              onClick={() => setArt(wert)}
+              className={cn(
+                "group flex items-center gap-3 rounded-2xl border bg-card p-4 text-left transition-all",
+                aktiv ? "border-primary bg-primary/5 shadow-sm ring-1 ring-primary" : "hover:border-foreground/25 hover:shadow-sm",
+              )}
+            >
+              <span className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-xl", aktiv ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground group-hover:text-foreground")}>
+                <Icon className="h-5 w-5" />
+              </span>
+              <span className="min-w-0">
+                <span className="block font-semibold">{t}</span>
+                <span className="block text-xs text-muted-foreground">{text}</span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
 
-        <div className="space-y-1.5 text-sm font-medium">
-          Betrag
-          <div className="inline-flex flex-wrap gap-0.5 rounded-xl bg-muted p-1" role="group" aria-label="Betrag">
-            {art !== "dauerlastschrift" && quelleKnopf("fest", "Fester Betrag")}
-            {art !== "dauerlastschrift" && quelleKnopf("abrechnung", "Abrechnungsspitze je Eigentümer")}
-            {art === "dauerlastschrift" && quelleKnopf("wirtschaftsplan", "Hausgeld aus Wirtschaftsplan")}
-          </div>
-        </div>
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="min-w-0 space-y-5">
+          {/* 1 Konto */}
+          <Abschnitt nr={1} titel={istEinzug ? "Auf welches Konto?" : "Von welchem Konto?"}>
+            <Select
+              value={kontoIban ? `${buildingId}|${kontoIban}` : ""}
+              onValueChange={(v) => {
+                const [b, i] = v.split("|");
+                setBuildingId(b);
+                setKontoIban(i);
+              }}
+            >
+              <SelectTrigger className="h-auto min-h-[56px] w-full min-w-0 overflow-hidden py-2 text-left">
+                {konto ? (
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted">
+                      <Landmark className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="truncate font-medium">
+                        {konto.haus} · {konto.display_name || "Konto"}
+                      </div>
+                      <div className="truncate font-mono text-xs text-muted-foreground">
+                        {bankName(konto.iban, null)} · {ibanFormatiert(konto.iban)}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <span className="text-muted-foreground">Liegenschaft und Konto wählen …</span>
+                )}
+              </SelectTrigger>
+              <SelectContent>
+                {auswahlListe.map((k) => (
+                  <SelectItem key={`${k.building_id}|${k.iban}`} value={`${k.building_id}|${k.iban}`}>
+                    <span className="block font-medium">
+                      {k.haus} · {k.display_name || "Konto"}
+                    </span>
+                    <span className="block font-mono text-xs text-muted-foreground">
+                      {bankName(k.iban, null)} · {ibanFormatiert(k.iban)}
+                      {k.saldo != null && ` · ${euro(Number(k.saldo))}`}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Abschnitt>
 
-        {/* Überweisung, fester Betrag: Empfänger frei eintragen */}
-        {quelle === "fest" && art === "ueberweisung" && (
-          <div className="space-y-3">
-            {empfaenger.map((e, i) => (
-              <div key={i} className="grid gap-2 rounded-lg border p-3 md:grid-cols-[1.3fr_1.5fr_0.7fr_auto]">
-                <Input placeholder="Empfänger" value={e.name} onChange={(ev) => setEmpfaenger((l) => l.map((x, j) => (j === i ? { ...x, name: ev.target.value } : x)))} />
-                <Input placeholder="IBAN" value={e.iban} onChange={(ev) => setEmpfaenger((l) => l.map((x, j) => (j === i ? { ...x, iban: ev.target.value } : x)))} className="tabular-nums" />
-                <Input placeholder="Betrag €" inputMode="decimal" value={e.betrag} onChange={(ev) => setEmpfaenger((l) => l.map((x, j) => (j === i ? { ...x, betrag: ev.target.value } : x)))} className="text-right tabular-nums" />
-                <Button variant="ghost" size="icon" aria-label="Empfänger entfernen" disabled={empfaenger.length === 1} onClick={() => setEmpfaenger((l) => l.filter((_, j) => j !== i))}>
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-                <Input placeholder="Verwendungszweck (sonst der gemeinsame unten)" value={e.zweck} onChange={(ev) => setEmpfaenger((l) => l.map((x, j) => (j === i ? { ...x, zweck: ev.target.value } : x)))} className="md:col-span-3" />
-              </div>
-            ))}
-            <Button variant="outline" size="sm" onClick={() => setEmpfaenger((l) => [...l, leerEmpfaenger()])}>
-              <Plus className="h-4 w-4 mr-1" /> Weiterer Empfänger
-            </Button>
-          </div>
-        )}
-
-        {/* Einzug, fester Betrag: Eigentümer wählen */}
-        {quelle === "fest" && istEinzug && (
-          <div className="space-y-3">
-            <label className="block max-w-xs space-y-1.5 text-sm font-medium">
-              Betrag je Eigentümer (€)
-              <Input inputMode="decimal" placeholder="0,00" value={festBetrag} onChange={(e) => setFestBetrag(e.target.value)} className="text-right tabular-nums" />
-            </label>
-            <EigentuemerTabelle liste={eigentuemer} laedt={ladeEig} auswahl={auswahl} setAuswahl={setAuswahl} spalte="Wird eingezogen" wert={() => (Number.isFinite(zahl(festBetrag)) ? euro(zahl(festBetrag)) : "–")} />
-          </div>
-        )}
-
-        {/* Abrechnungsspitze je Eigentümer */}
-        {quelle === "abrechnung" && (
-          <div className="space-y-3">
-            <div className="rounded-lg bg-muted/50 px-3 py-2 text-sm">
-              Ergebnis der Jahresabrechnung je Eigentümer eintragen: <b>Nachzahlung positiv</b>, <b>Guthaben negativ</b> (mit Minus). Nachzahlungen werden per Lastschrift eingezogen.
-              {beschluss
-                ? <> Übernommen aus der Abrechnung{beschluss.jahr ? ` ${beschluss.jahr}` : ""} – bei Bedarf hier anpassen.</>
-                : buildingId ? " Noch keine Abrechnung übernommen (Finanzen › Abrechnung › „Für Zahlungen übernehmen“) – bis dahin bitte von Hand eintragen." : ""}
-            </div>
-            <label className="flex items-center gap-2 text-sm">
-              <Checkbox checked={guthabenAuszahlen} onCheckedChange={(v) => setGuthabenAuszahlen(!!v)} />
-              Guthaben auszahlen (sonst mit dem nächsten Hausgeld verrechnen)
-            </label>
-            <div className="overflow-x-auto rounded-lg border">
-              <table className="w-full min-w-[640px] text-sm">
-                <thead>
-                  <tr className="border-b bg-muted/30 text-left text-xs text-muted-foreground">
-                    <th className="px-3 py-2 font-medium">Eigentümer</th>
-                    <th className="px-3 py-2 font-medium">Mandat / IBAN</th>
-                    <th className="w-40 px-3 py-2 text-right font-medium">Ergebnis (€)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {eigentuemer.map((e) => (
-                    <tr key={e.assignmentId} className="border-b last:border-0">
-                      <td className="px-3 py-1.5">
-                        <b>{e.name}</b> <span className="text-muted-foreground">· {e.einheit}</span>
-                      </td>
-                      <td className="px-3 py-1.5">
-                        <MandatChip e={e} />
-                      </td>
-                      <td className="px-2 py-1.5">
-                        <Input
-                          inputMode="decimal"
-                          placeholder="0,00"
-                          value={ergebnis[e.assignmentId] ?? ""}
-                          onChange={(ev) => setErgebnis((x) => ({ ...x, [e.assignmentId]: ev.target.value }))}
-                          className="h-9 text-right tabular-nums"
-                        />
-                      </td>
-                    </tr>
+          {/* 2 Wer / Betrag */}
+          <Abschnitt
+            nr={2}
+            titel={art === "ueberweisung" && quelle === "fest" ? "An wen?" : art === "dauerlastschrift" ? "Wer zahlt Hausgeld?" : "Von wem und wie viel?"}
+            rechts={
+              art !== "dauerlastschrift" ? (
+                <div className="inline-flex rounded-full bg-muted p-1 text-sm" role="tablist" aria-label="Betrag">
+                  {(
+                    [
+                      ["fest", "Fester Betrag"],
+                      ["abrechnung", "Abrechnungsspitze"],
+                    ] as [Betragsquelle, string][]
+                  ).map(([w, t]) => (
+                    <button
+                      key={w}
+                      type="button"
+                      role="tab"
+                      aria-selected={quelle === w}
+                      onClick={() => setQuelle(w)}
+                      className={cn("rounded-full px-3.5 py-1.5 font-medium transition-colors", quelle === w ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground")}
+                    >
+                      {t}
+                    </button>
                   ))}
-                  {!eigentuemer.length && (
-                    <tr>
-                      <td colSpan={3} className="px-3 py-6 text-center text-muted-foreground">
-                        {buildingId ? (ladeEig ? "Lädt …" : "Keine Eigentümer hinterlegt") : "Bitte zuerst das Konto wählen"}
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+                </div>
+              ) : (
+                <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">Betrag aus dem Wirtschaftsplan</span>
+              )
+            }
+          >
+            {/* Überweisung an freie Empfänger */}
+            {quelle === "fest" && art === "ueberweisung" && (
+              <div className="space-y-3">
+                {empfaenger.map((e, i) => (
+                  <EmpfaengerZeile
+                    key={i}
+                    nr={i + 1}
+                    e={e}
+                    mehrere={empfaenger.length > 1}
+                    onAendern={(feld, wert) => setzeEmpfaenger(i, feld, wert)}
+                    onEntfernen={() => setEmpfaenger((l) => l.filter((_, j) => j !== i))}
+                  />
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setEmpfaenger((l) => [...l, leerEmpfaenger()])}
+                  className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed py-3 text-sm font-medium text-muted-foreground hover:border-foreground/30 hover:text-foreground"
+                >
+                  <Plus className="h-4 w-4" /> Weiteren Empfänger hinzufügen
+                </button>
+              </div>
+            )}
 
-        {/* Dauerlastschrift: Hausgeld aus dem Wirtschaftsplan */}
-        {quelle === "wirtschaftsplan" && (
-          <div className="space-y-3">
-            <div className="grid gap-3 sm:grid-cols-3">
-              <label className="space-y-1.5 text-sm font-medium">
-                Rhythmus
-                <Select value={rhythmus} onValueChange={(v) => setRhythmus(v as Rhythmus)}>
-                  <SelectTrigger className="h-11">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="monatlich">monatlich</SelectItem>
-                    <SelectItem value="quartal">vierteljährlich</SelectItem>
-                    <SelectItem value="halbjahr">halbjährlich</SelectItem>
-                    <SelectItem value="jahr">jährlich</SelectItem>
-                  </SelectContent>
-                </Select>
-              </label>
-              <label className="space-y-1.5 text-sm font-medium">
-                Einzug am Tag
-                <Select value={tag} onValueChange={setTag}>
-                  <SelectTrigger className="h-11">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Array.from({ length: 28 }, (_, i) => String(i + 1)).map((t) => (
-                      <SelectItem key={t} value={t}>
-                        {t}. des Monats
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </label>
-              <label className="space-y-1.5 text-sm font-medium">
-                Erster Einzug im Monat
-                <Input type="month" value={erster.slice(0, 7)} onChange={(e) => setErster(`${e.target.value}-01`)} className="h-11" />
-              </label>
-            </div>
-            <EigentuemerTabelle
-              liste={eigentuemer}
-              laedt={ladeEig}
-              auswahl={auswahl}
-              setAuswahl={setAuswahl}
-              spalte="Hausgeld / Einzug"
-              wert={(e) => euro(e.hausgeldMonat * { monatlich: 1, quartal: 3, halbjahr: 6, jahr: 12 }[rhythmus])}
-            />
-            <p className="text-sm text-muted-foreground">
-              Der Betrag kommt zu jedem Einzug aus dem dann gültigen Hausgeld (Wirtschaftsplan). Wird ein neuer Plan beschlossen und aktiviert, übernimmt der Auftrag die neuen Beträge von
-              selbst. Eigentümer ohne Mandat zahlen selbst und sind nicht ausgewählt.
-            </p>
-          </div>
-        )}
+            {/* Einzug mit festem Betrag */}
+            {quelle === "fest" && istEinzug && (
+              <div className="space-y-4">
+                <BetragFeld label="Betrag je Eigentümer" wert={festBetrag} onAendern={setFestBetrag} />
+                <EigentuemerListe
+                  liste={eigentuemer}
+                  laedt={ladeEig}
+                  ohneKonto={!buildingId}
+                  auswahl={auswahl}
+                  setAuswahl={setAuswahl}
+                  wert={() => (Number.isFinite(zahl(festBetrag)) && zahl(festBetrag) > 0 ? euro(zahl(festBetrag)) : "–")}
+                />
+              </div>
+            )}
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="space-y-1.5 text-sm font-medium">
-            Bezeichnung
-            <Input
-              placeholder={art === "dauerlastschrift" ? "Hausgeld" : art === "einzug" ? "z. B. Sonderumlage Dach" : "z. B. Erstattung Auslagen Beirat"}
-              value={titel}
-              onChange={(e) => setTitel(e.target.value)}
-              className="h-11"
-            />
-          </label>
-          {art !== "dauerlastschrift" && (
-            <label className="space-y-1.5 text-sm font-medium">
-              {istEinzug ? "Einzug am" : "Ausführen am"}
-              <Input type="date" value={faellig} min={istEinzug ? fruehesterEinzug() : heuteIso()} onChange={(e) => setFaellig(e.target.value)} className="h-11" />
-            </label>
-          )}
-          <label className="space-y-1.5 text-sm font-medium sm:col-span-2">
-            Verwendungszweck
-            <Input
-              placeholder={art === "dauerlastschrift" ? "Hausgeld {monat} - {einheit} {lage} → z. B. Hausgeld 09/26 - 0002 EG links" : "Text für den Kontoauszug"}
-              value={zweck}
-              onChange={(e) => setZweck(e.target.value)}
-              className="h-11"
-            />
-          </label>
+            {/* Abrechnungsspitze */}
+            {quelle === "abrechnung" && (
+              <div className="space-y-4">
+                <div className="flex gap-3 rounded-xl bg-muted/60 p-3 text-sm">
+                  <Info className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                  <div>
+                    {beschluss ? (
+                      <>
+                        Übernommen aus der Abrechnung{beschluss.jahr ? ` ${beschluss.jahr}` : ""}. <b>Nachzahlungen</b> werden eingezogen, <b>Guthaben</b> (mit Minus) überwiesen – bei Bedarf hier anpassen.
+                      </>
+                    ) : buildingId ? (
+                      <>Noch keine Abrechnung übernommen (Finanzen › Abrechnung › „Für Zahlungen übernehmen“). Bis dahin von Hand eintragen: Nachzahlung positiv, Guthaben mit Minus.</>
+                    ) : (
+                      <>Erst das Konto wählen – dann stehen hier die Ergebnisse der Jahresabrechnung.</>
+                    )}
+                  </div>
+                </div>
+                <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border p-3 text-sm">
+                  <span>
+                    <span className="block font-medium">Guthaben auszahlen</span>
+                    <span className="block text-xs text-muted-foreground">Aus: mit dem nächsten Hausgeld verrechnen</span>
+                  </span>
+                  <Switch checked={guthabenAuszahlen} onCheckedChange={setGuthabenAuszahlen} />
+                </label>
+                <div className="divide-y rounded-xl border">
+                  {eigentuemer.map((e) => {
+                    const v = zahl(ergebnis[e.assignmentId] ?? "");
+                    return (
+                      <div key={e.assignmentId} className="flex flex-wrap items-center gap-3 px-3 py-2.5">
+                        <Avatar name={e.name} />
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate font-medium">{e.name}</div>
+                          <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                            {e.einheit && <span>Einheit {e.einheit}</span>}
+                            <MandatChip e={e} />
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {Number.isFinite(v) && v !== 0 && (
+                            <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-semibold", v > 0 ? "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300" : "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300")}>
+                              {v > 0 ? "Einzug" : "Guthaben"}
+                            </span>
+                          )}
+                          <div className="relative w-32">
+                            <Input
+                              inputMode="decimal"
+                              placeholder="0,00"
+                              value={ergebnis[e.assignmentId] ?? ""}
+                              onChange={(ev) => setErgebnis((x) => ({ ...x, [e.assignmentId]: ev.target.value }))}
+                              className="h-10 pr-7 text-right tabular-nums"
+                              aria-label={`Ergebnis ${e.name}`}
+                            />
+                            <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">€</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {!eigentuemer.length && <Leer text={buildingId ? (ladeEig ? "Lädt …" : "Keine Eigentümer hinterlegt") : "Bitte zuerst das Konto wählen"} />}
+                </div>
+              </div>
+            )}
+
+            {/* Dauerlastschrift */}
+            {quelle === "wirtschaftsplan" && (
+              <div className="space-y-4">
+                <EigentuemerListe
+                  liste={eigentuemer}
+                  laedt={ladeEig}
+                  ohneKonto={!buildingId}
+                  auswahl={auswahl}
+                  setAuswahl={setAuswahl}
+                  wert={(e) => (e.hausgeldMonat > 0 ? euro(e.hausgeldMonat * { monatlich: 1, quartal: 3, halbjahr: 6, jahr: 12 }[rhythmus]) : "kein Hausgeld")}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Der Betrag kommt zu jedem Einzug aus dem dann gültigen Hausgeld. Wird ein neuer Wirtschaftsplan übernommen, zieht der Auftrag automatisch die neuen Beträge ein. Eigentümer ohne vollständiges Mandat sind nicht wählbar.
+                </p>
+              </div>
+            )}
+          </Abschnitt>
+
+          {/* 3 Wann & Text */}
+          <Abschnitt nr={3} titel={art === "dauerlastschrift" ? "Wann und mit welchem Text?" : "Wann und mit welchem Text?"}>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {art === "dauerlastschrift" ? (
+                <>
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <span className="text-sm font-medium">Rhythmus</span>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                      {(
+                        [
+                          ["monatlich", "monatlich"],
+                          ["quartal", "vierteljährlich"],
+                          ["halbjahr", "halbjährlich"],
+                          ["jahr", "jährlich"],
+                        ] as [Rhythmus, string][]
+                      ).map(([w, t]) => (
+                        <button
+                          key={w}
+                          type="button"
+                          onClick={() => setRhythmus(w)}
+                          className={cn("rounded-xl border px-3 py-2.5 text-sm font-medium transition-colors", rhythmus === w ? "border-primary bg-primary/5 text-primary" : "hover:border-foreground/25")}
+                        >
+                          {t}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <Feld label="Einzug am">
+                    <Select value={tag} onValueChange={setTag}>
+                      <SelectTrigger className="h-11">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Array.from({ length: 28 }, (_, i) => String(i + 1)).map((t) => (
+                          <SelectItem key={t} value={t}>
+                            {t}. des Monats
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Feld>
+                  <Feld label="Erster Einzug">
+                    <Input type="month" value={erster.slice(0, 7)} onChange={(e) => setErster(`${e.target.value}-01`)} className="h-11" />
+                  </Feld>
+                </>
+              ) : (
+                <Feld label={istEinzug ? "Einzug am" : "Ausführen am"} hinweis={istEinzug ? `frühestens ${datumDe(fruehesterEinzug())}` : "sofort nach der Freigabe"}>
+                  <Input type="date" value={faellig} min={istEinzug ? fruehesterEinzug() : heuteIso()} onChange={(e) => setFaellig(e.target.value)} className="h-11" />
+                </Feld>
+              )}
+              <Feld label="Bezeichnung" hinweis="nur für euch, erscheint in der Freigabe">
+                <Input
+                  placeholder={art === "dauerlastschrift" ? "Hausgeld" : art === "einzug" ? "z. B. Sonderumlage Dach" : "z. B. Erstattung Auslagen Beirat"}
+                  value={titel}
+                  onChange={(e) => setTitel(e.target.value)}
+                  className="h-11"
+                />
+              </Feld>
+              <Feld label="Verwendungszweck" hinweis={art === "dauerlastschrift" ? `Beispiel: ${beispielZweck}` : "steht auf dem Kontoauszug des Empfängers"} breit>
+                <Input
+                  placeholder={art === "dauerlastschrift" ? "Hausgeld {monat} - {einheit} {lage}" : "z. B. Re. Nr. 123, Auslagen"}
+                  value={zweck}
+                  onChange={(e) => setZweck(e.target.value)}
+                  className="h-11"
+                />
+              </Feld>
+            </div>
+          </Abschnitt>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 border-t pt-4">
-          <div className="flex-1 basis-60 text-base">
-            <b>
-              {posten.length} {posten.length === 1 ? "Posten" : "Posten"}
-              {summeAus > 0 && ` · ${euro(summeAus)} raus`}
-              {summeEin > 0 && ` · ${euro(summeEin)} Einzug`}
-              {art === "dauerlastschrift" && ` je ${{ monatlich: "Monat", quartal: "Quartal", halbjahr: "Halbjahr", jahr: "Jahr" }[rhythmus]}`}
-            </b>
+        {/* Zusammenfassung */}
+        <aside className="min-w-0 lg:sticky lg:top-4">
+          <div className="overflow-hidden rounded-2xl border bg-card shadow-sm">
+            <div className="border-b bg-muted/40 px-5 py-4">
+              <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Zusammenfassung</div>
+              <div className="mt-1 text-lg font-bold">{ARTEN.find((x) => x.wert === art)?.titel}</div>
+              <div className="text-sm text-muted-foreground">
+                {konto ? `${konto.haus} · ${konto.display_name || "Konto"}` : "Noch kein Konto gewählt"}
+              </div>
+            </div>
+            <div className="space-y-4 px-5 py-4">
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="text-sm text-muted-foreground">{art === "dauerlastschrift" ? `je ${rhythmusText}` : "Summe"}</span>
+                <span className="text-right">
+                  {summeAus > 0 && <span className="block text-2xl font-bold tabular-nums">{euro(summeAus)}</span>}
+                  {summeEin > 0 && <span className={cn("block font-bold tabular-nums", summeAus > 0 ? "text-base text-blue-700 dark:text-blue-300" : "text-2xl")}>{summeAus > 0 ? `+ ${euro(summeEin)} Einzug` : euro(summeEin)}</span>}
+                  {summeAus === 0 && summeEin === 0 && <span className="text-2xl font-bold tabular-nums text-muted-foreground">0,00 €</span>}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">{posten.length === 1 ? "1 Zahlung" : `${posten.length} Zahlungen`}</span>
+                <span className="text-muted-foreground">
+                  {art === "dauerlastschrift"
+                    ? `ab ${datumDe(`${erster.slice(0, 8)}${String(tag).padStart(2, "0")}`)}`
+                    : istEinzug
+                      ? `Einzug ${datumDe(faellig)}`
+                      : faellig <= heuteIso()
+                        ? "nach Freigabe"
+                        : `am ${datumDe(faellig)}`}
+                </span>
+              </div>
+              {posten.length > 0 && (
+                <ul className="space-y-1.5 border-t pt-3 text-sm">
+                  {posten.slice(0, 6).map((p, i) => (
+                    <li key={i} className="flex items-center justify-between gap-3">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", p.art === "einzug" ? "bg-blue-500" : "bg-primary")} />
+                        <span className="truncate">{p.name || "Ohne Namen"}</span>
+                      </span>
+                      <span className="shrink-0 tabular-nums text-muted-foreground">{Number.isFinite(p.betrag) && p.betrag > 0 ? euro(p.betrag) : "–"}</span>
+                    </li>
+                  ))}
+                  {posten.length > 6 && <li className="text-xs text-muted-foreground">und {posten.length - 6} weitere</li>}
+                </ul>
+              )}
+              {offenerFehler && (
+                <div className="flex gap-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950/50 dark:text-amber-200">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                  {offenerFehler}
+                </div>
+              )}
+              <Button onClick={anlegen} disabled={speichert || !!offenerFehler} className="h-12 w-full text-base">
+                {speichert ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
+                {art === "dauerlastschrift" ? "Dauerlastschrift anlegen" : "In die Freigabe"}
+              </Button>
+              <Button variant="ghost" onClick={onAbbrechen} className="w-full">
+                Abbrechen
+              </Button>
+              <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                {art === "dauerlastschrift" ? "Jeder Einzug erscheint rechtzeitig in der Freigabe und geht erst mit TAN raus." : "Nichts wird sofort ausgeführt – du gibst den Auftrag in der Freigabe per TAN frei."}
+              </p>
+            </div>
           </div>
-          <Button variant="outline" onClick={onAbbrechen}>
-            Abbrechen
-          </Button>
-          <Button onClick={anlegen} disabled={speichert}>
-            {speichert && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            {art === "dauerlastschrift" ? "Dauerlastschrift anlegen" : "In die Freigabe"}
-          </Button>
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+/** Nummerierter Abschnitt als Karte. */
+function Abschnitt({ nr, titel, rechts, children }: { nr: number; titel: string; rechts?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <section className="min-w-0 rounded-2xl border bg-card p-4 sm:p-5 md:p-6">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="flex items-center gap-2.5 text-base font-semibold">
+          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-foreground text-xs font-bold text-background">{nr}</span>
+          {titel}
+        </h2>
+        {rechts}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function Feld({ label, hinweis, breit, children }: { label: string; hinweis?: string; breit?: boolean; children: React.ReactNode }) {
+  return (
+    <label className={cn("block space-y-1.5", breit && "sm:col-span-2")}>
+      <span className="text-sm font-medium">{label}</span>
+      {children}
+      {hinweis && <span className="block text-xs text-muted-foreground">{hinweis}</span>}
+    </label>
+  );
+}
+
+function BetragFeld({ label, wert, onAendern }: { label: string; wert: string; onAendern: (v: string) => void }) {
+  return (
+    <label className="block max-w-[220px] space-y-1.5">
+      <span className="text-sm font-medium">{label}</span>
+      <span className="relative block">
+        <Input inputMode="decimal" placeholder="0,00" value={wert} onChange={(e) => onAendern(e.target.value)} className="h-12 pr-8 text-right text-lg font-semibold tabular-nums" />
+        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
+      </span>
+    </label>
+  );
+}
+
+function Avatar({ name }: { name: string }) {
+  const k = name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase())
+    .join("");
+  return <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground">{k || "?"}</span>;
+}
+
+function Leer({ text }: { text: string }) {
+  return <div className="px-4 py-8 text-center text-sm text-muted-foreground">{text}</div>;
+}
+
+/** Ein Empfänger einer Überweisung, mit IBAN-Prüfung und Bankname. */
+function EmpfaengerZeile({
+  nr, e, mehrere, onAendern, onEntfernen,
+}: {
+  nr: number;
+  e: Empfaenger;
+  mehrere: boolean;
+  onAendern: (feld: keyof Empfaenger, wert: string) => void;
+  onEntfernen: () => void;
+}) {
+  const [eigenerZweck, setEigenerZweck] = useState(!!e.zweck);
+  const iban = cleanIban(e.iban);
+  const ibanOk = iban.length >= 15 && ibanGueltig(iban);
+  const ibanFalsch = iban.length >= 15 && !ibanOk;
+  return (
+    <div className="rounded-xl border bg-background/50 p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Empfänger {mehrere ? nr : ""}</span>
+        {mehrere && (
+          <button type="button" onClick={onEntfernen} className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-destructive" aria-label="Empfänger entfernen">
+            <Trash2 className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+      <div className="grid gap-3 md:grid-cols-[1fr_160px]">
+        <Input placeholder="Name des Empfängers" value={e.name} onChange={(ev) => onAendern("name", ev.target.value)} className="h-11" aria-label="Empfänger" />
+        <span className="relative block">
+          <Input inputMode="decimal" placeholder="0,00" value={e.betrag} onChange={(ev) => onAendern("betrag", ev.target.value)} className="h-11 pr-8 text-right font-semibold tabular-nums" aria-label="Betrag" />
+          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
+        </span>
+        <div className="md:col-span-2">
+          <span className="relative block">
+            <Input
+              placeholder="IBAN"
+              value={e.iban}
+              onChange={(ev) => onAendern("iban", ev.target.value)}
+              className={cn("h-11 pr-9 font-mono tracking-tight", ibanFalsch && "border-destructive focus-visible:ring-destructive")}
+              aria-label="IBAN"
+            />
+            {ibanOk && <CheckCircle2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-green-600" />}
+            {ibanFalsch && <AlertCircle className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-destructive" />}
+          </span>
+          <span className={cn("mt-1 block text-xs", ibanFalsch ? "text-destructive" : "text-muted-foreground")}>
+            {ibanOk ? `${bankName(iban, null)} · ${ibanFormatiert(iban)}` : ibanFalsch ? "Die IBAN stimmt nicht – bitte prüfen" : " "}
+          </span>
         </div>
-      </section>
+        {eigenerZweck ? (
+          <Input placeholder="Eigener Verwendungszweck für diesen Empfänger" value={e.zweck} onChange={(ev) => onAendern("zweck", ev.target.value)} className="h-11 md:col-span-2" />
+        ) : (
+          <button type="button" onClick={() => setEigenerZweck(true)} className="justify-self-start text-sm font-medium text-primary hover:underline md:col-span-2">
+            + Eigener Verwendungszweck
+          </button>
+        )}
+      </div>
     </div>
   );
 }
 
 function MandatChip({ e }: { e: Eigentuemer }) {
   return mandatBereit(e.mandat) ? (
-    <span className="rounded bg-green-50 px-1.5 py-0.5 text-xs text-green-800 dark:bg-green-950 dark:text-green-200">Mandat · {ibanFormatiert(e.mandat!.iban)}</span>
+    <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-[11px] font-medium text-green-800 dark:bg-green-950 dark:text-green-200">
+      <CheckCircle2 className="h-3 w-3" /> Mandat
+    </span>
   ) : e.mandat ? (
-    <span className="rounded bg-amber-50 px-1.5 py-0.5 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-200">
-      {mandatVerfallen(e.mandat) ? "Mandat verfallen (36 Monate)" : "Mandat unvollständig"} – unter Gebäude › Mandate ergänzen
+    <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+      {mandatVerfallen(e.mandat) ? "Mandat verfallen" : "Mandat unvollständig"}
     </span>
   ) : e.iban ? (
-    <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">kein Mandat · {ibanFormatiert(e.iban)}</span>
+    <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">kein Mandat</span>
   ) : (
-    <span className="rounded bg-amber-50 px-1.5 py-0.5 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-200">keine IBAN</span>
+    <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-200">keine IBAN</span>
   );
 }
 
-function EigentuemerTabelle({
-  liste,
-  laedt,
-  auswahl,
-  setAuswahl,
-  spalte,
-  wert,
+/** Eigentümer zum Auswählen, mit „alle wählen" und Hinweis auf fehlende Mandate. */
+function EigentuemerListe({
+  liste, laedt, ohneKonto, auswahl, setAuswahl, wert,
 }: {
   liste: Eigentuemer[];
   laedt: boolean;
+  ohneKonto: boolean;
   auswahl: Record<string, boolean>;
   setAuswahl: (f: (x: Record<string, boolean>) => Record<string, boolean>) => void;
-  spalte: string;
   wert: (e: Eigentuemer) => string;
 }) {
+  const waehlbar = liste.filter((e) => mandatBereit(e.mandat));
+  const gewaehlt = waehlbar.filter((e) => auswahl[e.assignmentId]);
+  const alle = waehlbar.length > 0 && gewaehlt.length === waehlbar.length;
   return (
-    <div className="overflow-x-auto rounded-lg border">
-      <table className="w-full min-w-[640px] text-sm">
-        <thead>
-          <tr className="border-b bg-muted/30 text-left text-xs text-muted-foreground">
-            <th className="w-10 px-3 py-2" />
-            <th className="px-3 py-2 font-medium">Eigentümer</th>
-            <th className="px-3 py-2 font-medium">Mandat / IBAN</th>
-            <th className="px-3 py-2 text-right font-medium">{spalte}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {liste.map((e) => {
-            const ok = mandatBereit(e.mandat);
-            const an = !!auswahl[e.assignmentId] && ok;
-            return (
-              <tr key={e.assignmentId} className={cn("border-b last:border-0", !an && "text-muted-foreground")}>
-                <td className="px-3 py-1.5">
-                  <Checkbox checked={an} disabled={!ok} onCheckedChange={(v) => setAuswahl((x) => ({ ...x, [e.assignmentId]: !!v }))} aria-label={`${e.name} auswählen`} />
-                </td>
-                <td className="px-3 py-1.5">
-                  <b>{e.name}</b> <span className="text-muted-foreground">· {e.einheit}</span>
-                </td>
-                <td className="px-3 py-1.5">
+    <div className="overflow-hidden rounded-xl border">
+      <div className="flex items-center justify-between gap-3 border-b bg-muted/40 px-3 py-2">
+        <label className="flex items-center gap-2 text-sm font-medium">
+          <Checkbox
+            checked={alle}
+            disabled={!waehlbar.length}
+            onCheckedChange={(v) => setAuswahl((x) => ({ ...x, ...Object.fromEntries(waehlbar.map((e) => [e.assignmentId, !!v])) }))}
+            aria-label="Alle wählen"
+          />
+          Alle mit Mandat
+        </label>
+        <span className="text-xs text-muted-foreground">
+          {gewaehlt.length} von {liste.length} gewählt
+          {liste.length - waehlbar.length > 0 && ` · ${liste.length - waehlbar.length} ohne Mandat`}
+        </span>
+      </div>
+      <div className="max-h-[440px] divide-y overflow-y-auto">
+        {liste.map((e) => {
+          const ok = mandatBereit(e.mandat);
+          const an = !!auswahl[e.assignmentId] && ok;
+          return (
+            <label key={e.assignmentId} className={cn("flex items-center gap-3 px-3 py-2.5", ok ? "cursor-pointer hover:bg-muted/40" : "opacity-60")}>
+              <Checkbox checked={an} disabled={!ok} onCheckedChange={(v) => setAuswahl((x) => ({ ...x, [e.assignmentId]: !!v }))} aria-label={`${e.name} auswählen`} />
+              <Avatar name={e.name} />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-medium">{e.name}</span>
+                <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                  {e.einheit && <span>Einheit {e.einheit}{e.lage ? ` · ${e.lage}` : ""}</span>}
                   <MandatChip e={e} />
-                </td>
-                <td className="px-3 py-1.5 text-right font-semibold tabular-nums">{an ? wert(e) : "–"}</td>
-              </tr>
-            );
-          })}
-          {!liste.length && (
-            <tr>
-              <td colSpan={4} className="px-3 py-6 text-center text-muted-foreground">
-                {laedt ? "Lädt …" : "Bitte zuerst das Konto wählen (oder keine Eigentümer hinterlegt)"}
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+                </span>
+              </span>
+              <span className={cn("shrink-0 text-right font-semibold tabular-nums", !an && "text-muted-foreground")}>{an ? wert(e) : "–"}</span>
+            </label>
+          );
+        })}
+        {!liste.length && <Leer text={ohneKonto ? "Bitte zuerst das Konto wählen" : laedt ? "Lädt …" : "Keine Eigentümer hinterlegt"} />}
+      </div>
     </div>
   );
 }
