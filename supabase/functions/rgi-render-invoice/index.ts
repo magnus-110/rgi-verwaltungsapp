@@ -1,3 +1,4 @@
+import { requireAdmin } from "../_shared/require-admin.ts";
 // rgi-render-invoice
 // Erzeugt eine RGI-Rechnung als PDF im klassischen Design (siehe
 // invoicePdf.ts) und legt sie in Bucket 'invoices' ab.
@@ -169,6 +170,10 @@ function addressLines(snapshot: string | null | undefined, client: any): string[
 }
 
 Deno.serve(async (req) => {
+  if (req.method !== "OPTIONS") {
+    const __auth = await requireAdmin(req, corsHeaders);
+    if (!__auth.ok) return __auth.response;
+  }
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
     const admin = createClient(

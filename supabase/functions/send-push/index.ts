@@ -1,3 +1,4 @@
+import { requireAdmin } from "../_shared/require-admin.ts";
 // Send Web-Push notifications to users (with deduplication + per-device diagnostics)
 // Uses PushForge's Web-Crypto request builder directly. This avoids both npm:web-push's
 // Deno AES-GCM shim bug and any library wrapper ambiguity around the exact Web-Push HTTP request.
@@ -90,6 +91,10 @@ function inQuietHours(start?: string | null, end?: string | null): boolean {
 }
 
 Deno.serve(async (req) => {
+  if (req.method !== "OPTIONS") {
+    const __auth = await requireAdmin(req, corsHeaders);
+    if (!__auth.ok) return __auth.response;
+  }
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {

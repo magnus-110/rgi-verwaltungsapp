@@ -1,3 +1,4 @@
+import { requireStaffOrCron } from "../_shared/require-cron.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.52.1";
 import { ImapFlow } from "npm:imapflow@1.0.171";
 
@@ -82,6 +83,10 @@ globalThis.addEventListener("error", (e) => {
 });
 
 Deno.serve(async (req) => {
+  if (req.method !== "OPTIONS") {
+    const __auth = await requireStaffOrCron(req, corsHeaders);
+    if (!__auth.ok) return __auth.response;
+  }
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -147,7 +152,7 @@ Deno.serve(async (req) => {
     // ---- Dispatcher-Modus: kein account_id im Body -> jedes Konto in eigener Invocation starten ----
     if (!bodyAccountId) {
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-      const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+      const anonKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!; // interner Aufruf mit Server-Schlüssel
       const dispatched: string[] = [];
       // Gestaffelt dispatchen (300ms zwischen Accounts), damit edge-runtime die Worker
       // nicht auf denselben Prozess kollokiert (Memory-Isolation pro Postfach).
@@ -257,7 +262,7 @@ Deno.serve(async (req) => {
     );
     if (neueMails > 0) {
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-      const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+      const anonKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!; // interner Aufruf mit Server-Schlüssel
       try {
         fetch(`${supabaseUrl}/functions/v1/classify-email`, {
           method: "POST",

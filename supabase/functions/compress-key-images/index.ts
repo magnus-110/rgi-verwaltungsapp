@@ -1,3 +1,4 @@
+import { requireAdmin } from "../_shared/require-admin.ts";
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { decode, Image } from 'https://deno.land/x/imagescript@1.2.17/mod.ts'
@@ -6,6 +7,10 @@ const MAX_EDGE = 1600 // reicht für gut lesbaren 20x20 cm Ausdruck (~200 dpi)
 const JPEG_QUALITY = 82
 
 Deno.serve(async (req) => {
+  if (req.method !== "OPTIONS") {
+    const __auth = await requireAdmin(req, {});
+    if (!__auth.ok) return __auth.response;
+  }
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   const json = (body: unknown, status = 200) =>

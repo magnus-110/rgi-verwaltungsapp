@@ -1,3 +1,4 @@
+import { requireAdmin } from "../_shared/require-admin.ts";
 // etv-render-report
 // Rendert den "Bericht der Verwaltung" eines TOPs aus einer Word-Vorlage.
 // Liefert DOCX oder PDF (PDF via CloudConvert) und legt die Datei unter
@@ -83,6 +84,10 @@ async function convertDocxToPdf(docxBytes: Uint8Array, filename: string): Promis
 }
 
 Deno.serve(async (req) => {
+  if (req.method !== "OPTIONS") {
+    const __auth = await requireAdmin(req, corsHeaders);
+    if (!__auth.ok) return __auth.response;
+  }
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
     const admin = createClient(

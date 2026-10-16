@@ -1,3 +1,4 @@
+import { requireStaffOrCron } from "../_shared/require-cron.ts";
 // Cron-driven dispatcher (läuft minütlich):
 //  1. startet geplante Rundmails, deren Zeitpunkt erreicht ist
 //  2. setzt Rundmails fort, deren Hintergrund-Versand hängengeblieben ist
@@ -13,6 +14,10 @@ const corsHeaders = {
 const STALE_HEARTBEAT_MS = 3 * 60_000;
 
 Deno.serve(async (req) => {
+  if (req.method !== "OPTIONS") {
+    const __auth = await requireStaffOrCron(req, corsHeaders);
+    if (!__auth.ok) return __auth.response;
+  }
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;

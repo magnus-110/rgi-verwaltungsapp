@@ -1,3 +1,4 @@
+import { requireAdmin } from "../_shared/require-admin.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
@@ -8,6 +9,10 @@ const corsHeaders = {
 const MAX_INLINE_BYTES = 2 * 1024 * 1024; // 2MB für base64-Attachment
 
 Deno.serve(async (req) => {
+  if (req.method !== "OPTIONS") {
+    const __auth = await requireAdmin(req, corsHeaders);
+    if (!__auth.ok) return __auth.response;
+  }
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {

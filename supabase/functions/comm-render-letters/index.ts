@@ -1,3 +1,4 @@
+import { requireAdmin } from "../_shared/require-admin.ts";
 // Generate personalized DOCX letters for each recipient and bundle them as a ZIP.
 // Uses docxtemplater + pizzip; runs entirely in Deno on edge.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.1";
@@ -144,6 +145,10 @@ async function convertDocxToPdf(docxBytes: Uint8Array, filename: string, apiKey:
 }
 
 Deno.serve(async (req) => {
+  if (req.method !== "OPTIONS") {
+    const __auth = await requireAdmin(req, corsHeaders);
+    if (!__auth.ok) return __auth.response;
+  }
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {

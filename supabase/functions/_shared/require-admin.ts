@@ -52,5 +52,14 @@ export async function requireAdmin(
   const role = profile?.role ?? "";
   if (role !== "admin" && role !== "employee") return deny(403, "Forbidden");
 
+  // Büro-Zugriff nur nach Zwei-Faktor-Anmeldung (aal2). Das Token ist oben geprüft.
+  try {
+    const teil = bearer.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    const claims = JSON.parse(atob(teil + "=".repeat((4 - (teil.length % 4)) % 4)));
+    if (claims?.aal !== "aal2") return deny(403, "Zwei-Faktor-Anmeldung erforderlich");
+  } catch {
+    return deny(401, "Unauthorized");
+  }
+
   return { ok: true, userId, role };
 }

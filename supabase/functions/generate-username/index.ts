@@ -1,3 +1,4 @@
+import { requireAdmin } from "../_shared/require-admin.ts";
 // Generate a unique, normalized username from name parts.
 // Returns suggestion only — does NOT write to the database.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.1";
@@ -9,6 +10,10 @@ const corsHeaders = {
 };
 
 Deno.serve(async (req) => {
+  if (req.method !== "OPTIONS") {
+    const __auth = await requireAdmin(req, corsHeaders);
+    if (!__auth.ok) return __auth.response;
+  }
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {

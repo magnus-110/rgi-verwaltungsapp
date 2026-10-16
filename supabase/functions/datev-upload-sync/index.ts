@@ -12,7 +12,7 @@
 // Nie: Rechnungen der Eigentümergemeinschaften, Ausgangsrechnungen.
 import { createClient } from "npm:@supabase/supabase-js@2.52.1";
 import nodemailer from "npm:nodemailer@6.9.16";
-import { requireAdmin } from "../_shared/require-admin.ts";
+import { requireStaffOrCron } from "../_shared/require-cron.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -71,7 +71,7 @@ Deno.serve(async (req) => {
 
   // Einzelversand nur für angemeldete Admins/Mitarbeiter.
   if (single) {
-    const auth = await requireAdmin(req, corsHeaders);
+    const auth = await requireStaffOrCron(req, corsHeaders);
     if (!auth.ok) return auth.response;
   }
 

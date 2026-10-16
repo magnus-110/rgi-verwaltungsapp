@@ -1,3 +1,4 @@
+import { requireAdmin } from "../_shared/require-admin.ts";
 // rgi-parse-template-placeholders
 // Lädt eine DOCX-Vorlage, extrahiert {tag} / {#loop}{/loop} und speichert
 // das Schema in rgi_invoice_templates.placeholder_schema.
@@ -30,6 +31,10 @@ function extractPlaceholders(xml: string): { tags: string[]; loops: string[] } {
 }
 
 Deno.serve(async (req) => {
+  if (req.method !== "OPTIONS") {
+    const __auth = await requireAdmin(req, corsHeaders);
+    if (!__auth.ok) return __auth.response;
+  }
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
     const admin = createClient(

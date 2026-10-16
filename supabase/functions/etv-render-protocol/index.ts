@@ -1,3 +1,4 @@
+import { requireAdmin } from "../_shared/require-admin.ts";
 // etv-render-protocol
 // Rendert ein ETV-Protokoll aus Word-Vorlage + Versammlungsdaten.
 // Liefert je nach output_format DOCX oder PDF (via CloudConvert).
@@ -177,6 +178,10 @@ async function convertDocxToPdf(docxBytes: Uint8Array, filename: string): Promis
 }
 
 Deno.serve(async (req) => {
+  if (req.method !== "OPTIONS") {
+    const __auth = await requireAdmin(req, corsHeaders);
+    if (!__auth.ok) return __auth.response;
+  }
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
     const admin = createClient(

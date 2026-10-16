@@ -1,3 +1,4 @@
+import { requireAdmin } from "../_shared/require-admin.ts";
 // etv-finalize-signed-protocol
 // Lädt ein bestehendes Protokoll-PDF (oder rendert es neu), stempelt die
 // gesammelten Unterschriften (Leiter, Protokollant, Eigentümer) auf eine
@@ -27,6 +28,10 @@ function dataUrlToBytes(dataUrl: string): Uint8Array {
 }
 
 Deno.serve(async (req) => {
+  if (req.method !== "OPTIONS") {
+    const __auth = await requireAdmin(req, corsHeaders);
+    if (!__auth.ok) return __auth.response;
+  }
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
     const admin = createClient(

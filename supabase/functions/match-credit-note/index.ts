@@ -1,3 +1,4 @@
+import { requireAdmin } from "../_shared/require-admin.ts";
 // Auto-Match: Beleg für Zahlungseingang (credit_note) <-> Bank-Eingang
 // Triggers:
 //  A) Nach Beleg-Import + OCR: Rückwärts-Match gegen unzugeordnete Bank-Eingänge
@@ -115,6 +116,10 @@ async function applyMatch(
 }
 
 Deno.serve(async (req: Request) => {
+  if (req.method !== "OPTIONS") {
+    const __auth = await requireAdmin(req, corsHeaders);
+    if (!__auth.ok) return __auth.response;
+  }
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {

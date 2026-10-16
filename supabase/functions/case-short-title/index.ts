@@ -1,3 +1,4 @@
+import { requireStaffOrCron } from "../_shared/require-cron.ts";
 // Kurzer Vorgangstitel (1-3 Woerter) per KI fuer Vorgaenge, die aus einem
 // ETV-Beschluss entstehen ("zur Umsetzung" markiert).
 //
@@ -104,6 +105,10 @@ async function umbenennen(caseId: string): Promise<{ caseId: string; titel: stri
 }
 
 Deno.serve(async (req) => {
+  if (req.method !== "OPTIONS") {
+    const __auth = await requireStaffOrCron(req, corsHeaders);
+    if (!__auth.ok) return __auth.response;
+  }
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   const json = (body: unknown, status = 200) =>
     new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });

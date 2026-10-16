@@ -1,3 +1,4 @@
+import { requireAdmin } from "../_shared/require-admin.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.52.1";
 import nodemailer from "npm:nodemailer@6.9.16";
 
@@ -8,6 +9,10 @@ const corsHeaders = {
 };
 
 Deno.serve(async (req) => {
+  if (req.method !== "OPTIONS") {
+    const __auth = await requireAdmin(req, corsHeaders);
+    if (!__auth.ok) return __auth.response;
+  }
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }

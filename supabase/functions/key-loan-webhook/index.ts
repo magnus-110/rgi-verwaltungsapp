@@ -1,3 +1,4 @@
+import { requireAdmin } from "../_shared/require-admin.ts";
 // Stub edge function for key loan webhook (Make.com integration).
 // Triggered on loan_issued (when send_confirmation_email=true) and on overdue reminders.
 // Currently logs payload only; later wire up to Make.com webhook URL via env var.
@@ -16,6 +17,10 @@ const PayloadSchema = z.object({
 });
 
 Deno.serve(async (req) => {
+  if (req.method !== "OPTIONS") {
+    const __auth = await requireAdmin(req, {});
+    if (!__auth.ok) return __auth.response;
+  }
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }

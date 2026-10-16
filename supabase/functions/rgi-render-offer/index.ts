@@ -1,3 +1,4 @@
+import { requireAdmin } from "../_shared/require-admin.ts";
 // rgi-render-offer
 // Rendert aus einem Angebot (offers + offer_items) einen Verwaltervertrags-
 // Entwurf aus der Word-Vorlage, konvertiert ihn via CloudConvert nach PDF
@@ -218,6 +219,10 @@ function json(b: unknown, status = 200) {
 }
 
 Deno.serve(async (req) => {
+  if (req.method !== "OPTIONS") {
+    const __auth = await requireAdmin(req, corsHeaders);
+    if (!__auth.ok) return __auth.response;
+  }
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
     const admin = createClient(

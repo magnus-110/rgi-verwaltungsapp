@@ -1,3 +1,4 @@
+import { requireStaffOrCron } from "../_shared/require-cron.ts";
 // Cron-driven notifier: sucht neue E-Mails, faellige Aufgaben und anstehende
 // Termine und schreibt daraus Eintraege in public.notifications - die Glocke
 // in der App.
@@ -291,6 +292,10 @@ async function notifyCalendar() {
 }
 
 Deno.serve(async (req) => {
+  if (req.method !== "OPTIONS") {
+    const __auth = await requireStaffOrCron(req, corsHeaders);
+    if (!__auth.ok) return __auth.response;
+  }
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
     await Promise.all([notifyEmails(), notifyTodos(), notifyCalendar()]);

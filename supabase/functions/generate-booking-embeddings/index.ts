@@ -1,3 +1,4 @@
+import { requireStaffOrCron } from "../_shared/require-cron.ts";
 // Edge Function: generate-booking-embeddings
 // Erzeugt für eine bestätigte Buchung ein Mistral-Embedding (1024-dim),
 // schreibt es in booking_embeddings und pflegt vendor_memory.
@@ -241,6 +242,10 @@ async function processBooking(bookingId: string) {
 
 // ---------- HTTP Handler ----------
 Deno.serve(async (req) => {
+  if (req.method !== "OPTIONS") {
+    const __auth = await requireStaffOrCron(req, corsHeaders);
+    if (!__auth.ok) return __auth.response;
+  }
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {

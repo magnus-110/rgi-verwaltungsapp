@@ -1,3 +1,4 @@
+import { requireAdmin } from "../_shared/require-admin.ts";
 // @ts-ignore - EdgeRuntime is a Supabase Edge Functions global
 declare const EdgeRuntime: { waitUntil: (p: Promise<unknown>) => void };
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -422,6 +423,10 @@ async function validateMistralApiKey(): Promise<{ valid: boolean; error?: string
 }
 
 serve(async (req) => {
+  if (req.method !== "OPTIONS") {
+    const __auth = await requireAdmin(req, corsHeaders);
+    if (!__auth.ok) return __auth.response;
+  }
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }

@@ -1,3 +1,4 @@
+import { requireAdmin } from "../_shared/require-admin.ts";
 // Generates personalized §35a certificates by rendering a Word template (docxtemplater)
 // Returns either a single DOCX or a ZIP with one DOCX per owner.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.1";
@@ -179,6 +180,10 @@ function formatBookingLabel(b: any): string {
 }
 
 Deno.serve(async (req) => {
+  if (req.method !== "OPTIONS") {
+    const __auth = await requireAdmin(req, corsHeaders);
+    if (!__auth.ok) return __auth.response;
+  }
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
     const auth = req.headers.get("Authorization");

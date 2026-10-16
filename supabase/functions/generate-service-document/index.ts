@@ -207,6 +207,15 @@ Deno.serve(async (req) => {
       .eq("id", order_id)
       .maybeSingle();
     if (orderErr || !order) return new Response("Order not found", { status: 404, headers: corsHeaders });
+
+    // Nur der Server (Stripe-Webhook) oder der Besteller selbst
+    const bearer = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
+    if (bearer !== Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")) {
+      const { data: u } = await admin.auth.getUser(bearer);
+      if (!u?.user || u.user.id !== order.user_id) {
+        return new Response("Forbidden", { status: 403, headers: corsHeaders });
+      }
+    }
     if (order.status !== "paid" && order.status !== "document_ready") {
       return new Response("Order not paid", { status: 400, headers: corsHeaders });
     }

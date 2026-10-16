@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
     if (userErr || !userRes.user) return json({ error: "Unauthorized" }, 401);
 
     const admin = createClient(supabaseUrl, serviceKey);
-    const { data: hasAccess } = await admin.rpc("user_has_admin_access", { user_id: userRes.user.id });
+    const { data: hasAccess } = await admin.rpc("rgi_is_admin", { _user_id: userRes.user.id });
     if (!hasAccess) return json({ error: "Forbidden" }, 403);
 
     const { target_user_id, new_password, force_change = true } = await req.json();

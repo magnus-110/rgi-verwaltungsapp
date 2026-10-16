@@ -1,3 +1,4 @@
+import { requireAdmin } from "../_shared/require-admin.ts";
 // etv-parse-protocol-placeholders
 // Liest eine DOCX-Vorlage aus building-files, extrahiert {tag} / {#loop}{/loop}
 // und schreibt das Schema in etv_protocol_templates.placeholder_schema.
@@ -25,6 +26,10 @@ function extractPlaceholders(xml: string): { tags: string[]; loops: string[] } {
 }
 
 Deno.serve(async (req) => {
+  if (req.method !== "OPTIONS") {
+    const __auth = await requireAdmin(req, corsHeaders);
+    if (!__auth.ok) return __auth.response;
+  }
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
     const admin = createClient(

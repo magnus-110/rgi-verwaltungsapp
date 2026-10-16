@@ -1,3 +1,4 @@
+import { requireAdmin } from "../_shared/require-admin.ts";
 // generate-billing-document
 // ----------------------------------------------------------------
 // Rendert eine vom User hochgeladene Word-Vorlage (DOCX) mit den
@@ -80,6 +81,10 @@ function json(b: unknown, status = 200) {
 }
 
 Deno.serve(async (req) => {
+  if (req.method !== "OPTIONS") {
+    const __auth = await requireAdmin(req, corsHeaders);
+    if (!__auth.ok) return __auth.response;
+  }
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
     const auth = req.headers.get("Authorization");

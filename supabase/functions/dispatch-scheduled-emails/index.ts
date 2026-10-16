@@ -1,3 +1,4 @@
+import { requireStaffOrCron } from "../_shared/require-cron.ts";
 // Cron-driven dispatcher: sends scheduled single emails (Postfach-Compose with send-time)
 // Triggered by pg_cron every minute. Uses SMTP (nodemailer) directly with the email_account credentials.
 import { createClient } from "npm:@supabase/supabase-js@2.52.1";
@@ -9,6 +10,10 @@ const corsHeaders = {
 };
 
 Deno.serve(async (req) => {
+  if (req.method !== "OPTIONS") {
+    const __auth = await requireStaffOrCron(req, corsHeaders);
+    if (!__auth.ok) return __auth.response;
+  }
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   const admin = createClient(

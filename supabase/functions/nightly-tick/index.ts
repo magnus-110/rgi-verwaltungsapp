@@ -1,3 +1,4 @@
+import { requireStaffOrCron } from "../_shared/require-cron.ts";
 // Der nächtliche Lauf.
 //
 // Vier Dinge, von denen drei bisher überhaupt nicht passiert sind:
@@ -300,6 +301,10 @@ async function durchsicht(): Promise<number> {
 }
 
 Deno.serve(async (req) => {
+  if (req.method !== "OPTIONS") {
+    const __auth = await requireStaffOrCron(req, corsHeaders);
+    if (!__auth.ok) return __auth.response;
+  }
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   const bericht: Record<string, unknown> = {};
