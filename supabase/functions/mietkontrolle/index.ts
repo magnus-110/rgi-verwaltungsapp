@@ -707,6 +707,7 @@ async function uebersicht(admin: any, buildingId: string | null) {
             String(x.cost_type).localeCompare(String(y.cost_type), "de") ||
             String(x.valid_from ?? "").localeCompare(String(y.valid_from ?? "")),
         ),
+        rueckstand: ohneDaten ? 0 : ergebnis.rueckstand,
         guthaben: ergebnis.guthaben,
         monate: ergebnis.monate.slice(-12),
         infos: m.infos,
