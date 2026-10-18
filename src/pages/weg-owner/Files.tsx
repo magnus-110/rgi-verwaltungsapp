@@ -5,11 +5,13 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
-import { User, Building2, Search, FileText, Eye, Loader2, Folder, ChevronRight, ChevronDown } from "lucide-react";
+import { User, Building2, Search, Sparkles, FileText, Eye, Loader2, Folder, ChevronRight, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { BuildingFilterChips, BuildingChip } from "@/components/shared/BuildingFilterChips";
+import { PortalSeitenkopf } from "@/components/weg-owner/PortalListe";
+import { DokumentInhaltSuche } from "@/components/weg-owner/DokumentInhaltSuche";
 
 interface FileItem {
   id: string;
@@ -343,11 +345,8 @@ export function WegOwnerFiles() {
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-5">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Meine Dokumente</h1>
-        <p className="text-sm text-muted-foreground">Ihre persönlichen und Gebäude-Dokumente</p>
-      </div>
+    <div className="max-w-xl md:max-w-2xl mx-auto px-4 py-5 space-y-5">
+      <PortalSeitenkopf titel="Dokumente" text="Ihre persönlichen und die Gebäude-Unterlagen" />
 
       <BuildingFilterChips
         buildings={buildings}
@@ -355,17 +354,29 @@ export function WegOwnerFiles() {
         onSelect={setSelectedBuildingId}
       />
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input
-          placeholder="Dokument suchen..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-9"
-        />
+      <div className="space-y-1.5">
+        <div className="relative">
+          <Sparkles className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-primary" />
+          <Input
+            aria-label="Dokumente durchsuchen"
+            placeholder="Suchen oder fragen, z. B. „Markise am Balkon“"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-10 h-12 rounded-[14px] bg-card border-border/60 shadow-sm text-base"
+          />
+        </div>
+        <p className="text-xs text-muted-foreground px-1">Sucht auch im Text aller Dokumente – Sie können ganze Fragen stellen.</p>
       </div>
 
-      <Tabs defaultValue="building">
+      <DokumentInhaltSuche
+        suchtext={search}
+        buildingIds={activeBuildingId ? [activeBuildingId] : buildings.map((b) => b.id)}
+      />
+
+      {search.trim().length >= 4 && (
+        <h2 className="font-display text-[11px] font-semibold uppercase tracking-[0.6px] text-muted-foreground/80 px-1 -mb-3">Alle Dokumente</h2>
+      )}
+      <Tabs defaultValue={filteredPersonal.length > 0 ? "personal" : "building"}>
         <TabsList variant="pill" className="w-full grid grid-cols-2">
           <TabsTrigger value="personal" className="gap-2">
             <User className="w-4 h-4" />

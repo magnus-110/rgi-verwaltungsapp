@@ -27,7 +27,7 @@ export const GLOBAL_TOUR: TourDefinition = {
     {
       title: "Herzlich willkommen!",
       description:
-        "Schön, dass Sie da sind. In den nächsten 60 Sekunden zeige ich Ihnen, wie Sie sich in Ihrem Eigentümer-Portal zurechtfinden. Sie können diese Einführung jederzeit über den Hilfe-Button unten links neu starten.",
+        "Schön, dass Sie da sind. In den nächsten 60 Sekunden zeige ich Ihnen, wie Sie sich in Ihrem Eigentümer-Portal zurechtfinden. Sie können diese Einführung jederzeit über den Hilfe-Knopf neu starten.",
     },
     {
       element: '[data-tour="logo"]',
@@ -37,9 +37,9 @@ export const GLOBAL_TOUR: TourDefinition = {
     },
     {
       element: '[data-tour="menu-button"]',
-      title: "Das Menü",
+      title: "Die Leiste unten",
       description:
-        "Über diesen Knopf öffnen Sie das Menü. Dort finden Sie alle Bereiche: Meldungen, Dokumente, Beschlüsse, Schwarzes Brett, Versammlungen und den Chat.",
+        "Unten erreichen Sie jederzeit Start, Dokumente, Meldungen und Versammlung. Unter „Mehr“ finden Sie Fragen, Schwarzes Brett, Beschlüsse und Ihre Einstellungen.",
     },
     {
       element: '[data-tour="help-button"]',
@@ -90,15 +90,15 @@ export const DASHBOARD_TOUR: TourDefinition = {
     },
     {
       element: '[data-tour="menu-button"]',
-      title: "Das Menü",
+      title: "Die Leiste unten",
       description:
-        "Über diesen Knopf öffnen Sie das Menü. Dort finden Sie alle Bereiche: Meldungen, Dokumente, Beschlüsse, Schwarzes Brett, Versammlungen und den Chat.",
+        "Unten erreichen Sie jederzeit Start, Dokumente, Meldungen und Versammlung. Unter „Mehr“ finden Sie Fragen, Schwarzes Brett, Beschlüsse und Ihre Einstellungen.",
     },
     {
       element: '[data-tour="dashboard-tiles"]',
-      title: "Offene Vorgänge",
+      title: "Offene Meldungen und Beschlüsse",
       description:
-        "Diese Kacheln zeigen Ihnen, welche Vorgänge bei Ihrer Hausverwaltung gerade offen sind – etwa noch nicht bearbeitete Meldungen oder Beschlüsse.",
+        "Diese Kacheln zeigen, wie viele Ihrer Meldungen noch offen sind und welche Beschlüsse die Verwaltung gerade umsetzt.",
     },
     {
       element: '[data-tour="dashboard-cycle"]',
@@ -110,7 +110,7 @@ export const DASHBOARD_TOUR: TourDefinition = {
       element: '[data-tour="dashboard-quick"]',
       title: "Schnellzugriff",
       description:
-        "Von hier springen Sie direkt zu Dokumenten, KI-Chat, Schwarzem Brett und Versammlungen. Eine kleine farbige Zahl signalisiert: hier gibt es etwas Neues.",
+        "Von hier springen Sie direkt zu Dokumenten, Fragen, Schwarzem Brett und Versammlungen. Eine kleine farbige Zahl signalisiert: hier gibt es etwas Neues.",
     },
     {
       element: '[data-tour="dashboard-contact"]',
@@ -270,18 +270,18 @@ export const MEETINGS_TOUR: TourDefinition = {
 
 export const CHATBOT_TOUR: TourDefinition = {
   id: "chatbot",
-  title: "Chat",
+  title: "Fragen",
   steps: [
     {
-      title: "Ihr persönlicher Assistent",
+      title: "Fragen zu Ihrem Haus",
       description:
-        "Stellen Sie hier jederzeit Fragen rund um Ihre Liegenschaft, die Verwaltung oder Ihre Abrechnung. Sie bekommen sofort eine Antwort – rund um die Uhr.",
+        "Stellen Sie hier Fragen zu Ihrem Haus – die Antworten kommen aus Ihren Unterlagen, mit Angabe der Quelle. Sie können jederzeit nachfragen. Findet sich nichts, schicken Sie die Frage mit einem Klick an die Verwaltung.",
     },
     {
       element: '[data-tour="chatbot-input"]',
       title: "So fragen Sie",
       description:
-        "Tippen Sie Ihre Frage einfach in das Textfeld – ganz so, als würden Sie jemandem schreiben.",
+        "Tippen oder sprechen Sie Ihre Frage einfach ein – ganz so, als würden Sie jemandem schreiben.",
     },
   ],
 };

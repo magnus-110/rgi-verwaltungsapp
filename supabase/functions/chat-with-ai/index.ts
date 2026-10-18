@@ -589,8 +589,12 @@ serve(async (req) => {
       .from('chatbot_messages')
       .select('role, content, created_at, metadata')
       .eq('session_id', currentSessionId)
-      .order('created_at', { ascending: true })
-      .limit(20);
+      // Die NEUESTEN 40 Nachrichten holen (absteigend) und unten wieder in die
+      // richtige Reihenfolge drehen. Vorher wurden die aeltesten 20 geladen, in langen
+      // Gespraechen fehlte dem Modell dadurch der aktuelle Zusammenhang.
+      .order('created_at', { ascending: false })
+      .limit(40);
+    conversationHistory?.reverse();
 
     if (historyError) {
       console.error('Error fetching conversation history:', historyError);
@@ -607,7 +611,7 @@ serve(async (req) => {
 
 1. BEGRÜSSUNG:
 ${isFirstMessage 
-  ? `   ✓ ERSTE NACHRICHT: Beginnen Sie mit "Guten Tag, ${profile?.first_name} ${profile?.last_name}!" und beantworten Sie dann die Frage.` 
+  ? `   ✓ ERSTE NACHRICHT: Keine lange Begrüßung, keine Namensnennung – beantworten Sie direkt die Frage.` 
   : `   ✗ FOLGENACHRICHT: KEINE Begrüßung, KEIN Name. Antworten Sie DIREKT auf die Frage ohne jede Anrede.`}
 
 2. ABSCHLUSS:
@@ -638,9 +642,9 @@ ${isFirstMessage
      dokumentiert", "Die App bietet diese Funktion nicht", "Für Ihr Gebäude liegt
      nichts vor." Solche Sätze sind schon mehrfach falsch gewesen und haben Eigentümer
      in die Irre geführt.
-   ✓ RICHTIG, wenn im Kontext nichts Passendes steht: "Dazu finde ich hier nichts.
-     Das bedeutet nicht, dass es nichts gibt — bitte wenden Sie sich an die
-     Hausverwaltung, dort wird das geprüft."
+   ✓ RICHTIG, wenn im Kontext nichts Passendes steht: "Dazu finde ich in Ihren Unterlagen
+     nichts. Das heißt nicht, dass es nichts gibt — mit dem Knopf „An die Verwaltung
+     weitergeben" unter dieser Antwort schicken Sie die Frage samt Gespräch direkt an uns."
    ✓ RICHTIG, wenn etwas vorliegt: Antworten Sie daraus und nennen Sie die Quelle,
      also den Dokumentnamen oder die Beschlussnummer mit Datum.
    ✓ Fragt jemand nach einem Menüpunkt, den er nicht findet: Viele Menüpunkte werden
@@ -683,6 +687,11 @@ ${isFirstMessage
      "laut Teilungserklärung (S. 4)". Schreiben Sie KEINE eigenen Links oder URLs.
    ✓ Fragt jemand nach einem Dokument, das unter RELEVANTE DOKUMENTE steht, sagen Sie, dass
      er es unten direkt öffnen kann.
+
+9. GESPRÄCHSVERLAUF:
+   ✓ Das ganze bisherige Gespräch steht oben. Beziehen Sie Nachfragen darauf: Wörter wie
+     "das", "dafür", "und wann?" meinen das zuvor besprochene Thema.
+   ✗ Fragen Sie nicht erneut nach Angaben, die schon im Gespräch genannt wurden.
 
 === ENDE VERHALTENSREGELN ===`;
 

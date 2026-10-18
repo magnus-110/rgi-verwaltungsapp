@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AlertTriangle, MessageSquare, MessageCircle, FileText, Users, Scale, Phone, Mail, MapPin, Check, ChevronRight, ChevronDown, Building2, MessageSquarePlus } from "lucide-react";
+import { AlertTriangle, MessageSquare, HelpCircle, FileText, Users, Scale, Phone, Mail, MapPin, Check, ChevronRight, ChevronDown, Building2, MessageSquarePlus } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useStammdatenName } from "@/hooks/useStammdatenName";
 import { supabase } from "@/integrations/supabase/client";
@@ -162,7 +162,7 @@ export const WegOwnerDashboard = () => {
     ...(hasVisibleFiles
       ? [{ icon: FileText, label: "Dokumente", path: "/weg-owner/files", kind: "files" as const, unread: unreadFiles }]
       : []),
-    { icon: MessageCircle, label: "KI-Chat", path: "/weg-owner/chatbot" },
+    { icon: HelpCircle, label: "Fragen", path: "/weg-owner/chatbot" },
     { icon: MessageSquare, label: "Schwarzes Brett", path: "/weg-owner/forum", kind: "forum", unread: unreadForum },
     { icon: Users, label: "Versammlungen", path: "/weg-owner/meetings", kind: "meetings", unread: unreadMeetings },
   ];

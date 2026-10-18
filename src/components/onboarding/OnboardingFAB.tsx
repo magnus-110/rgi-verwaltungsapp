@@ -108,7 +108,7 @@ export const OnboardingFAB = () => {
 
   return (
     <>
-      <div className="fixed bottom-6 right-6 z-40">
+      <div className="fixed bottom-24 right-4 z-40">
         {minimized ? (
           <Button
             onClick={() => {

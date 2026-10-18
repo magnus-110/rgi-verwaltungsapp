@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { PortalAbschnitt, PortalZeile } from "@/components/weg-owner/PortalListe";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -63,6 +64,7 @@ export const OwnerSelfServiceSection = () => {
   const [banks, setBanks] = useState<Bank[]>([]);
   const [assignments, setAssignments] = useState<AssignmentRow[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [stammdatenOffen, setStammdatenOffen] = useState(false);
 
   const load = async () => {
     if (!profile?.user_id) return;
@@ -186,49 +188,37 @@ export const OwnerSelfServiceSection = () => {
   }
 
   const openAssignment = assignments.find((a) => a.id === openId) ?? null;
+  const adresse = [contact.address_street, [contact.address_zip, contact.address_city].filter(Boolean).join(" ")].filter(Boolean).join(", ");
 
   return (
     <>
-      <StammdatenCard contact={contact} onSaved={load} />
+      <PortalAbschnitt titel="Meine Wohnungen" className="space-y-0">
+        {assignments.map((a) => (
+          <PortalZeile
+            key={a.id}
+            data-tour="settings-units"
+            icon={Building2}
+            titel={`${a.buildings?.name || "Wohnung"}${a.unit_number ? ` · WE ${a.unit_number}` : ""}`}
+            untertitel="Kontaktdaten und Konto für das Hausgeld"
+            onClick={() => setOpenId(a.id)}
+          />
+        ))}
+      </PortalAbschnitt>
 
-      <Card data-tour="settings-units">
+      <PortalAbschnitt titel="Meine Daten">
+        <PortalZeile
+          icon={User}
+          titel="Name und Anschrift"
+          untertitel={adresse || "Noch keine Anschrift hinterlegt"}
+          onClick={() => setStammdatenOffen(true)}
+        />
+      </PortalAbschnitt>
 
-        <CardHeader>
-          <CardTitle>Meine Wohnungen</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Hier sehen Sie alle Ihnen zugeordneten Wohnungen. Klicken Sie auf eine Wohnung, um je Gebäude individuelle Informationen (z. B. Anrede, Adresse, Kontaktdaten) und Ihre Bankverbindung für diese Einheit zu hinterlegen oder zu ändern.
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {assignments.map((a) => {
-            const unit = a.unit_number ? ` · WE ${a.unit_number}` : "";
-            return (
-              <Card
-                key={a.id}
-                className="cursor-pointer hover:shadow-md transition-shadow"
-                onClick={() => setOpenId(a.id)}
-              >
-                <CardContent className="py-4 flex items-center gap-3">
-                  <div className="p-2 bg-primary/10 rounded-lg">
-                    <Building2 className="w-5 h-5 text-primary" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium truncate">
-                        {a.buildings?.name || "Wohnung"}{unit}
-                      </span>
-                    </div>
-                    {a.buildings?.address && (
-                      <p className="text-xs text-muted-foreground truncate mt-0.5">{a.buildings.address}</p>
-                    )}
-                  </div>
-                  <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                </CardContent>
-              </Card>
-            );
-          })}
-        </CardContent>
-      </Card>
+      <Dialog open={stammdatenOffen} onOpenChange={setStammdatenOffen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <StammdatenCard contact={contact} onSaved={() => { setStammdatenOffen(false); load(); }} />
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!openId} onOpenChange={(o) => !o && setOpenId(null)}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">

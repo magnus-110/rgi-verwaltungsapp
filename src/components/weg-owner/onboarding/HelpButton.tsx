@@ -52,7 +52,7 @@ export function HelpButton() {
           <Button
             data-tour="help-button"
             size="lg"
-            className="fixed bottom-6 left-6 z-40 h-14 rounded-full pl-4 pr-5 shadow-lg gap-2 text-base"
+            className="fixed bottom-24 left-4 z-40 h-12 rounded-full pl-3.5 pr-4 shadow-lg gap-2 text-base"
             aria-label="Hilfe"
           >
             <HelpCircle className="h-6 w-6" />

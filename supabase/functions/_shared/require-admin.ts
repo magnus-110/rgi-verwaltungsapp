@@ -63,3 +63,30 @@ export async function requireAdmin(
 
   return { ok: true, userId, role };
 }
+
+// Jeder angemeldete Nutzer (Büro, Eigentümer, Mieter) – nicht der öffentliche Schlüssel.
+export async function requireUser(
+  req: Request,
+  corsHeaders: Record<string, string>,
+): Promise<
+  | { ok: true; userId: string }
+  | { ok: false; response: Response }
+> {
+  const deny = () => ({
+    ok: false as const,
+    response: new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    }),
+  });
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) return deny();
+  const bearer = authHeader.replace("Bearer ", "").trim();
+  if (bearer === Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")) return { ok: true, userId: "service" };
+  const userClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
+    global: { headers: { Authorization: authHeader } },
+  });
+  const { data } = await userClient.auth.getUser();
+  if (!data?.user) return deny();
+  return { ok: true, userId: data.user.id };
+}

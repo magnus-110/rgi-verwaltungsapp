@@ -310,7 +310,7 @@ export const WegOwnerDatePoll = () => {
         <Textarea id="poll-note" rows={3} value={note} onChange={(e) => setNote(e.target.value)} />
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 border-t bg-background/95 backdrop-blur p-3 md:static md:border-0 md:bg-transparent md:p-0">
+      <div className="fixed inset-x-0 bottom-[calc(72px+env(safe-area-inset-bottom))] z-40 border-t bg-background/95 backdrop-blur p-3 md:static md:border-0 md:bg-transparent md:p-0">
         <div className="max-w-2xl mx-auto space-y-1">
           <Button className="w-full h-12 gap-2" onClick={save} disabled={saving}>
             <Save className="h-4 w-4" />
