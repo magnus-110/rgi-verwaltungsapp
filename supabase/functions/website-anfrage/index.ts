@@ -235,7 +235,7 @@ Deno.serve(async (req) => {
         type: "anfrage",
         title: `Neue ${ART_TITEL[kind]}: ${name}`,
         body: [email, phone].filter(Boolean).join(" · "),
-        url: `/inbox?anfrage=${inquiryId}`,
+        url: `/postfach?anfrage=${inquiryId}`,
         ref_type: "inquiry",
         ref_id: inquiryId,
       }));
@@ -253,7 +253,7 @@ Deno.serve(async (req) => {
   const mail = neueAnfrage({
     titel: `Neue ${ART_TITEL[kind]}${nummer ? ` #${nummer}` : ""}: ${name}`,
     zeilen,
-    link: inquiryId ? `https://rgi-immobilien.app/inbox?anfrage=${inquiryId}` : "https://rgi-immobilien.app/inbox",
+    link: inquiryId ? `https://rgi-immobilien.app/postfach?anfrage=${inquiryId}` : "https://rgi-immobilien.app/postfach",
   });
   const sent = await sendSystemMail(admin, {
     kind: "anfrage_hinweis",

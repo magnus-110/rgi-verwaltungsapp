@@ -89,6 +89,9 @@ import { CreateContactDialog, type CreateContactPrefill } from "@/components/con
 import { ReportFolderNav } from "@/components/reports/ReportFolderNav";
 import { REPORT_FOLDER_IDS, isReportFolderId, reportFolderOfId } from "@/lib/reports";
 import { ReportsPanel } from "@/components/reports/ReportsPanel";
+import { InquiryFolderNav } from "@/components/inquiries/InquiryFolderNav";
+import { InquiriesPanel } from "@/components/inquiries/InquiriesPanel";
+import { INQUIRY_FOLDER_IDS, INQUIRY_FOLDER_LABEL, inquiryFolderOfId, isInquiryFolderId } from "@/lib/inquiries";
 import { EmailReportBadge, EmailToReportButton } from "@/components/reports/EmailReportLink";
 import { REPORT_FOLDER_LABEL, folderOfStatus } from "@/hooks/useReports";
 
@@ -111,6 +114,7 @@ export const Inbox = () => {
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
   // Meldungen: gewählte Meldung im Ordner „Meldungen“
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
+  const [selectedInquiryId, setSelectedInquiryId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   // Suchbegriff erst nach kurzer Tipp-Pause abschicken (nicht bei jedem Buchstaben)
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -497,12 +501,15 @@ export const Inbox = () => {
   const isBulkFolder = selectedFolderId === BULK_FOLDER_ID;
   const reportFolder = reportFolderOfId(selectedFolderId);
   const isReportsFolder = isReportFolderId(selectedFolderId);
+  const inquiryFolder = inquiryFolderOfId(selectedFolderId);
+  const isInquiriesFolder = isInquiryFolderId(selectedFolderId);
 
   /** Ordner wechseln — aus der Seitenleiste oder dem Ordner-Blatt am Handy. */
   const selectFolder = (id: string) => {
     setSelectedFolderId(id);
     setSelectedEmailId(null);
     setSelectedReportId(null);
+    setSelectedInquiryId(null);
     setMobileFoldersOpen(false);
   };
 
@@ -669,7 +676,7 @@ export const Inbox = () => {
       if (error) throw error;
       return data;
     },
-    enabled: !isScheduledFolder && !isCallsFolder && !isBulkFolder && !isReportsFolder,
+    enabled: !isScheduledFolder && !isCallsFolder && !isBulkFolder && !isReportsFolder && !isInquiriesFolder,
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
   });
@@ -884,6 +891,28 @@ export const Inbox = () => {
       setSearchParams(next, { replace: true });
     })();
   }, [searchParams, selectedEmailId, folders, setSearchParams]);
+
+  // Deep-Link: ?anfrage=<id> öffnet eine Anfrage, ?ordner=anfragen den Ordner „Neu“.
+  useEffect(() => {
+    const inquiryFromUrl = searchParams.get("anfrage");
+    const folderFromUrl = searchParams.get("ordner");
+    if (!inquiryFromUrl && folderFromUrl !== "anfragen") return;
+    (async () => {
+      if (inquiryFromUrl) {
+        const { data } = await (supabase as any).from("inquiries").select("id, status").eq("id", inquiryFromUrl).maybeSingle();
+        if (data) {
+          setSelectedEmailId(null);
+          setSelectedFolderId(INQUIRY_FOLDER_IDS[data.status as keyof typeof INQUIRY_FOLDER_IDS] ?? INQUIRY_FOLDER_IDS.neu);
+          setSelectedInquiryId(data.id);
+        } else toast.error("Anfrage nicht gefunden");
+      } else selectFolder(INQUIRY_FOLDER_IDS.neu);
+    })();
+    const next = new URLSearchParams(searchParams);
+    next.delete("anfrage");
+    next.delete("ordner");
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   // Deep-Link: ?meldung=<id> öffnet eine Meldung, ?ordner=meldungen den Ordner „Offen“.
   useEffect(() => {
@@ -1260,7 +1289,9 @@ export const Inbox = () => {
             ? selectedEmail?.subject || "(Kein Betreff)"
             : reportFolder
               ? `Meldungen · ${REPORT_FOLDER_LABEL[reportFolder]}`
-              : folders.find((f) => f.id === selectedFolderId)?.name || "Postfach"}
+              : inquiryFolder
+                ? `Anfragen · ${INQUIRY_FOLDER_LABEL[inquiryFolder]}`
+                : folders.find((f) => f.id === selectedFolderId)?.name || "Postfach"}
         </span>
         {!selectedEmailId && (
           <>
@@ -1339,6 +1370,7 @@ export const Inbox = () => {
             );
           })}
           <ReportFolderNav variant="collapsed" selectedFolderId={selectedFolderId} onSelect={selectFolder} />
+          <InquiryFolderNav variant="collapsed" selectedFolderId={selectedFolderId} onSelect={selectFolder} />
         </div>
       ) : (
         <div className="hidden md:flex w-56 border-r flex-col shrink-0">
@@ -1391,6 +1423,7 @@ export const Inbox = () => {
               })}
             </div>
             <ReportFolderNav variant="expanded" selectedFolderId={selectedFolderId} onSelect={selectFolder} />
+          <InquiryFolderNav variant="expanded" selectedFolderId={selectedFolderId} onSelect={selectFolder} />
 
             <Separator className="my-2" />
 
@@ -1510,6 +1543,13 @@ export const Inbox = () => {
               queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });
             }}
             onOpenCampaign={(id) => navigate(`/kommunikation?campaign=${id}`)}
+          />
+        ) : inquiryFolder ? (
+          <InquiriesPanel
+            folder={inquiryFolder}
+            selectedId={selectedInquiryId}
+            onSelect={setSelectedInquiryId}
+            onFolderChange={(f) => setSelectedFolderId(INQUIRY_FOLDER_IDS[f])}
           />
         ) : reportFolder ? (
           <ReportsPanel
@@ -2539,6 +2579,7 @@ export const Inbox = () => {
               })}
             </div>
             <ReportFolderNav variant="mobile" selectedFolderId={selectedFolderId} onSelect={selectFolder} />
+          <InquiryFolderNav variant="mobile" selectedFolderId={selectedFolderId} onSelect={selectFolder} />
 
             <Separator className="my-2" />
 
