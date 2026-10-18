@@ -254,6 +254,8 @@ returns jsonb language sql stable security definer set search_path = public as $
       'heating_cost_eur', bp.heating_cost_eur,
       'deposit_eur', bp.deposit_eur,
       'commission_text', bp.commission_text,
+      'commission_buyer_pct', bp.commission_buyer_pct,
+      'commission_tenant_pct', bp.commission_tenant_pct,
       'living_space_sqm', bp.living_space_sqm,
       'plot_size_sqm', bp.plot_size_sqm,
       'rooms', bp.rooms,

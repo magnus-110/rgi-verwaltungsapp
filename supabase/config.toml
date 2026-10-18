@@ -190,3 +190,6 @@ verify_jwt = false
 
 [functions.website-anfrage]
 verify_jwt = false
+
+[functions.makler-import-website]
+verify_jwt = false
