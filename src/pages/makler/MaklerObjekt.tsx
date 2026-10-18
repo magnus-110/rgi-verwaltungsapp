@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Check, CircleDot, FileDown, Loader2, MoreHorizontal, Save, Trash2 } from "lucide-react";
+import { ArrowLeft, Check, CircleDot, Loader2, MoreHorizontal, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -13,6 +13,7 @@ import { ObjektSeitenleiste } from "@/components/broker/ObjektSeitenleiste";
 import { FotosUnterlagen } from "@/components/broker/FotosUnterlagen";
 import { ObjektInteressenten, ObjektVerlauf } from "@/components/broker/ObjektTabs";
 import { useBrokerLeads, useBrokerProperty, useMaklerNeuLaden } from "@/hooks/useMakler";
+import { ExposeHochladenKnopf } from "@/components/broker/ExposeHochladen";
 import {
   FOTO_BUCKET,
   OBJEKT_STATUS,
@@ -214,9 +215,7 @@ function Detail({ p }: { p: BrokerProperty }) {
                 {OBJEKT_STATUS.map((s) => <SelectItem key={s} value={s} className="min-h-10">{STATUS_LABEL[s]}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Button variant="outline" className="h-11" onClick={() => window.open(`/makler/objekte/${p.id}/expose`, "_blank")}>
-              <FileDown className="h-4 w-4 mr-1.5" />Exposé als PDF
-            </Button>
+            <ExposeHochladenKnopf propertyId={p.id} />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="icon" className="h-11 w-11" aria-label="Weitere Aktionen">

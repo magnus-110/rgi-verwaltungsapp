@@ -441,3 +441,45 @@ export function kurzDatumZeit(iso: string | null | undefined): string {
   if (!iso) return "";
   return new Date(iso).toLocaleString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
+
+/**
+ * Exposé hochladen. Die Datenbank legt dabei automatisch einen Eintrag in der
+ * RGI-Ablage an (Ordner „Makler" › Objekt).
+ */
+export async function exposeHochladen(propertyId: string, file: File, userId: string | null): Promise<void> {
+  const pfad = `${propertyId}/${crypto.randomUUID()}-${dateinameBereinigen(file.name)}`;
+  const { error: upErr } = await db.storage.from(UNTERLAGEN_BUCKET).upload(pfad, file, {
+    contentType: file.type || "application/pdf",
+    upsert: false,
+  });
+  if (upErr) throw upErr;
+  const { error } = await db.from("broker_property_documents").insert({
+    property_id: propertyId,
+    category: "expose",
+    file_name: file.name,
+    storage_path: pfad,
+    mime_type: file.type || "application/pdf",
+    size_bytes: file.size,
+    created_by: userId,
+  });
+  if (error) {
+    await db.storage.from(UNTERLAGEN_BUCKET).remove([pfad]);
+    throw error;
+  }
+}
+
+/** Das zuletzt hochgeladene Exposé als Datei (zum Anhängen an eine E-Mail). */
+export async function neuestesExpose(propertyId: string): Promise<File | null> {
+  const { data } = await db
+    .from("broker_property_documents")
+    .select("file_name, storage_path, mime_type")
+    .eq("property_id", propertyId)
+    .eq("category", "expose")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!data) return null;
+  const { data: blob, error } = await db.storage.from(UNTERLAGEN_BUCKET).download(data.storage_path);
+  if (error || !blob) return null;
+  return new File([blob], data.file_name || "Expose.pdf", { type: data.mime_type || "application/pdf" });
+}

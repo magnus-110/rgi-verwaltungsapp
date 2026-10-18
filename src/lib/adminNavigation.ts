@@ -19,7 +19,7 @@ import {
   StickyNote,
   Users,
   Wallet,
-  Workflow, ReceiptText, ClipboardList, LayoutDashboard, SlidersHorizontal, Monitor } from 'lucide-react';
+  Workflow, ReceiptText, ClipboardList, LayoutDashboard, SlidersHorizontal } from 'lucide-react';
 
 /**
  * Die Navigation — an einer Stelle.
@@ -96,7 +96,6 @@ export const brokerMenu: MenuItem[] = [
   { title: 'Termine', url: '/calendar', icon: CalendarDays },
   { title: 'Postfach', url: '/postfach', icon: Mail },
   { title: 'Adressen', url: '/contacts', icon: BookUser },
-  { title: 'Schaufenster', url: '/makler/schaufenster', icon: Monitor },
   { title: 'Makler-Einstellungen', url: '/makler/einstellungen', icon: SlidersHorizontal, adminOnly: true, abschnitt: 'Intern' },
   { title: 'Einstellungen', url: '/settings', icon: Settings, abschnitt: 'Intern' },
 ];

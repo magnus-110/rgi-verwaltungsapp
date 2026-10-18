@@ -48,6 +48,7 @@ import {
   kontaktLabel,
   leadName,
   leadStandSetzen,
+  neuestesExpose,
   personName,
   schrittIndex,
   type BrokerLead,
@@ -163,9 +164,12 @@ function Detail({ lead }: { lead: BrokerLead }) {
     if (!lead.external_email) return void toast.error("Keine E-Mail-Adresse hinterlegt.");
     openCompose({ prefill: { to: lead.external_email, subject: `Ihre Anfrage: ${objektTitel}` } });
   };
-  const exposeSenden = () => {
+  const exposeSenden = async () => {
     if (!lead.external_email) return void toast.error("Keine E-Mail-Adresse hinterlegt.");
+    const datei = lead.property_id ? await neuestesExpose(lead.property_id) : null;
+    if (!datei) toast.info("Für dieses Objekt ist noch kein Exposé hochgeladen. Bitte beim Objekt „Exposé hochladen“.");
     openCompose({
+      attachments: datei ? [datei] : [],
       prefill: {
         to: lead.external_email,
         subject: `Exposé: ${objektTitel}`,
@@ -239,11 +243,8 @@ function Detail({ lead }: { lead: BrokerLead }) {
             </div>
             {exposeHinweis && (
               <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm space-y-2">
-                <p>Bitte das Exposé als PDF speichern und an die E-Mail anhängen.</p>
+                <p>Das Exposé hängt an der E-Mail. Nach dem Senden hier vermerken:</p>
                 <div className="flex flex-wrap gap-2">
-                  <Button variant="outline" className="h-10" onClick={() => window.open(`/makler/objekte/${lead.property_id}/expose`, "_blank")}>
-                    <FileText className="h-4 w-4 mr-1.5" />Exposé öffnen
-                  </Button>
                   <Button
                     className="h-10"
                     onClick={async () => {
