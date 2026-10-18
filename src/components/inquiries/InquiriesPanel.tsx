@@ -287,7 +287,7 @@ function InquiryDetail({
                 <Button
                   size="sm"
                   onClick={() => {
-                    openCompose({ prefill: { to: inq.email!, subject: `Ihre Anfrage bei RGI Immobilien`, bodyText: `Guten Tag ${inq.name ?? ""},\n\nvielen Dank für Ihre Anfrage.\n\n` } });
+                    openCompose({ prefill: { to: inq.email! } });
                     if (inq.status === "neu") setStatus("in_bearbeitung");
                   }}
                 >

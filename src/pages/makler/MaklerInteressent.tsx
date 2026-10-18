@@ -48,7 +48,6 @@ import {
   kontaktLabel,
   leadName,
   leadStandSetzen,
-  neuestesExpose,
   personName,
   schrittIndex,
   type BrokerLead,
@@ -116,7 +115,6 @@ function Detail({ lead }: { lead: BrokerLead }) {
   const [besichtigung, setBesichtigung] = useState(false);
   const [ausgang, setAusgang] = useState<{ nurAbsage?: boolean } | null>(null);
   const [kontaktNeu, setKontaktNeu] = useState(false);
-  const [exposeHinweis, setExposeHinweis] = useState(false);
   const [loeschFrage, setLoeschFrage] = useState(false);
 
   const aendern = async (patch: Record<string, unknown>, ok?: string) => {
@@ -162,23 +160,8 @@ function Detail({ lead }: { lead: BrokerLead }) {
 
   const antworten = () => {
     if (!lead.external_email) return void toast.error("Keine E-Mail-Adresse hinterlegt.");
-    openCompose({ prefill: { to: lead.external_email, subject: `Ihre Anfrage: ${objektTitel}` } });
+    openCompose({ prefill: { to: lead.external_email } });
   };
-  const exposeSenden = async () => {
-    if (!lead.external_email) return void toast.error("Keine E-Mail-Adresse hinterlegt.");
-    const datei = lead.property_id ? await neuestesExpose(lead.property_id) : null;
-    if (!datei) toast.info("Für dieses Objekt ist noch kein Exposé hochgeladen. Bitte beim Objekt „Exposé hochladen“.");
-    openCompose({
-      attachments: datei ? [datei] : [],
-      prefill: {
-        to: lead.external_email,
-        subject: `Exposé: ${objektTitel}`,
-        bodyText: `Guten Tag${lead.external_name ? ` ${lead.external_name}` : ""},\n\nvielen Dank für Ihr Interesse an „${objektTitel}". Im Anhang finden Sie das Exposé mit allen Angaben und Bildern.\n\nGerne vereinbaren wir einen Besichtigungstermin. Melden Sie sich einfach bei uns.\n\nMit freundlichen Grüßen\nRGI Immobilien GmbH & Co. KG\nTelefon +49 8363 960656\n`,
-      },
-    });
-    setExposeHinweis(true);
-  };
-
   const loeschen = async () => {
     setLoeschFrage(false);
     const { data, error } = await db.from("broker_leads").delete().eq("id", lead.id).select("id");
@@ -237,28 +220,7 @@ function Detail({ lead }: { lead: BrokerLead }) {
               <Button variant="outline" className="h-11" onClick={() => setBesichtigung(true)}>
                 <CalendarDays className="h-4 w-4 mr-1.5" />Besichtigung
               </Button>
-              <Button variant="outline" className="h-11" onClick={exposeSenden} disabled={!lead.external_email}>
-                <Send className="h-4 w-4 mr-1.5" />Exposé senden
-              </Button>
             </div>
-            {exposeHinweis && (
-              <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm space-y-2">
-                <p>Das Exposé hängt an der E-Mail. Nach dem Senden hier vermerken:</p>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    className="h-10"
-                    onClick={async () => {
-                      if (await ereignis("document_sent", "Exposé gesendet")) {
-                        toast.success("Als gesendet vermerkt");
-                        setExposeHinweis(false);
-                      }
-                    }}
-                  >
-                    Als gesendet vermerken
-                  </Button>
-                </div>
-              </div>
-            )}
 
             <div className="border-t pt-4 space-y-3 text-sm">
               <Link to={`/makler/objekte/${lead.property_id}`} className="flex items-center gap-2 min-h-11 font-medium hover:text-primary">
