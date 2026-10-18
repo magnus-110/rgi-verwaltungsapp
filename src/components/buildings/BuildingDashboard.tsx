@@ -3,6 +3,7 @@ import { Building2, MapPin, Edit, Trash2, Users, FileText, AlertCircle, Wrench, 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { BuildingForumTab } from "./BuildingForumTab";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { EditBuildingDialog } from "@/components/EditBuildingDialog";
@@ -40,7 +41,7 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState(() => {
     const t = searchParams.get("tab") || "overview";
-    return ["cases", "notes", "forum", "communication", "onboarding", "takeover"].includes(t) ? "overview" : t;
+    return ["cases", "notes", "communication", "onboarding", "takeover"].includes(t) ? "overview" : t;
   });
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -165,6 +166,7 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
               ...(building.management_mode === 'rent' ? [{ value: "deposits", label: "Kaution" }] : []),
               { value: "maintenance", label: "Wartung" },
               { value: "keys", label: "Schlüssel" },
+              { value: "forum", label: "Schwarzes Brett" },
             ].map(tab => (
               <TabsTrigger key={tab.value} value={tab.value} variant="underline"
                 className="px-3 md:px-4 py-3 text-xs md:text-sm whitespace-nowrap min-h-[44px]">
@@ -232,6 +234,10 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
           )}
 
           {/* Keys Tab */}
+          <TabsContent value="forum" className="p-3 md:p-6 mt-0">
+            <BuildingForumTab buildingId={buildingId} managementMode={building.management_mode} />
+          </TabsContent>
+
           <TabsContent value="keys" className="p-3 md:p-6 mt-0">
             <BuildingKeysTab buildingId={buildingId} />
           </TabsContent>
