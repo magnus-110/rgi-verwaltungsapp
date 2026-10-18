@@ -93,9 +93,9 @@ export function WegOwnerServiceHubSuccess() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-10">
-      <Button variant="ghost" size="sm" onClick={() => navigate("/weg-owner/service-hub")} className="mb-4">
+      <Button variant="ghost" size="sm" onClick={() => navigate("/weg-owner/mehr")} className="mb-4">
         <ArrowLeft className="w-4 h-4 mr-2" />
-        Service-Hub
+        Zurück
       </Button>
 
       <Card className="p-8 text-center space-y-4">

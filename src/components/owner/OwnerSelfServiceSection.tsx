@@ -64,7 +64,7 @@ export const OwnerSelfServiceSection = () => {
   const [banks, setBanks] = useState<Bank[]>([]);
   const [assignments, setAssignments] = useState<AssignmentRow[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
-  const [stammdatenOffen, setStammdatenOffen] = useState(false);
+  const [teil, setTeil] = useState<"post" | "konto">("post");
 
   const load = async () => {
     if (!profile?.user_id) return;
@@ -188,7 +188,6 @@ export const OwnerSelfServiceSection = () => {
   }
 
   const openAssignment = assignments.find((a) => a.id === openId) ?? null;
-  const name = [contact.salutation, contact.first_name, contact.last_name].filter(Boolean).join(" ") || contact.company_name || "";
 
   return (
     <>
@@ -199,27 +198,28 @@ export const OwnerSelfServiceSection = () => {
             data-tour="settings-units"
             icon={Building2}
             titel={`${a.buildings?.name || "Wohnung"}${a.unit_number ? ` · WE ${a.unit_number}` : ""}`}
-            untertitel="Post, Telefon und Konto für das Hausgeld"
-            onClick={() => setOpenId(a.id)}
+            untertitel="Name, Post, Telefon und E-Mail"
+            onClick={() => { setTeil("post"); setOpenId(a.id); }}
           />
         ))}
       </PortalAbschnitt>
 
-      <PortalAbschnitt titel="Meine Daten">
-        <PortalZeile icon={User} titel="Mein Name" untertitel={name || "Noch nicht hinterlegt"} onClick={() => setStammdatenOffen(true)} />
+      <PortalAbschnitt titel="Bankverbindung">
+        {assignments.map((a) => (
+          <PortalZeile
+            key={`k-${a.id}`}
+            icon={CreditCard}
+            titel={assignments.length > 1 ? `Konto für ${a.buildings?.name || "Wohnung"}${a.unit_number ? ` · WE ${a.unit_number}` : ""}` : "Konto für das Hausgeld"}
+            untertitel={a.iban_override ? `IBAN ${maskIban(a.iban_override)}` : "Noch kein Konto hinterlegt"}
+            onClick={() => { setTeil("konto"); setOpenId(a.id); }}
+          />
+        ))}
       </PortalAbschnitt>
-
-      <StammdatenBlatt
-        key={`s-${stammdatenOffen}`}
-        offen={stammdatenOffen}
-        onOffen={setStammdatenOffen}
-        contact={contact}
-        onSaved={() => { setStammdatenOffen(false); load(); }}
-      />
 
       {openAssignment && (
         <WohnungBlatt
-          key={openAssignment.id}
+          key={`${openAssignment.id}-${teil}`}
+          teil={teil}
           offen={!!openId}
           onOffen={(o) => !o && setOpenId(null)}
           assignment={openAssignment}
@@ -241,66 +241,14 @@ function Feld({ label, htmlFor, children }: { label: string; htmlFor?: string; c
   );
 }
 
-function StammdatenBlatt({ offen, onOffen, contact, onSaved }: { offen: boolean; onOffen: (o: boolean) => void; contact: Contact; onSaved: () => void }) {
-  const [salutation, setSalutation] = useState(contact.salutation ?? "");
-  const [firstName, setFirstName] = useState(contact.first_name ?? "");
-  const [lastName, setLastName] = useState(contact.last_name ?? "");
-  const [companyName, setCompanyName] = useState(contact.company_name ?? "");
-  const [saving, setSaving] = useState(false);
-  const dirty =
-    (contact.salutation ?? "") !== salutation ||
-    (contact.first_name ?? "") !== firstName ||
-    (contact.last_name ?? "") !== lastName ||
-    (contact.company_name ?? "") !== companyName;
-
-  const save = async () => {
-    setSaving(true);
-    const { error } = await supabase
-      .from("contacts")
-      .update({ salutation: salutation || null, first_name: firstName || null, last_name: lastName || null, company_name: companyName || null })
-      .eq("id", contact.id);
-    setSaving(false);
-    if (error) {
-      toast({ title: "Fehler", description: error.message, variant: "destructive" });
-      return;
-    }
-    toast({ title: "Gespeichert" });
-    onSaved();
-  };
-
-  return (
-    <PortalBlatt
-      offen={offen}
-      onOffen={onOffen}
-      titel="Mein Name"
-      text="So sprechen wir Sie in Briefen und E-Mails an."
-      fuss={
-        <Button onClick={save} disabled={!dirty || saving} className="w-full h-12 text-base rounded-[12px]">
-          {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />} Speichern
-        </Button>
-      }
-    >
-      <PortalGruppe>
-        <Feld label="Anrede">
-          <Select value={salutation || "none"} onValueChange={(v) => setSalutation(v === "none" ? "" : v)}>
-            <SelectTrigger className={portalFeld}><SelectValue placeholder="Bitte wählen" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">Keine Angabe</SelectItem>
-              {SALUTATIONS.map((x) => <SelectItem key={x} value={x}>{x}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </Feld>
-        <Feld label="Vorname" htmlFor="sd-vor"><Input id="sd-vor" className={portalFeld} autoComplete="given-name" value={firstName} onChange={(e) => setFirstName(e.target.value)} /></Feld>
-        <Feld label="Nachname" htmlFor="sd-nach"><Input id="sd-nach" className={portalFeld} autoComplete="family-name" value={lastName} onChange={(e) => setLastName(e.target.value)} /></Feld>
-      </PortalGruppe>
-      <PortalGruppe hinweis="Nur ausfüllen, wenn die Wohnung einer Firma gehört.">
-        <Feld label="Firma" htmlFor="sd-firma"><Input id="sd-firma" className={portalFeld} autoComplete="organization" value={companyName} onChange={(e) => setCompanyName(e.target.value)} /></Feld>
-      </PortalGruppe>
-    </PortalBlatt>
-  );
+/** IBAN gekürzt zeigen: DE12 … 3456 */
+function maskIban(iban: string): string {
+  const t = iban.replace(/\s/g, "");
+  return t.length > 8 ? `${t.slice(0, 4)} … ${t.slice(-4)}` : t;
 }
 
 function WohnungBlatt({
+  teil,
   offen,
   onOffen,
   assignment,
@@ -308,6 +256,7 @@ function WohnungBlatt({
   contact,
   onSaved,
 }: {
+  teil: "post" | "konto";
   offen: boolean;
   onOffen: (o: boolean) => void;
   assignment: AssignmentRow;
@@ -404,14 +353,15 @@ function WohnungBlatt({
     <PortalBlatt
       offen={offen}
       onOffen={onOffen}
-      titel={title}
-      text="Leere Felder übernehmen Ihre allgemeinen Angaben."
+      titel={teil === "konto" ? "Konto für das Hausgeld" : title}
+      text={teil === "konto" ? title : "Leere Felder übernehmen Ihre allgemeinen Angaben."}
       fuss={
         <Button onClick={save} disabled={saving} className="w-full h-12 text-base rounded-[12px]">
           {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />} Speichern
         </Button>
       }
     >
+      {teil === "post" && (<>
       <PortalGruppe titel="Post für diese Wohnung geht an">
         <div className="grid grid-cols-2 gap-3">
           <div className="col-span-2">
@@ -444,7 +394,9 @@ function WohnungBlatt({
       <PortalGruppe titel="E-Mail für diese Wohnung" hinweis="Hierhin schicken wir zum Beispiel Abrechnungen. Ihre Anmelde-E-Mail ändern Sie unter „Anmeldung und Sicherheit“.">
         {listenFeld("emails_override", "email", "E-Mail-Adresse", "email", "E-Mail hinzufügen")}
       </PortalGruppe>
+      </>)}
 
+      {teil === "konto" && (
       <PortalGruppe titel="Konto für das Hausgeld">
         {bankOptions.length > 0 && (
           <Feld label="Gespeichertes Konto wählen">
@@ -467,6 +419,7 @@ function WohnungBlatt({
         <Feld label="Kontoinhaber" htmlFor="w-inh"><Input id="w-inh" className={portalFeld} placeholder="Vor- und Nachname" value={a.iban_holder_override ?? ""} onChange={(e) => update({ iban_holder_override: e.target.value || null })} /></Feld>
         <Feld label="IBAN" htmlFor="w-iban"><Input id="w-iban" className={`${portalFeld} font-mono tracking-wide`} placeholder="DE00 0000 0000 0000 0000 00" value={a.iban_override ?? ""} onChange={(e) => update({ iban_override: e.target.value || null })} /></Feld>
       </PortalGruppe>
+      )}
     </PortalBlatt>
   );
 }

@@ -368,7 +368,7 @@ export function WegOwnerFiles() {
           <Sparkles className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-primary" />
           <Input
             aria-label="Dokumente durchsuchen"
-            placeholder="Suchen oder fragen, z. B. „Markise am Balkon“"
+            placeholder="Suchen oder fragen"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-10 h-12 rounded-[14px] bg-card border-border/60 shadow-sm text-base"

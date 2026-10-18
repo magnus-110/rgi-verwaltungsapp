@@ -75,7 +75,7 @@ export default function WegOwnerMehr() {
               rechts={<span className="text-[11px] font-semibold rounded-full px-2.5 py-1 bg-primary/10 text-[#8A4100]">{angebote.length}</span>}
             />
           )}
-          <PortalZeile icon={Receipt} titel="Nebenkostenabrechnung für Mieter" onClick={() => navigate("/weg-owner/service-hub")} />
+          <PortalZeile icon={Receipt} titel="Nebenkostenabrechnung für Mieter" onClick={() => navigate("/weg-owner/service-hub/nebenkosten")} />
         </PortalAbschnitt>
 
         <PortalAbschnitt titel="Konto">
