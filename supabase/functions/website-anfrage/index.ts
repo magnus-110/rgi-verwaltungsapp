@@ -196,7 +196,12 @@ Deno.serve(async (req) => {
   let brokerPropertyId: string | null = null;
   const propId = s(data?.broker_property_id ?? data?.property_id, 60);
   if (kind === "objekt" && /^[0-9a-f-]{36}$/i.test(propId)) {
-    const { data: bp } = await admin.from("broker_properties").select("id").eq("id", propId).maybeSingle();
+    let { data: bp } = await admin.from("broker_properties").select("id").eq("id", propId).maybeSingle();
+    if (!bp) {
+      // Alte Objekt-IDs der Website (vor dem Umzug in die App)
+      const alt = await admin.from("broker_properties").select("id").eq("legacy_website_id", propId).maybeSingle();
+      bp = alt.data ?? null;
+    }
     brokerPropertyId = bp?.id ?? null;
   }
 
@@ -226,11 +231,58 @@ Deno.serve(async (req) => {
     nummer = ins.nummer;
   }
 
+  // Objekt-Anfrage: beim Objekt direkt als Interessent anlegen und den
+  // zuständigen Makler benachrichtigen.
+  let brokerOwner: string | null = null;
+  if (brokerPropertyId) {
+    try {
+      const { data: bp } = await admin.from("broker_properties").select("id, title, assigned_to, created_by").eq("id", brokerPropertyId).maybeSingle();
+      brokerOwner = bp?.assigned_to ?? bp?.created_by ?? null;
+      const nachricht = s(data?.nachricht ?? data?.message, 4000);
+      const basis = {
+        property_id: brokerPropertyId,
+        external_name: name,
+        external_email: email,
+        external_phone: phone || null,
+        status: "neu",
+        notes: nachricht || null,
+      };
+      let lead = await admin
+        .from("broker_leads")
+        .insert({ ...basis, source: s(body?.source, 20) === "nutzer_app" ? "nutzer_app" : "website", inquiry_id: inquiryId })
+        .select("id")
+        .single();
+      if (lead.error) lead = await admin.from("broker_leads").insert(basis).select("id").single();
+      if (!lead.error && lead.data) {
+        await admin.from("broker_lead_events").insert({
+          lead_id: lead.data.id,
+          event_type: "note",
+          title: s(body?.source, 20) === "nutzer_app" ? "Anfrage über die Nutzer-App" : "Anfrage über die Website",
+          body: nachricht || null,
+        });
+        if (inquiryId) await admin.from("inquiries").update({ broker_lead_id: lead.data.id }).eq("id", inquiryId);
+        if (brokerOwner) {
+          await admin.from("notifications").insert({
+            user_id: brokerOwner,
+            type: "makler_interessent",
+            title: `Neuer Interessent: ${name}`,
+            body: bp?.title ?? null,
+            url: `/makler/interessenten/${lead.data.id}`,
+            ref_type: "broker_lead",
+            ref_id: lead.data.id,
+          });
+        }
+      }
+    } catch (e) {
+      console.warn("[website-anfrage] Interessent konnte nicht angelegt werden", e);
+    }
+  }
+
   // Hinweis an die Admins in der App.
   if (inquiryId) {
     try {
       const { data: admins } = await admin.from("profiles").select("user_id").eq("role", "admin");
-      const rows = (admins ?? []).map((a: any) => ({
+      const rows = (admins ?? []).filter((a: any) => a.user_id !== brokerOwner).map((a: any) => ({
         user_id: a.user_id,
         type: "anfrage",
         title: `Neue ${ART_TITEL[kind]}: ${name}`,
