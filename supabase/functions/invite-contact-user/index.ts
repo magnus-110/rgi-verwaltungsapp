@@ -1,4 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.52.1";
+import { sendSystemMail } from '../_shared/system-mail.ts'
+import { willkommenWeg } from '../_shared/mail-templates.ts'
 import { firstValidEmail } from "../_shared/sanitize-email.ts";
 
 const corsHeaders = {
@@ -22,29 +24,16 @@ async function setPasswordWithRetry(admin: any, userId: string): Promise<{ passw
   return { password: "", error: new Error("Konnte Passwort nach 3 Versuchen nicht setzen") };
 }
 
+// Willkommens-Mail mit Zugangsdaten – verschickt die App selbst (früher Make.com).
+// Nur für WEG-Eigentümer: die Mietverwaltung nutzt die App nicht als Plattform.
 async function sendToMakeWebhook(data: any) {
-  const webhookUrl = Deno.env.get("MAKE_WEBHOOK_URL");
-  if (!webhookUrl) {
-    console.error("MAKE_WEBHOOK_URL not configured");
-    return { success: false, error: "Webhook URL not configured" };
-  }
-  try {
-    const response = await fetch(webhookUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    const responseText = await response.text();
-    if (!response.ok) {
-      console.error(`Webhook failed: ${response.status}`, responseText);
-      return { success: false, error: `HTTP ${response.status}` };
-    }
-    console.log("Webhook sent successfully");
-    return { success: true };
-  } catch (error) {
-    console.error("Webhook error:", error);
-    return { success: false, error: error.message };
-  }
+  if (data?.management_mode !== 'weg') return { success: true, skipped: true }
+  const admin = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '', {
+    auth: { autoRefreshToken: false, persistSession: false },
+  })
+  const mail = willkommenWeg({ firstName: data.first_name, lastName: data.last_name, email: data.email, password: data.password })
+  const res = await sendSystemMail(admin, { kind: 'willkommen_weg', to: data.email, subject: mail.subject, html: mail.html, refType: 'user' })
+  return res.ok ? { success: true } : { success: false, error: res.error }
 }
 
 Deno.serve(async (req) => {

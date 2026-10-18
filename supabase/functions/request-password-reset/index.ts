@@ -1,4 +1,8 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { sendSystemMail } from '../_shared/system-mail.ts'
+import { passwortLink } from '../_shared/mail-templates.ts'
+
+const APP_URL = 'https://rgi-immobilien.app'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -9,62 +13,15 @@ interface ResetRequest {
   email: string
 }
 
-// Cryptographically secure temporary password (CSPRNG, large keyspace).
-function generateSecurePassword(length = 14): string {
-  const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789'
-  const bytes = new Uint32Array(length)
-  crypto.getRandomValues(bytes)
-  let pw = ''
-  for (let i = 0; i < length; i++) pw += alphabet[bytes[i] % alphabet.length]
-  return pw + '-' + (crypto.getRandomValues(new Uint32Array(1))[0] % 90 + 10)
-}
-
 // Generic response for ALL outcomes -> prevents user enumeration.
 function genericOk(corsHeaders: Record<string, string>) {
   return new Response(
     JSON.stringify({
       success: true,
-      message: 'Falls ein Konto mit dieser E-Mail-Adresse existiert, wurde ein neues Passwort versendet.'
+      message: 'Falls ein Konto mit dieser E-Mail-Adresse existiert, haben wir einen Link zum Festlegen eines neuen Passworts geschickt.'
     }),
     { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
-}
-
-// Send data to Make.com webhook
-async function sendToMakeWebhook(data: any) {
-  const webhookUrl = Deno.env.get('MAKE_WEBHOOK_URL')
-  if (!webhookUrl) {
-    console.error('MAKE_WEBHOOK_URL not configured')
-    return { success: false, error: 'Webhook URL not configured' }
-  }
-
-  try {
-    console.log('Sending webhook to:', webhookUrl.substring(0, 50) + '...')
-    console.log('Webhook payload:', JSON.stringify(data, null, 2))
-    
-    const response = await fetch(webhookUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data)
-    })
-    
-    const responseText = await response.text()
-    
-    if (!response.ok) {
-      console.error(`Make.com webhook failed: ${response.status} ${response.statusText}`)
-      console.error('Response:', responseText)
-      return { success: false, error: `HTTP ${response.status}: ${responseText}` }
-    } else {
-      console.log('Make.com webhook sent successfully:', response.status)
-      console.log('Response:', responseText)
-      return { success: true, response: responseText }
-    }
-  } catch (error) {
-    console.error('Error sending to Make.com webhook:', error)
-    return { success: false, error: error.message }
-  }
 }
 
 Deno.serve(async (req) => {
@@ -144,39 +101,27 @@ Deno.serve(async (req) => {
       return genericOk(corsHeaders)
     }
 
-    // Try to set a new password — retry with a fresh one if Supabase rejects it (e.g. HIBP leak check).
-    let newPassword = ''
-    let lastUpdateError: any = null
-    for (let i = 0; i < 3; i++) {
-      const candidate = generateSecurePassword()
-      const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
-        existingUser.id,
-        { password: candidate }
-      )
-      if (!updateError) { newPassword = candidate; break }
-      lastUpdateError = updateError
-      console.error(`Password update attempt ${i + 1} failed:`, updateError)
-    }
-    if (!newPassword) {
-      console.error('Password reset failed for user:', existingUser.id, lastUpdateError?.message)
-      // Generic response - do not disclose account state.
+    // Kein neues Passwort mehr per Mail: Wir schicken einen Link, über den die
+    // Person selbst ein neues Passwort festlegt. Bis dahin gilt das alte weiter –
+    // so kann niemand ein fremdes Konto durch „Passwort vergessen“ sperren.
+    const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+      type: 'recovery',
+      email: normalizedEmail,
+    })
+    const tokenHash = (linkData as any)?.properties?.hashed_token
+    if (linkError || !tokenHash) {
+      console.error('Recovery link failed for user:', existingUser.id, linkError?.message)
       return genericOk(corsHeaders)
     }
-
-    // Determine management mode based on role
-    const managementMode = profile.role === 'weg_owner' ? 'weg' : 'rent'
-
-    // Send data to Make.com webhook
-    await sendToMakeWebhook({
-      event: 'password_reset',
-      email: email,
-      password: newPassword,
-      first_name: profile.first_name,
-      last_name: profile.last_name,
-      phone: profile.phone,
-      management_mode: managementMode,
-      building_id: profile.building_id,
-      reset_at: new Date().toISOString()
+    const link = `${APP_URL}/change-password?type=recovery&token_hash=${encodeURIComponent(tokenHash)}`
+    const mail = passwortLink({ firstName: profile.first_name, lastName: profile.last_name, link })
+    await sendSystemMail(supabaseAdmin, {
+      kind: 'passwort_link',
+      to: normalizedEmail,
+      subject: mail.subject,
+      html: mail.html,
+      refType: 'user',
+      refId: existingUser.id,
     })
 
     return genericOk(corsHeaders)

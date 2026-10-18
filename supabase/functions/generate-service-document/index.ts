@@ -7,6 +7,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.1";
 import PizZip from "https://esm.sh/pizzip@3.1.7";
 import Docxtemplater from "https://esm.sh/docxtemplater@3.50.0";
+import { sendSystemMail } from "../_shared/system-mail.ts";
+import { nebenkosten } from "../_shared/mail-templates.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -367,33 +369,40 @@ Deno.serve(async (req) => {
       })
       .eq("id", order_id);
 
-    const webhook = Deno.env.get("MAKE_NEBENKOSTEN_WEBHOOK_URL");
-    if (webhook) {
-      try {
-        for (const d of documents) {
+    // Abrechnung per Mail an den Eigentümer (Vermieter) – verschickt die App selbst
+    // über das Postfach für automatische Mails (früher Make.com).
+    const empfaenger = (vermieter.email ?? "").trim();
+    if (empfaenger) {
+      const erstelltAm = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date());
+      for (const d of documents) {
+        try {
           const { data: signed } = await admin.storage.from(bucketId).createSignedUrl(d.path, 60 * 60 * 24);
-          await fetch(webhook, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              order_id: order.id,
-              service_type: order.service_type,
-              user_id: order.user_id,
-              recipient_email: vermieter.email ?? null,
-              recipient_name: vermieter.name,
-              objekt_adresse: objekt.adresse,
-              objekt_wohnung: objekt.wohnung,
-              mieter_name: d.mieter_name,
-              abrechnungsjahr: String(order.fiscal_year ?? snap.fiscal_year ?? ""),
-              saldo: d.saldo,
-              saldo_text: d.saldo_label,
-              download_url: signed?.signedUrl ?? null,
-              generated_at: new Date().toISOString(),
-            }),
+          const { data: pdf } = await admin.storage.from(bucketId).download(d.path);
+          const mail = nebenkosten({
+            recipientName: vermieter.name,
+            jahr: String(order.fiscal_year ?? snap.fiscal_year ?? ""),
+            wohnung: objekt.wohnung,
+            adresse: objekt.adresse,
+            mieter: d.mieter_name,
+            saldo: d.saldo == null ? null : String(d.saldo),
+            saldoText: d.saldo_label ?? null,
+            erstelltAm,
+            downloadUrl: signed?.signedUrl ?? null,
           });
+          await sendSystemMail(admin, {
+            kind: "nebenkostenabrechnung",
+            to: empfaenger,
+            subject: mail.subject,
+            html: mail.html,
+            attachments: pdf
+              ? [{ filename: d.path.split("/").pop() ?? "Nebenkostenabrechnung.pdf", content: new Uint8Array(await pdf.arrayBuffer()), contentType: "application/pdf" }]
+              : [],
+            refType: "service_order",
+            refId: order.id,
+          });
+        } catch (e) {
+          console.error("[generate-service-document] Mailversand fehlgeschlagen:", e);
         }
-      } catch (e) {
-        console.error("[generate-service-document] Make webhook error:", e);
       }
     }
 

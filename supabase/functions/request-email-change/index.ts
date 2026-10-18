@@ -1,4 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { sendSystemMail } from '../_shared/system-mail.ts'
+import { emailBestaetigen } from '../_shared/mail-templates.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -7,28 +9,14 @@ const corsHeaders = {
 
 const APP_BASE_URL = 'https://rgi-immobilien.app'
 
+// Bestätigungs-Mail an die neue Adresse – verschickt die App selbst (früher Make.com).
 async function sendToMakeWebhook(data: any) {
-  const webhookUrl = Deno.env.get('MAKE_WEBHOOK_URL')
-  if (!webhookUrl) {
-    console.error('MAKE_WEBHOOK_URL not configured')
-    return { success: false, error: 'Webhook URL not configured' }
-  }
-  try {
-    const response = await fetch(webhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    })
-    const text = await response.text()
-    if (!response.ok) {
-      console.error('Make webhook failed:', response.status, text)
-      return { success: false, error: `HTTP ${response.status}` }
-    }
-    return { success: true }
-  } catch (e) {
-    console.error('Webhook error:', e)
-    return { success: false, error: (e as Error).message }
-  }
+  const admin = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '', {
+    auth: { autoRefreshToken: false, persistSession: false },
+  })
+  const mail = emailBestaetigen({ firstName: data.first_name, lastName: data.last_name, newEmail: data.new_email, link: data.confirmation_url })
+  const res = await sendSystemMail(admin, { kind: 'email_bestaetigen', to: data.new_email, subject: mail.subject, html: mail.html, refType: 'user' })
+  return res.ok ? { success: true } : { success: false, error: res.error }
 }
 
 Deno.serve(async (req) => {

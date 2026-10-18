@@ -1,4 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { sendSystemMail } from '../_shared/system-mail.ts'
+import { willkommenWeg } from '../_shared/mail-templates.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -21,41 +23,16 @@ function generateNumericPassword(): string {
   return Math.floor(100000 + Math.random() * 900000).toString()
 }
 
-// Send data to Make.com webhook
+// Willkommens-Mail mit Zugangsdaten – verschickt die App selbst (früher Make.com).
+// Nur für WEG-Eigentümer: die Mietverwaltung nutzt die App nicht als Plattform.
 async function sendToMakeWebhook(data: any) {
-  const webhookUrl = Deno.env.get('MAKE_WEBHOOK_URL')
-  if (!webhookUrl) {
-    console.error('MAKE_WEBHOOK_URL not configured')
-    return { success: false, error: 'Webhook URL not configured' }
-  }
-
-  try {
-    console.log('Sending webhook to:', webhookUrl.substring(0, 50) + '...')
-    console.log('Webhook payload:', JSON.stringify(data, null, 2))
-    
-    const response = await fetch(webhookUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data)
-    })
-    
-    const responseText = await response.text()
-    
-    if (!response.ok) {
-      console.error(`Make.com webhook failed: ${response.status} ${response.statusText}`)
-      console.error('Response:', responseText)
-      return { success: false, error: `HTTP ${response.status}: ${responseText}` }
-    } else {
-      console.log('Make.com webhook sent successfully:', response.status)
-      console.log('Response:', responseText)
-      return { success: true, response: responseText }
-    }
-  } catch (error) {
-    console.error('Error sending to Make.com webhook:', error)
-    return { success: false, error: error.message }
-  }
+  if (data?.management_mode !== 'weg') return { success: true, skipped: true }
+  const admin = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '', {
+    auth: { autoRefreshToken: false, persistSession: false },
+  })
+  const mail = willkommenWeg({ firstName: data.first_name, lastName: data.last_name, email: data.email, password: data.password })
+  const res = await sendSystemMail(admin, { kind: 'willkommen_weg', to: data.email, subject: mail.subject, html: mail.html, refType: 'user' })
+  return res.ok ? { success: true } : { success: false, error: res.error }
 }
 
 Deno.serve(async (req) => {

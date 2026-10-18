@@ -212,7 +212,7 @@ export const Keys = () => {
       supabase.functions
         .invoke("send-key-email", { body: { loan_id: loanId, event: "returned" } })
         .then(({ error: e }) => {
-          if (e) toast.warning("Rückgabe-Webhook fehlgeschlagen: " + e.message);
+          if (e) toast.warning("Bestätigungs-Mail konnte nicht verschickt werden: " + e.message);
         });
     }
   };
@@ -240,7 +240,7 @@ export const Keys = () => {
       supabase.functions
         .invoke("send-key-email", { body: { loan_id: loanId, event: "lost" } })
         .then(({ error: e }) => {
-          if (e) toast.warning("Verlust-Webhook fehlgeschlagen: " + e.message);
+          if (e) toast.warning("Hinweis konnte nicht verschickt werden: " + e.message);
         });
     }
   };

@@ -191,7 +191,7 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
     toast.success("Rückgabe bestätigt");
     if (loan?.send_confirmation_email) {
       supabase.functions.invoke("send-key-email", { body: { loan_id: loanId, event: "returned" } })
-        .then(({ error: e }) => { if (e) toast.warning("Rückgabe-Webhook fehlgeschlagen: " + e.message); });
+        .then(({ error: e }) => { if (e) toast.warning("Bestätigungs-Mail konnte nicht verschickt werden: " + e.message); });
     }
   };
 
@@ -205,7 +205,7 @@ export const BuildingKeysTab = ({ buildingId }: Props) => {
     qc.invalidateQueries({ queryKey: ["outstanding-key-loans"] });
     if (loan?.send_confirmation_email) {
       supabase.functions.invoke("send-key-email", { body: { loan_id: loanId, event: "lost" } })
-        .then(({ error: e }) => { if (e) toast.warning("Verlust-Webhook fehlgeschlagen: " + e.message); });
+        .then(({ error: e }) => { if (e) toast.warning("Hinweis konnte nicht verschickt werden: " + e.message); });
     }
   };
 

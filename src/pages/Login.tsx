@@ -172,7 +172,7 @@ export const Login = () => {
       }
 
       // Success case
-      toast.success("Neues Passwort wurde generiert und per E-Mail versendet!");
+      toast.success("Falls ein Konto existiert, haben wir Ihnen einen Link per E-Mail geschickt. Damit legen Sie ein neues Passwort fest.");
       setResetDialogOpen(false);
       setResetEmail("");
     } catch (error: any) {
@@ -290,7 +290,7 @@ export const Login = () => {
                     <DialogHeader>
                       <DialogTitle>Passwort zurücksetzen</DialogTitle>
                       <DialogDescription>
-                        Geben Sie Ihre E-Mail-Adresse ein, um ein neues Passwort zu erhalten.
+                        Geben Sie Ihre E-Mail-Adresse ein. Wir schicken Ihnen einen Link, mit dem Sie ein neues Passwort festlegen.
                       </DialogDescription>
                     </DialogHeader>
                     <form onSubmit={handlePasswordReset} className="space-y-4">

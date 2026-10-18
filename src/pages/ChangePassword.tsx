@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
 const clearStoredAuthState = () => {
@@ -50,9 +50,67 @@ export const ChangePassword = () => {
   const { user, profile } = useAuth();
   const location = useLocation();
   
+  // Link aus der Mail „Neues Passwort festlegen“: ?type=recovery&token_hash=…
+  const searchParams = new URLSearchParams(location.search);
+  const recoveryTokenHash = searchParams.get("type") === "recovery" ? searchParams.get("token_hash") : null;
+  const [recoveryState, setRecoveryState] = useState<"idle" | "checking" | "failed">(
+    recoveryTokenHash ? "checking" : "idle",
+  );
+  const recoveryStarted = useRef(false);
+  useEffect(() => {
+    if (!recoveryTokenHash || recoveryStarted.current) return;
+    recoveryStarted.current = true;
+    (async () => {
+      const { error } = await supabase.auth.verifyOtp({ type: "recovery", token_hash: recoveryTokenHash });
+      if (error) {
+        setRecoveryState("failed");
+        return;
+      }
+      const next = new URLSearchParams(window.location.search);
+      next.delete("token_hash");
+      window.history.replaceState(null, "", `${window.location.pathname}?${next.toString()}`);
+      setRecoveryState("idle");
+    })();
+  }, [recoveryTokenHash]);
+
   const isAdminRoute = location.pathname.startsWith('/admin/');
   const isWegOwnerRoute = location.pathname.startsWith('/weg-owner/');
   const isTenantRoute = location.pathname.startsWith('/tenant/');
+
+  // Passwort-vergessen-Link: hier existiert kein altes Passwort
+  const isRecoverySession =
+    typeof window !== "undefined" &&
+    (window.location.hash.includes("type=recovery") ||
+      new URLSearchParams(window.location.search).get("type") === "recovery");
+
+  if (recoveryState === "failed") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle>Link nicht mehr gültig</CardTitle>
+            <CardDescription>
+              Der Link zum Festlegen eines neuen Passworts ist abgelaufen oder wurde schon benutzt. Fordern Sie auf der
+              Anmeldeseite unter „Passwort vergessen“ einfach einen neuen an.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button className="w-full" onClick={() => navigate("/login", { replace: true })}>
+              Zur Anmeldung
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (recoveryState === "checking" || (recoveryTokenHash && !user)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4 text-muted-foreground gap-2">
+        <Loader2 className="h-5 w-5 animate-spin" /> Einen Moment …
+      </div>
+    );
+  }
 
   // Redirect if not authenticated
   if (!user) {
@@ -66,19 +124,13 @@ export const ChangePassword = () => {
     !profile.must_change_password &&
     !isAdminRoute &&
     !isWegOwnerRoute &&
-    !isTenantRoute
+    !isTenantRoute &&
+    !isRecoverySession
   ) {
     return <Navigate to="/" replace />;
   }
 
   const isForcedChange = !!(profile?.force_password_change || profile?.must_change_password);
-
-  // Passwort-vergessen-Link: hier existiert kein altes Passwort
-  const isRecoverySession =
-    typeof window !== "undefined" &&
-    (window.location.hash.includes("type=recovery") ||
-      new URLSearchParams(window.location.search).get("type") === "recovery");
-
 
   const requestMfaCodeIfNeeded = async () => {
     const { data: aal, error: aalError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();

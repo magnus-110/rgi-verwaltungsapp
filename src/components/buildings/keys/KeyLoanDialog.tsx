@@ -83,7 +83,7 @@ export const KeyLoanDialog = ({ open, onClose, tag, buildingId }: Props) => {
 
     if (sendConfirmation && inserted?.id) {
       supabase.functions.invoke("send-key-email", { body: { loan_id: inserted.id, event: "issued" } })
-        .then(({ error: e }) => { if (e) toast.warning("Webhook-Versand fehlgeschlagen: " + e.message); });
+        .then(({ error: e }) => { if (e) toast.warning("Bestätigungs-Mail konnte nicht verschickt werden: " + e.message); });
     }
 
     qc.invalidateQueries({ queryKey: ["key-loans-active", buildingId] });
