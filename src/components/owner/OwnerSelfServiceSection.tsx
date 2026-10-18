@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { PortalAbschnitt, PortalZeile } from "@/components/weg-owner/PortalListe";
+import { PortalAbschnitt, PortalBlatt, PortalGruppe, PortalZeile, portalFeld } from "@/components/weg-owner/PortalListe";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -188,55 +188,60 @@ export const OwnerSelfServiceSection = () => {
   }
 
   const openAssignment = assignments.find((a) => a.id === openId) ?? null;
-  const adresse = [contact.address_street, [contact.address_zip, contact.address_city].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+  const name = [contact.salutation, contact.first_name, contact.last_name].filter(Boolean).join(" ") || contact.company_name || "";
 
   return (
     <>
-      <PortalAbschnitt titel="Meine Wohnungen" className="space-y-0">
+      <PortalAbschnitt titel="Meine Wohnungen">
         {assignments.map((a) => (
           <PortalZeile
             key={a.id}
             data-tour="settings-units"
             icon={Building2}
             titel={`${a.buildings?.name || "Wohnung"}${a.unit_number ? ` · WE ${a.unit_number}` : ""}`}
-            untertitel="Kontaktdaten und Konto für das Hausgeld"
+            untertitel="Post, Telefon und Konto für das Hausgeld"
             onClick={() => setOpenId(a.id)}
           />
         ))}
       </PortalAbschnitt>
 
       <PortalAbschnitt titel="Meine Daten">
-        <PortalZeile
-          icon={User}
-          titel="Name und Anschrift"
-          untertitel={adresse || "Noch keine Anschrift hinterlegt"}
-          onClick={() => setStammdatenOffen(true)}
-        />
+        <PortalZeile icon={User} titel="Mein Name" untertitel={name || "Noch nicht hinterlegt"} onClick={() => setStammdatenOffen(true)} />
       </PortalAbschnitt>
 
-      <Dialog open={stammdatenOffen} onOpenChange={setStammdatenOffen}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-          <StammdatenCard contact={contact} onSaved={() => { setStammdatenOffen(false); load(); }} />
-        </DialogContent>
-      </Dialog>
+      <StammdatenBlatt
+        key={`s-${stammdatenOffen}`}
+        offen={stammdatenOffen}
+        onOffen={setStammdatenOffen}
+        contact={contact}
+        onSaved={() => { setStammdatenOffen(false); load(); }}
+      />
 
-      <Dialog open={!!openId} onOpenChange={(o) => !o && setOpenId(null)}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          {openAssignment && (
-            <AssignmentEditor
-              assignment={openAssignment}
-              bankOptions={banks}
-              contact={contact}
-              onSaved={() => { setOpenId(null); load(); }}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
+      {openAssignment && (
+        <WohnungBlatt
+          key={openAssignment.id}
+          offen={!!openId}
+          onOffen={(o) => !o && setOpenId(null)}
+          assignment={openAssignment}
+          bankOptions={banks}
+          contact={contact}
+          onSaved={() => { setOpenId(null); load(); }}
+        />
+      )}
     </>
   );
 };
 
-function StammdatenCard({ contact, onSaved }: { contact: Contact; onSaved: () => void }) {
+function Feld({ label, htmlFor, children }: { label: string; htmlFor?: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={htmlFor} className="text-[13px] font-medium text-foreground/80">{label}</Label>
+      {children}
+    </div>
+  );
+}
+
+function StammdatenBlatt({ offen, onOffen, contact, onSaved }: { offen: boolean; onOffen: (o: boolean) => void; contact: Contact; onSaved: () => void }) {
   const [salutation, setSalutation] = useState(contact.salutation ?? "");
   const [firstName, setFirstName] = useState(contact.first_name ?? "");
   const [lastName, setLastName] = useState(contact.last_name ?? "");
@@ -252,77 +257,59 @@ function StammdatenCard({ contact, onSaved }: { contact: Contact; onSaved: () =>
     setSaving(true);
     const { error } = await supabase
       .from("contacts")
-      .update({
-        salutation: salutation || null,
-        first_name: firstName || null,
-        last_name: lastName || null,
-        company_name: companyName || null,
-      })
+      .update({ salutation: salutation || null, first_name: firstName || null, last_name: lastName || null, company_name: companyName || null })
       .eq("id", contact.id);
     setSaving(false);
     if (error) {
       toast({ title: "Fehler", description: error.message, variant: "destructive" });
       return;
     }
-    toast({ title: "Stammdaten gespeichert" });
+    toast({ title: "Gespeichert" });
     onSaved();
   };
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <User className="w-4 h-4" /> Meine Stammdaten
-        </CardTitle>
-        <p className="text-sm text-muted-foreground">
-          Diese Daten gelten allgemein und werden mit der Verwaltung synchronisiert.
-        </p>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div>
-            <Label>Anrede</Label>
-            <Select value={salutation || "none"} onValueChange={(v) => setSalutation(v === "none" ? "" : v)}>
-              <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">—</SelectItem>
-                {SALUTATIONS.map((s) => (
-                  <SelectItem key={s} value={s}>{s}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label>Vorname</Label>
-            <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} />
-          </div>
-          <div>
-            <Label>Nachname</Label>
-            <Input value={lastName} onChange={(e) => setLastName(e.target.value)} />
-          </div>
-        </div>
-        <div>
-          <Label>Firma (optional)</Label>
-          <Input value={companyName} onChange={(e) => setCompanyName(e.target.value)} />
-        </div>
-        <div className="flex justify-end">
-          <Button onClick={save} disabled={!dirty || saving} size="sm">
-            {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Speichern...</> : "Speichern"}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+    <PortalBlatt
+      offen={offen}
+      onOffen={onOffen}
+      titel="Mein Name"
+      text="So sprechen wir Sie in Briefen und E-Mails an."
+      fuss={
+        <Button onClick={save} disabled={!dirty || saving} className="w-full h-12 text-base rounded-[12px]">
+          {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />} Speichern
+        </Button>
+      }
+    >
+      <PortalGruppe>
+        <Feld label="Anrede">
+          <Select value={salutation || "none"} onValueChange={(v) => setSalutation(v === "none" ? "" : v)}>
+            <SelectTrigger className={portalFeld}><SelectValue placeholder="Bitte wählen" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Keine Angabe</SelectItem>
+              {SALUTATIONS.map((x) => <SelectItem key={x} value={x}>{x}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </Feld>
+        <Feld label="Vorname" htmlFor="sd-vor"><Input id="sd-vor" className={portalFeld} autoComplete="given-name" value={firstName} onChange={(e) => setFirstName(e.target.value)} /></Feld>
+        <Feld label="Nachname" htmlFor="sd-nach"><Input id="sd-nach" className={portalFeld} autoComplete="family-name" value={lastName} onChange={(e) => setLastName(e.target.value)} /></Feld>
+      </PortalGruppe>
+      <PortalGruppe hinweis="Nur ausfüllen, wenn die Wohnung einer Firma gehört.">
+        <Feld label="Firma" htmlFor="sd-firma"><Input id="sd-firma" className={portalFeld} autoComplete="organization" value={companyName} onChange={(e) => setCompanyName(e.target.value)} /></Feld>
+      </PortalGruppe>
+    </PortalBlatt>
   );
 }
 
-
-
-function AssignmentEditor({
+function WohnungBlatt({
+  offen,
+  onOffen,
   assignment,
   bankOptions,
   contact,
   onSaved,
 }: {
+  offen: boolean;
+  onOffen: (o: boolean) => void;
   assignment: AssignmentRow;
   bankOptions: Bank[];
   contact: Contact;
@@ -331,9 +318,7 @@ function AssignmentEditor({
   const [a, setA] = useState<AssignmentRow>(assignment);
   const [saving, setSaving] = useState(false);
   const update = (patch: Partial<AssignmentRow>) => setA((x) => ({ ...x, ...patch }));
-
-  const unit = a.unit_number ? ` · WE ${a.unit_number}` : "";
-  const title = `${a.buildings?.name || "Wohnung"}${unit}`;
+  const title = `${a.buildings?.name || "Wohnung"}${a.unit_number ? ` · WE ${a.unit_number}` : ""}`;
 
   const save = async () => {
     setSaving(true);
@@ -345,24 +330,18 @@ function AssignmentEditor({
       address_street_override: a.address_street_override,
       address_zip_override: a.address_zip_override,
       address_city_override: a.address_city_override,
-      // Persist in canonical DB shape: phones {number, note}, emails {address}
+      // Gespeichert in der Form der Datenbank: Telefon {number, note}, E-Mail {address}
       phones_override: a.phones_override
-        ? a.phones_override
-            .filter((p) => (p.phone_number ?? "").trim().length > 0)
-            .map((p) => ({ number: p.phone_number, note: "" })) as any
+        ? a.phones_override.filter((p) => (p.phone_number ?? "").trim().length > 0).map((p) => ({ number: p.phone_number, note: "" })) as any
         : null,
       emails_override: a.emails_override
-        ? a.emails_override
-            .filter((e) => (e.email ?? "").trim().length > 0)
-            .map((e) => ({ address: e.email })) as any
+        ? a.emails_override.filter((e) => (e.email ?? "").trim().length > 0).map((e) => ({ address: e.email })) as any
         : null,
       iban_override: a.iban_override,
       iban_holder_override: a.iban_holder_override,
       bank_account_id: a.bank_account_id,
     };
-    const { error } = await supabase.functions.invoke("owner-update-assignment", {
-      body: { assignment_id: a.id, patch },
-    });
+    const { error } = await supabase.functions.invoke("owner-update-assignment", { body: { assignment_id: a.id, patch } });
     setSaving(false);
     if (error) {
       toast({ title: "Fehler", description: error.message, variant: "destructive" });
@@ -372,243 +351,122 @@ function AssignmentEditor({
     onSaved();
   };
 
-  return (
-    <>
-      <DialogHeader>
-        <DialogTitle className="flex items-center gap-2">
-          <Building2 className="w-5 h-5" /> {title}
-        </DialogTitle>
-        <DialogDescription>
-          Hinterlegen Sie hier Ihre Daten für diese Wohnung. Leere Felder verwenden Ihre allgemeinen Stammdaten.
-        </DialogDescription>
-      </DialogHeader>
-
-      <div className="space-y-4 mt-2">
-        {/* Persönliche Daten */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <User className="w-4 h-4" /> Persönliche Daten
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5 col-span-2">
-                <Label className="text-xs">Anrede</Label>
-                <Select
-                  value={a.salutation_override ?? (contact.salutation ?? "__none__")}
-                  onValueChange={(v) => update({ salutation_override: v === "__none__" ? null : v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={contact.salutation || "Bitte wählen"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SALUTATIONS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Vorname</Label>
-                <Input
-                  placeholder={contact.first_name ?? ""}
-                  value={a.first_name_override ?? ""}
-                  onChange={(e) => update({ first_name_override: e.target.value || null })}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Nachname</Label>
-                <Input
-                  placeholder={contact.last_name ?? ""}
-                  value={a.last_name_override ?? ""}
-                  onChange={(e) => update({ last_name_override: e.target.value || null })}
-                />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> Straße &amp; Hausnummer</Label>
-              <Input
-                placeholder={contact.address_street ?? ""}
-                value={a.address_street_override ?? ""}
-                onChange={(e) => update({ address_street_override: e.target.value || null })}
-              />
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs">PLZ</Label>
-                <Input
-                  placeholder={contact.address_zip ?? ""}
-                  value={a.address_zip_override ?? ""}
-                  onChange={(e) => update({ address_zip_override: e.target.value || null })}
-                />
-              </div>
-              <div className="col-span-2 space-y-1.5">
-                <Label className="text-xs">Ort</Label>
-                <Input
-                  placeholder={contact.address_city ?? ""}
-                  value={a.address_city_override ?? ""}
-                  onChange={(e) => update({ address_city_override: e.target.value || null })}
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Kontaktinfos */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Phone className="w-4 h-4" /> Kontaktinfos
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            <div className="flex items-start gap-2 p-3 bg-muted/50 border border-muted rounded-md text-xs text-muted-foreground">
-              <Info className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>
-                Diese E-Mail-Adressen werden für Korrespondenz zu <b>dieser Wohnung</b> verwendet (z.B. Abrechnungen).
-                Ihre <b>Login-E-Mail</b> ändern Sie in den Einstellungen unter „Login-E-Mail".
-              </span>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-xs flex items-center gap-1"><Phone className="w-3.5 h-3.5" /> Telefonnummern</Label>
-              {(a.phones_override ?? []).map((p, idx) => (
-                <div key={idx} className="flex gap-2">
-                  <Input
-                    placeholder="Telefonnummer"
-                    value={p.phone_number}
-                    onChange={(e) => {
-                      const next = [...(a.phones_override ?? [])];
-                      next[idx] = { phone_number: e.target.value };
-                      update({ phones_override: next });
-                    }}
-                  />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => {
-                      const next = (a.phones_override ?? []).filter((_, i) => i !== idx);
-                      update({ phones_override: next.length ? next : null });
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
-              <button
-                type="button"
-                onClick={() => update({ phones_override: [...(a.phones_override ?? []), { phone_number: "" }] })}
-                className="w-full px-4 py-2.5 flex items-center justify-center gap-2 text-sm font-medium text-primary border border-dashed border-primary/40 rounded-md hover:bg-accent/40 transition"
-              >
-                <span className="size-[22px] rounded-full border-[1.5px] border-primary bg-accent grid place-items-center">
-                  <Plus className="size-3" strokeWidth={2.5} />
-                </span>
-                Telefonnummer hinzufügen
-              </button>
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-xs flex items-center gap-1"><Mail className="w-3.5 h-3.5" /> E-Mail-Adressen</Label>
-              {(a.emails_override ?? []).map((em, idx) => (
-                <div key={idx} className="flex gap-2">
-                  <Input
-                    placeholder="E-Mail"
-                    value={em.email}
-                    onChange={(e) => {
-                      const next = [...(a.emails_override ?? [])];
-                      next[idx] = { email: e.target.value };
-                      update({ emails_override: next });
-                    }}
-                  />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => {
-                      const next = (a.emails_override ?? []).filter((_, i) => i !== idx);
-                      update({ emails_override: next.length ? next : null });
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
-              <button
-                type="button"
-                onClick={() => update({ emails_override: [...(a.emails_override ?? []), { email: "" }] })}
-                className="w-full px-4 py-2.5 flex items-center justify-center gap-2 text-sm font-medium text-primary border border-dashed border-primary/40 rounded-md hover:bg-accent/40 transition"
-              >
-                <span className="size-[22px] rounded-full border-[1.5px] border-primary bg-accent grid place-items-center">
-                  <Plus className="size-3" strokeWidth={2.5} />
-                </span>
-                E-Mail hinzufügen
-              </button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Bank */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <CreditCard className="w-4 h-4" /> Bankverbindung
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {bankOptions.length > 0 && (
-              <div className="space-y-1.5">
-                <Label className="text-xs">Bestehende Bankverbindung wählen</Label>
-                <Select
-                  value={a.bank_account_id ?? "__none__"}
-                  onValueChange={(v) => {
-                    if (v === "__none__") {
-                      update({ bank_account_id: null });
-                      return;
-                    }
-                    const sel = bankOptions.find((b) => b.id === v);
-                    update({
-                      bank_account_id: v,
-                      iban_override: sel?.iban ?? null,
-                      iban_holder_override: sel?.account_holder ?? null,
-                    });
-                  }}
-                >
-                  <SelectTrigger><SelectValue placeholder="— Keine Auswahl —" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">— Keine Auswahl —</SelectItem>
-                    {bankOptions.map((b) => (
-                      <SelectItem key={b.id} value={b.id}>
-                        {(b.account_holder ?? "Konto")} · {b.iban || "ohne IBAN"}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            <div className="space-y-1.5">
-              <Label className="text-xs">Kontoinhaber</Label>
-              <Input
-                placeholder="Vor- und Nachname"
-                value={a.iban_holder_override ?? ""}
-                onChange={(e) => update({ iban_holder_override: e.target.value || null })}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">IBAN</Label>
-              <Input
-                className="font-mono"
-                placeholder="DE00 0000 0000 0000 0000 00"
-                value={a.iban_override ?? ""}
-                onChange={(e) => update({ iban_override: e.target.value || null })}
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        <div className="flex justify-end pt-2 border-t">
-          <Button onClick={save} disabled={saving}>
-            {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-            Speichern
-          </Button>
-        </div>
+  const listenFeld = (
+    art: "phones_override" | "emails_override",
+    schluessel: "phone_number" | "email",
+    platzhalter: string,
+    typ: string,
+    knopf: string,
+  ) => {
+    const liste = ((a[art] as any[]) ?? []) as any[];
+    return (
+      <div className="space-y-2">
+        {liste.map((eintrag, idx) => (
+          <div key={idx} className="flex gap-2">
+            <Input
+              type={typ}
+              aria-label={platzhalter}
+              className={portalFeld}
+              placeholder={platzhalter}
+              value={eintrag[schluessel]}
+              onChange={(e) => {
+                const next = [...liste];
+                next[idx] = { [schluessel]: e.target.value };
+                update({ [art]: next } as any);
+              }}
+            />
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={`${platzhalter} entfernen`}
+              className="h-12 w-12 shrink-0 text-muted-foreground"
+              onClick={() => {
+                const next = liste.filter((_, i) => i !== idx);
+                update({ [art]: next.length ? next : null } as any);
+              }}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        ))}
+        <button
+          type="button"
+          onClick={() => update({ [art]: [...liste, { [schluessel]: "" }] } as any)}
+          className="w-full min-h-[48px] flex items-center justify-center gap-2 text-sm font-medium text-[#B35500] border border-dashed border-primary/40 rounded-[10px] hover:bg-primary/5"
+        >
+          <Plus className="h-4 w-4" /> {knopf}
+        </button>
       </div>
-    </>
+    );
+  };
+
+  return (
+    <PortalBlatt
+      offen={offen}
+      onOffen={onOffen}
+      titel={title}
+      text="Leere Felder übernehmen Ihre allgemeinen Angaben."
+      fuss={
+        <Button onClick={save} disabled={saving} className="w-full h-12 text-base rounded-[12px]">
+          {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />} Speichern
+        </Button>
+      }
+    >
+      <PortalGruppe titel="Post für diese Wohnung geht an">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="col-span-2">
+            <Feld label="Anrede">
+              <Select
+                value={a.salutation_override ?? (contact.salutation ?? "__none__")}
+                onValueChange={(v) => update({ salutation_override: v === "__none__" ? null : v })}
+              >
+                <SelectTrigger className={portalFeld}><SelectValue placeholder={contact.salutation || "Bitte wählen"} /></SelectTrigger>
+                <SelectContent>{SALUTATIONS.map((x) => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent>
+              </Select>
+            </Feld>
+          </div>
+          <Feld label="Vorname" htmlFor="w-vor"><Input id="w-vor" className={portalFeld} placeholder={contact.first_name ?? ""} value={a.first_name_override ?? ""} onChange={(e) => update({ first_name_override: e.target.value || null })} /></Feld>
+          <Feld label="Nachname" htmlFor="w-nach"><Input id="w-nach" className={portalFeld} placeholder={contact.last_name ?? ""} value={a.last_name_override ?? ""} onChange={(e) => update({ last_name_override: e.target.value || null })} /></Feld>
+        </div>
+        <Feld label="Straße und Hausnummer" htmlFor="w-str"><Input id="w-str" className={portalFeld} autoComplete="street-address" placeholder={contact.address_street ?? ""} value={a.address_street_override ?? ""} onChange={(e) => update({ address_street_override: e.target.value || null })} /></Feld>
+        <div className="grid grid-cols-3 gap-3">
+          <Feld label="PLZ" htmlFor="w-plz"><Input id="w-plz" inputMode="numeric" className={portalFeld} autoComplete="postal-code" placeholder={contact.address_zip ?? ""} value={a.address_zip_override ?? ""} onChange={(e) => update({ address_zip_override: e.target.value || null })} /></Feld>
+          <div className="col-span-2">
+            <Feld label="Ort" htmlFor="w-ort"><Input id="w-ort" className={portalFeld} autoComplete="address-level2" placeholder={contact.address_city ?? ""} value={a.address_city_override ?? ""} onChange={(e) => update({ address_city_override: e.target.value || null })} /></Feld>
+          </div>
+        </div>
+      </PortalGruppe>
+
+      <PortalGruppe titel="Telefon">
+        {listenFeld("phones_override", "phone_number", "Telefonnummer", "tel", "Telefonnummer hinzufügen")}
+      </PortalGruppe>
+
+      <PortalGruppe titel="E-Mail für diese Wohnung" hinweis="Hierhin schicken wir zum Beispiel Abrechnungen. Ihre Anmelde-E-Mail ändern Sie unter „Anmeldung und Sicherheit“.">
+        {listenFeld("emails_override", "email", "E-Mail-Adresse", "email", "E-Mail hinzufügen")}
+      </PortalGruppe>
+
+      <PortalGruppe titel="Konto für das Hausgeld">
+        {bankOptions.length > 0 && (
+          <Feld label="Gespeichertes Konto wählen">
+            <Select
+              value={a.bank_account_id ?? "__none__"}
+              onValueChange={(v) => {
+                if (v === "__none__") return update({ bank_account_id: null });
+                const sel = bankOptions.find((b) => b.id === v);
+                update({ bank_account_id: v, iban_override: sel?.iban ?? null, iban_holder_override: sel?.account_holder ?? null });
+              }}
+            >
+              <SelectTrigger className={portalFeld}><SelectValue placeholder="Keine Auswahl" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">Keine Auswahl</SelectItem>
+                {bankOptions.map((b) => <SelectItem key={b.id} value={b.id}>{(b.account_holder ?? "Konto")} · {b.iban || "ohne IBAN"}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </Feld>
+        )}
+        <Feld label="Kontoinhaber" htmlFor="w-inh"><Input id="w-inh" className={portalFeld} placeholder="Vor- und Nachname" value={a.iban_holder_override ?? ""} onChange={(e) => update({ iban_holder_override: e.target.value || null })} /></Feld>
+        <Feld label="IBAN" htmlFor="w-iban"><Input id="w-iban" className={`${portalFeld} font-mono tracking-wide`} placeholder="DE00 0000 0000 0000 0000 00" value={a.iban_override ?? ""} onChange={(e) => update({ iban_override: e.target.value || null })} /></Feld>
+      </PortalGruppe>
+    </PortalBlatt>
   );
 }

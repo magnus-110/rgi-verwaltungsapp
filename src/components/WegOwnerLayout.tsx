@@ -131,7 +131,7 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
               )}
             >
               {r.hervor ? (
-                <span className="-mt-6 h-14 w-14 rounded-full bg-[#B35500] text-white flex items-center justify-center shadow-[0_6px_16px_rgba(179,85,0,0.35)] ring-4 ring-white">
+                <span className="-mt-6 h-14 w-14 rounded-full bg-primary text-white flex items-center justify-center shadow-[0_6px_16px_rgba(238,114,2,0.35)] ring-4 ring-white">
                   <r.icon className="h-6 w-6" />
                 </span>
               ) : (

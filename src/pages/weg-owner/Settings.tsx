@@ -10,7 +10,7 @@ import { OwnerSelfServiceSection } from "@/components/owner/OwnerSelfServiceSect
 import { supabase } from "@/integrations/supabase/client";
 import { Mail, Info, HelpCircle, Lock, Fingerprint, LogOut } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { PortalAbschnitt, PortalSeitenkopf, PortalZeile } from "@/components/weg-owner/PortalListe";
+import { PortalAbschnitt, PortalBlatt, PortalGruppe, PortalSeitenkopf, PortalZeile, portalFeld } from "@/components/weg-owner/PortalListe";
 import { Switch } from "@/components/ui/switch";
 import { PasskeysSection } from "@/components/settings/PasskeysSection";
 import { useGuidedTour } from "@/components/weg-owner/onboarding/GuidedTourProvider";
@@ -225,65 +225,69 @@ export const WegOwnerSettings = () => {
         </div>
       </div>
 
-      <Dialog open={offen === "email"} onOpenChange={(o) => !o && setOffen(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>E-Mail für die Anmeldung</DialogTitle>
-            <DialogDescription>Mit dieser Adresse melden Sie sich an und können „Passwort vergessen“ nutzen.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            {hatEchteMail && (
-              <div className="space-y-1.5">
-                <Label className="text-xs">Aktuell</Label>
-                <Input value={currentLoginEmail} disabled />
-              </div>
-            )}
-            <div className="space-y-1.5">
-              <Label htmlFor="new-email" className="text-xs">Neue E-Mail-Adresse</Label>
-              <Input id="new-email" type="email" placeholder="neue@email.de" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
-            </div>
-            <p className="flex items-start gap-2 text-xs text-muted-foreground">
-              <Info className="w-4 h-4 shrink-0 mt-0.5" />
-              Sie bekommen eine Bestätigung an die neue Adresse. Bis Sie den Link darin anklicken, gilt weiter die alte.
-            </p>
-            <Button onClick={handleEmailChange} disabled={isUpdatingEmail} className="w-full h-11">
-              {isUpdatingEmail ? "Wird gespeichert…" : hatEchteMail ? "E-Mail ändern" : "E-Mail hinterlegen"}
-            </Button>
+      <PortalBlatt
+        offen={offen === "email"}
+        onOffen={(o) => !o && setOffen(null)}
+        titel="E-Mail für die Anmeldung"
+        text="Mit dieser Adresse melden Sie sich an und können „Passwort vergessen“ nutzen."
+        fuss={
+          <Button onClick={handleEmailChange} disabled={isUpdatingEmail || !newEmail.trim()} className="w-full h-12 text-base rounded-[12px]">
+            {isUpdatingEmail ? "Wird gespeichert…" : hatEchteMail ? "E-Mail ändern" : "E-Mail hinterlegen"}
+          </Button>
+        }
+      >
+        {hatEchteMail && (
+          <PortalGruppe titel="Aktuell">
+            <p className="text-[15px] text-foreground break-all">{currentLoginEmail}</p>
+          </PortalGruppe>
+        )}
+        <PortalGruppe
+          titel="Neue Adresse"
+          hinweis="Sie bekommen eine Bestätigung an die neue Adresse. Bis Sie den Link darin anklicken, gilt weiter die alte."
+        >
+          <div className="space-y-1.5">
+            <Label htmlFor="new-email" className="text-[13px] font-medium text-foreground/80">E-Mail-Adresse</Label>
+            <Input id="new-email" type="email" autoComplete="email" className={portalFeld} placeholder="name@beispiel.de" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
           </div>
-        </DialogContent>
-      </Dialog>
+        </PortalGruppe>
+      </PortalBlatt>
 
-      <Dialog open={offen === "passwort"} onOpenChange={(o) => !o && setOffen(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Passwort ändern</DialogTitle>
-            <DialogDescription>Mindestens 8 Zeichen.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="current-password">Aktuelles Passwort</Label>
-              <Input id="current-password" type="password" autoComplete="current-password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="new-password">Neues Passwort</Label>
-              <Input id="new-password" type="password" autoComplete="new-password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="confirm-password">Neues Passwort wiederholen</Label>
-              <Input id="confirm-password" type="password" autoComplete="new-password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
-            </div>
-            <Button onClick={handlePasswordChange} disabled={isUpdatingPassword} className="w-full h-11">
-              {isUpdatingPassword ? "Wird geändert…" : "Passwort ändern"}
-            </Button>
+      <PortalBlatt
+        offen={offen === "passwort"}
+        onOffen={(o) => !o && setOffen(null)}
+        titel="Passwort ändern"
+        fuss={
+          <Button onClick={handlePasswordChange} disabled={isUpdatingPassword} className="w-full h-12 text-base rounded-[12px]">
+            {isUpdatingPassword ? "Wird geändert…" : "Passwort ändern"}
+          </Button>
+        }
+      >
+        <PortalGruppe titel="Bisher">
+          <div className="space-y-1.5">
+            <Label htmlFor="current-password" className="text-[13px] font-medium text-foreground/80">Aktuelles Passwort</Label>
+            <Input id="current-password" type="password" autoComplete="current-password" className={portalFeld} value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
           </div>
-        </DialogContent>
-      </Dialog>
+        </PortalGruppe>
+        <PortalGruppe titel="Neu" hinweis="Mindestens 8 Zeichen. Am sichersten ist ein Satz, den Sie sich gut merken können.">
+          <div className="space-y-1.5">
+            <Label htmlFor="new-password" className="text-[13px] font-medium text-foreground/80">Neues Passwort</Label>
+            <Input id="new-password" type="password" autoComplete="new-password" className={portalFeld} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="confirm-password" className="text-[13px] font-medium text-foreground/80">Neues Passwort wiederholen</Label>
+            <Input id="confirm-password" type="password" autoComplete="new-password" className={portalFeld} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
+          </div>
+        </PortalGruppe>
+      </PortalBlatt>
 
-      <Dialog open={offen === "passkey"} onOpenChange={(o) => !o && setOffen(null)}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-          <PasskeysSection />
-        </DialogContent>
-      </Dialog>
+      <PortalBlatt
+        offen={offen === "passkey"}
+        onOffen={(o) => !o && setOffen(null)}
+        titel="Mit Fingerabdruck oder Gesicht anmelden"
+        text="Ohne Passwort anmelden – mit Face ID, Fingerabdruck oder Windows Hello."
+      >
+        <PasskeysSection schlicht />
+      </PortalBlatt>
 
       <LegalDocumentsSheet open={legalSheetOpen} onOpenChange={setLegalSheetOpen} defaultTab={legalSheetTab} />
     </div>

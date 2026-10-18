@@ -273,7 +273,7 @@ export const WegOwnerChatbot = () => {
                   <div className="space-y-1.5">
                     <p className="text-xs font-semibold text-muted-foreground">Grundlage dieser Antwort</p>
                     {m.quellen
-                      .filter((q, i, alle) => alle.findIndex((a) => (a.fileId && q.fileId ? a.fileId === q.fileId : a.fileName === q.fileName)) === i)
+                      .filter((q, i, alle) => alle.findIndex((a) => (a.fileId && q.fileId && a.fileId === q.fileId) || (a.fileName || "").trim().toLowerCase() === (q.fileName || "").trim().toLowerCase()) === i)
                       .map((q, i) => (
                         <button
                           key={q.fileId || i}

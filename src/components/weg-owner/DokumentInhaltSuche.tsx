@@ -47,7 +47,15 @@ function Ausschnitt({ text, suche }: { text: string; suche: string[] }) {
   );
 }
 
-export function DokumentInhaltSuche({ suchtext, buildingIds }: { suchtext: string; buildingIds: string[] }) {
+export function DokumentInhaltSuche({
+  suchtext,
+  buildingIds,
+  onTreffer,
+}: {
+  suchtext: string;
+  buildingIds: string[];
+  onTreffer?: (t: { id: string | null; name: string }[]) => void;
+}) {
   const [treffer, setTreffer] = useState<Treffer[]>([]);
   const [laedt, setLaedt] = useState(false);
   const [gesucht, setGesucht] = useState("");
@@ -60,6 +68,7 @@ export function DokumentInhaltSuche({ suchtext, buildingIds }: { suchtext: strin
     if (frage.length < 4) {
       setTreffer([]);
       setGesucht("");
+      onTreffer?.([]);
       return;
     }
     const nr = ++lauf.current;
@@ -73,14 +82,23 @@ export function DokumentInhaltSuche({ suchtext, buildingIds }: { suchtext: strin
         if (error) throw error;
         const roh: Treffer[] = Array.isArray(data?.sources) ? data.sources : [];
         // Pro Dokument nur die beste Fundstelle.
-        const eindeutig = roh.filter((q, i, alle) => alle.findIndex((a) => (a.fileId ?? a.fileName) === (q.fileId ?? q.fileName)) === i).slice(0, 5);
+        // Jedes Dokument nur einmal – auch wenn es mehrfach abgelegt ist (gleicher Name).
+        const gesehen = new Set<string>();
+        const eindeutig = roh.filter((q) => {
+          const schluessel = [q.fileId ? `id:${q.fileId}` : null, `name:${(q.fileName || "").trim().toLowerCase()}`].filter(Boolean) as string[];
+          if (schluessel.some((k) => gesehen.has(k))) return false;
+          schluessel.forEach((k) => gesehen.add(k));
+          return true;
+        }).slice(0, 5);
         setTreffer(eindeutig);
+        onTreffer?.(eindeutig.map((q) => ({ id: q.fileId, name: (q.fileName || "").trim().toLowerCase() })));
         setGesucht(frage);
       } catch (e) {
         if (nr === lauf.current) {
           console.error("Dokumentsuche:", e);
           setTreffer([]);
           setGesucht(frage);
+          onTreffer?.([]);
         }
       } finally {
         if (nr === lauf.current) setLaedt(false);

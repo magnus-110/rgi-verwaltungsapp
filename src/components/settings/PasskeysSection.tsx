@@ -37,7 +37,7 @@ interface Passkey {
 const browserSupportsPasskeys = () =>
   typeof window !== "undefined" && !!(window as any).PublicKeyCredential;
 
-export const PasskeysSection = () => {
+export const PasskeysSection = ({ schlicht = false }: { schlicht?: boolean } = {}) => {
   const [items, setItems] = useState<Passkey[]>([]);
   const [loading, setLoading] = useState(true);
   const [registering, setRegistering] = useState(false);
@@ -134,80 +134,90 @@ export const PasskeysSection = () => {
   const fmt = (d?: string | null) =>
     d ? format(new Date(d), "dd.MM.yyyy HH:mm", { locale: de }) : "—";
 
+  const liste = loading ? (
+    <p className="text-sm text-muted-foreground">Lade Passkeys…</p>
+  ) : items.length === 0 ? (
+    <p className="text-sm text-muted-foreground">
+      {schlicht ? "Auf diesem Konto ist noch keine Anmeldung per Fingerabdruck oder Gesicht eingerichtet." : "Sie haben noch keinen Passkey registriert."}
+    </p>
+  ) : (
+    <ul className={schlicht ? "divide-y divide-foreground/[0.055]" : "divide-y divide-border rounded-md border"}>
+      {items.map((pk) => (
+        <li key={pk.id} className={schlicht ? "flex items-center gap-3 py-2.5" : "flex items-center gap-3 p-3"}>
+          <KeyRound className="h-4 w-4 text-muted-foreground shrink-0" />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-medium truncate">{pk.friendly_name || (schlicht ? "Gerät" : "Unbenannter Passkey")}</span>
+              {pk.last_used_at && (
+                <Badge variant="secondary" className="text-[10px]">zuletzt: {fmt(pk.last_used_at)}</Badge>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">eingerichtet am {fmt(pk.created_at)}</p>
+          </div>
+          <Button size="icon" variant="ghost" className={schlicht ? "h-11 w-11" : undefined}
+            onClick={() => { setRenameTarget(pk); setRenameValue(pk.friendly_name ?? ""); }} aria-label="Umbenennen">
+            <Pencil className="h-4 w-4" />
+          </Button>
+          <Button size="icon" variant="ghost" className={schlicht ? "h-11 w-11" : undefined} onClick={() => setDeleteTarget(pk)} aria-label="Löschen">
+            <Trash2 className="h-4 w-4 text-destructive" />
+          </Button>
+        </li>
+      ))}
+    </ul>
+  );
+
+  const nichtUnterstuetzt = !supported && (
+    <p className="text-sm text-muted-foreground">Dieser Browser oder dieses Gerät unterstützt das leider nicht.</p>
+  );
+
+  const Huelle = ({ children }: { children: React.ReactNode }) =>
+    schlicht ? (
+      <div className="space-y-5">{children}</div>
+    ) : (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Fingerprint className="h-5 w-5" /> Passkeys
+          </CardTitle>
+          <CardDescription>
+            Melden Sie sich künftig ohne Passwort an – per Face ID, Touch ID, Windows Hello
+            oder Sicherheitsschlüssel. Passkeys funktionieren nur unter{" "}
+            <code className="text-xs">rgi-immobilien.app</code>.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">{children}</CardContent>
+      </Card>
+    );
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Fingerprint className="h-5 w-5" /> Passkeys
-        </CardTitle>
-        <CardDescription>
-          Melden Sie sich künftig ohne Passwort an – per Face ID, Touch ID, Windows Hello
-          oder Sicherheitsschlüssel. Passkeys funktionieren nur unter{" "}
-          <code className="text-xs">rgi-immobilien.app</code>.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {!supported && (
-          <p className="text-sm text-muted-foreground">
-            Dieser Browser oder dieses Gerät unterstützt keine Passkeys.
+    <>
+    <Huelle>
+      {schlicht ? (
+        <>
+          <section>
+            <h3 className="font-display text-[11px] font-semibold uppercase tracking-[0.6px] text-muted-foreground/80 px-1 mb-2">Eingerichtete Geräte</h3>
+            <div className="bg-card rounded-[14px] border border-border/60 shadow-sm px-4 py-3">{liste}</div>
+          </section>
+          {nichtUnterstuetzt}
+          <Button onClick={handleRegister} disabled={!supported || registering} className="w-full h-12 text-base rounded-[12px]">
+            <Plus className="h-4 w-4 mr-2" />
+            {registering ? "Wird eingerichtet…" : "Auf diesem Gerät einrichten"}
+          </Button>
+          <p className="text-xs text-muted-foreground px-1 leading-relaxed">
+            Ihr Fingerabdruck oder Gesicht bleibt auf Ihrem Gerät – wir bekommen ihn nie zu sehen.
           </p>
-        )}
-
-        {loading ? (
-          <p className="text-sm text-muted-foreground">Lade Passkeys…</p>
-        ) : items.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            Sie haben noch keinen Passkey registriert.
-          </p>
-        ) : (
-          <ul className="divide-y divide-border rounded-md border">
-            {items.map((pk) => (
-              <li key={pk.id} className="flex items-center gap-3 p-3">
-                <KeyRound className="h-4 w-4 text-muted-foreground shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-medium truncate">
-                      {pk.friendly_name || "Unbenannter Passkey"}
-                    </span>
-                    {pk.last_used_at && (
-                      <Badge variant="secondary" className="text-[10px]">
-                        zuletzt: {fmt(pk.last_used_at)}
-                      </Badge>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    erstellt am {fmt(pk.created_at)}
-                  </p>
-                </div>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => {
-                    setRenameTarget(pk);
-                    setRenameValue(pk.friendly_name ?? "");
-                  }}
-                  aria-label="Umbenennen"
-                >
-                  <Pencil className="h-4 w-4" />
-                </Button>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => setDeleteTarget(pk)}
-                  aria-label="Löschen"
-                >
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
-              </li>
-            ))}
-          </ul>
-        )}
-
-        <Button onClick={handleRegister} disabled={!supported || registering}>
-          <Plus className="h-4 w-4 mr-2" />
-          {registering ? "Registriere…" : "Neuen Passkey registrieren"}
-        </Button>
-      </CardContent>
+        </>
+      ) : (
+        <>
+          {nichtUnterstuetzt}
+          {liste}
+          <Button onClick={handleRegister} disabled={!supported || registering}>
+            <Plus className="h-4 w-4 mr-2" />
+            {registering ? "Registriere…" : "Neuen Passkey registrieren"}
+          </Button>
+        </>
+      )}
+    </Huelle>
 
       {/* Rename Dialog */}
       <Dialog open={!!renameTarget} onOpenChange={(o) => !o && setRenameTarget(null)}>
@@ -250,6 +260,6 @@ export const PasskeysSection = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </Card>
+    </>
   );
 };

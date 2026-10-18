@@ -240,6 +240,7 @@ export function WegOwnerFiles() {
   const { profile } = useAuth();
   const [buildings, setBuildings] = useState<BuildingChip[]>([]);
   const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(null);
+  const [inhaltsTreffer, setInhaltsTreffer] = useState<{ id: string | null; name: string }[]>([]);
   const [personalFiles, setPersonalFiles] = useState<FileItem[]>([]);
   const [buildingFiles, setBuildingFiles] = useState<FileItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -340,6 +341,14 @@ export function WegOwnerFiles() {
     [categories, activeBuildingId]
   );
 
+  // Was oben schon als Treffer im Text steht, unten nicht noch einmal zeigen.
+  const ohneDoppelte = (liste: FileItem[]) => {
+    if (!inhaltsTreffer.length || search.trim().length < 4) return liste;
+    const ids = new Set(inhaltsTreffer.map((t) => t.id).filter(Boolean));
+    const namen = new Set(inhaltsTreffer.map((t) => t.name));
+    return liste.filter((f) => !ids.has(f.id) && !namen.has(String(f.display_name ?? "").trim().toLowerCase()));
+  };
+
   if (loading) {
     return <div className="p-6 text-center text-muted-foreground">Laden...</div>;
   }
@@ -371,6 +380,7 @@ export function WegOwnerFiles() {
       <DokumentInhaltSuche
         suchtext={search}
         buildingIds={activeBuildingId ? [activeBuildingId] : buildings.map((b) => b.id)}
+        onTreffer={setInhaltsTreffer}
       />
 
       {search.trim().length >= 4 && (
@@ -388,10 +398,10 @@ export function WegOwnerFiles() {
           </TabsTrigger>
         </TabsList>
         <TabsContent value="personal" className="mt-4">
-          <FilesBrowser files={filteredPersonal} categories={filteredCategories} search={search} />
+          <FilesBrowser files={ohneDoppelte(filteredPersonal)} categories={filteredCategories} search={search} />
         </TabsContent>
         <TabsContent value="building" className="mt-4">
-          <FilesBrowser files={filteredBuilding} categories={filteredCategories} search={search} />
+          <FilesBrowser files={ohneDoppelte(filteredBuilding)} categories={filteredCategories} search={search} />
         </TabsContent>
       </Tabs>
     </div>
