@@ -74,6 +74,7 @@ const WegOwnerServiceHub = lazy(() => import("./pages/weg-owner/ServiceHub").the
 const WegOwnerNebenkostenTool = lazy(() => import("./pages/weg-owner/NebenkostenTool").then(m => ({ default: m.WegOwnerNebenkostenTool })));
 const WegOwnerMehr = lazy(() => import("./pages/weg-owner/Mehr"));
 const WegOwnerAngebote = lazy(() => import("./pages/weg-owner/Angebote"));
+const MaklerSchaufenster = lazy(() => import("./pages/makler/Schaufenster"));
 const WegOwnerServiceHubSuccess = lazy(() => import("./pages/weg-owner/ServiceHubSuccess").then(m => ({ default: m.WegOwnerServiceHubSuccess })));
 const SurveyRunner = lazy(() => import("./components/survey/SurveyRunner"));
 const OwnerSurveysLanding = lazy(() => import("./components/survey/OwnerSurveysLanding"));
@@ -183,6 +184,7 @@ const App = () => (
               <Route path="/jahreszyklus/klassisch" element={<AdminLayout><JahreszyklusAlt /></AdminLayout>} />
               <Route path="/rgi-intern" element={<AdminLayout><RgiIntern /></AdminLayout>} />
               <Route path="/anruf" element={<IncomingCall />} />
+              <Route path="/makler/schaufenster" element={<AdminLayout><MaklerSchaufenster /></AdminLayout>} />
               <Route path="/makler/objekte" element={<AdminLayout><BrokerProperties /></AdminLayout>} />
               <Route path="/makler/objekte/:id" element={<AdminLayout><BrokerProperties /></AdminLayout>} />
               
