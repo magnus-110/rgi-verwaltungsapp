@@ -8,7 +8,7 @@ import {
 import { useIsRgiAdmin } from "@/hooks/useRgiAdmin";
 import {
   Briefcase, BarChart3, Users, FolderKanban, FileStack,
-  Settings, ClipboardList, Timer, FileSignature, Receipt, Handshake, FolderArchive, Landmark,
+  Settings, ClipboardList, Timer, FileSignature, Receipt, Handshake, FolderArchive, Landmark, Monitor,
 } from "lucide-react";
 
 import { CockpitTab } from "@/components/rgi-intern/dashboard/CockpitTab";
@@ -23,10 +23,11 @@ import { CompanySettingsTab } from "@/components/rgi-intern/settings/CompanySett
 import { TimeClockAdminTab } from "@/components/rgi-intern/timeclock/TimeClockAdminTab";
 import { DocumentsTab } from "@/components/rgi-intern/documents/DocumentsTab";
 import { RgiKontoTab } from "@/components/rgi-intern/konto/RgiKontoTab";
+import { SchaufensterInhalt } from "@/pages/makler/Schaufenster";
 
 type AreaId =
   | "cockpit" | "contracts" | "invoices" | "konto" | "offers"
-  | "projects" | "timeclock"
+  | "projects" | "timeclock" | "schaufenster"
   | "clients" | "documents" | "templates" | "presets" | "settings";
 
 interface AreaDef {
@@ -68,6 +69,7 @@ const GROUPS: NavGroup[] = [
     label: "Wachstum",
     items: [
       { id: "offers", title: "Angebote", icon: Handshake, caption: "Anfragen neuer WEG, Honorar festlegen und Vertragsentwurf erzeugen" },
+      { id: "schaufenster", title: "Schaufenster", icon: Monitor, caption: "Ablauf, Texte und Objekt-Reihenfolge der Anzeige im Schaufenster" },
     ],
   },
   {
@@ -182,6 +184,7 @@ export default function RgiIntern() {
           {area === "invoices" && <InvoicesTab />}
           {area === "konto" && <RgiKontoTab />}
           {area === "offers" && <OffersTab />}
+          {area === "schaufenster" && <SchaufensterInhalt eingebettet />}
           {area === "projects" && <ProjectsTab />}
           {area === "timeclock" && <TimeClockAdminTab />}
           {area === "clients" && <ClientsTab />}

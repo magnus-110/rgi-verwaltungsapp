@@ -31,7 +31,7 @@ const AdminDisplay: React.FC = () => {
   return <SchaufensterInhalt />;
 };
 
-const SchaufensterInhalt: React.FC = () => {
+export const SchaufensterInhalt: React.FC<{ eingebettet?: boolean }> = ({ eingebettet = false }) => {
   const {
     slides, settings, loading, saving, tabellenFehlen,
     folieSpeichern, folieAnlegen, folieLoeschen, reihenfolgeSpeichern, einstellungenSpeichern,
@@ -89,7 +89,7 @@ const SchaufensterInhalt: React.FC = () => {
 
   if (tabellenFehlen) {
     return (
-      <div className="max-w-3xl p-4 md:p-6">
+      <div className={eingebettet ? "max-w-3xl" : "max-w-3xl p-4 md:p-6"}>
         <h1 className="text-2xl font-semibold text-gray-900 mb-2">Schaufensterbildschirm</h1>
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900 space-y-2">
           <p className="font-medium">Das Schaufenster ist noch nicht in die App umgezogen.</p>
@@ -103,14 +103,16 @@ const SchaufensterInhalt: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6 p-4 md:p-6">
+    <div className={eingebettet ? "space-y-6" : "space-y-6 p-4 md:p-6"}>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Schaufensterbildschirm</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Ablauf, Texte und Reihenfolge der Anzeige im Schaufenster.
-          </p>
-        </div>
+        {!eingebettet && (
+          <div>
+            <h1 className="text-2xl font-semibold text-foreground">Schaufensterbildschirm</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Ablauf, Texte und Reihenfolge der Anzeige im Schaufenster.
+            </p>
+          </div>
+        )}
         {saving && (
           <Badge variant="outline" className="text-primary border-primary/30">
             wird gespeichert …
