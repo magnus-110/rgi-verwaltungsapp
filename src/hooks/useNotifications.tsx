@@ -22,7 +22,10 @@ export type NotificationType =
   | 'review_due'
   | 'deadline'
   | 'report_assigned'
-  | 'report_reply';
+  | 'report_reply'
+  | 'anfrage'
+  | 'makler_interessent'
+  | 'mahnung';
 
 export interface AppNotification {
   id: string;
