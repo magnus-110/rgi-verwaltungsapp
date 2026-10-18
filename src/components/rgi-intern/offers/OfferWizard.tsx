@@ -24,6 +24,10 @@ interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   offer?: Offer | null;
+  /** Vorausgefüllte Werte für ein neues Angebot (z. B. aus einer Anfrage). */
+  vorlage?: Record<string, unknown> | null;
+  /** Nach dem Speichern (neu = das Angebot wurde gerade angelegt). */
+  onSaved?: (offer: Offer, neu: boolean) => void;
 }
 
 const STEPS = ["Anfrage", "Fragen zum Objekt", "Honorar", "Vertragsentwurf"];
@@ -83,7 +87,7 @@ const dec = (s: string): number | null => {
 const str = (n: number | null | undefined): string =>
   n == null ? "" : String(n).replace(".", ",");
 
-export function OfferWizard({ open, onOpenChange, offer }: Props) {
+export function OfferWizard({ open, onOpenChange, offer, vorlage, onSaved }: Props) {
   const upsert = useUpsertOffer();
   const saveItems = useSaveOfferItems();
   const { data: questions } = useOfferQuestions();
@@ -91,7 +95,6 @@ export function OfferWizard({ open, onOpenChange, offer }: Props) {
 
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
-  const [rendering, setRendering] = useState(false);
 
   const [form, setForm] = useState<any>({});
   const [answers, setAnswers] = useState<Record<string, any>>({});
@@ -136,7 +139,7 @@ export function OfferWizard({ open, onOpenChange, offer }: Props) {
       setSummaryDocx(offer.summary_docx_storage_path ?? null);
       setSummaryPdf(offer.summary_pdf_storage_path ?? null);
     } else {
-      setForm({ status: "inquiry", management_mode: "weg", inquiry_date: new Date().toISOString().slice(0, 10) });
+      setForm({ status: "inquiry", management_mode: "weg", inquiry_date: new Date().toISOString().slice(0, 10), ...(vorlage ?? {}) });
       setAnswers({});
       setDefaults({ ...CONTRACT_DEFAULTS });
       setEndManual(false);
@@ -168,7 +171,7 @@ export function OfferWizard({ open, onOpenChange, offer }: Props) {
       setSummaryDocx(null);
       setSummaryPdf(null);
     }
-  }, [open, offer]);
+  }, [open, offer]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
 
@@ -211,10 +214,11 @@ export function OfferWizard({ open, onOpenChange, offer }: Props) {
     step === 2 ? !!form.rate_apartment && !!form.units_apartment :
     true;
 
-  const persist = async (): Promise<Offer | null> => {
+  const persist = async (extra: Record<string, unknown> = {}): Promise<Offer | null> => {
     if (!(form.prospect_name ?? "").trim()) return null;
     const saved = await upsert.mutateAsync({
       ...form,
+      ...extra,
       answers,
       contract_defaults: effectiveDefaults,
       monthly_net: monthlyNet || null,
@@ -223,41 +227,37 @@ export function OfferWizard({ open, onOpenChange, offer }: Props) {
     return saved;
   };
 
+  /**
+   * Speichern erzeugt Word und PDF jedes Mal neu (sobald ein Honorar
+   * eingetragen ist). Die vorherige Fassung wird dabei ersetzt.
+   */
   const save = async () => {
     setSaving(true);
     try {
-      const saved = await persist();
-      if (saved) onOpenChange(false);
+      const kannErzeugen = monthlyNet > 0 && (contractTemplates ?? []).length > 0;
+      const neu = !form.id;
+      const saved = await persist(
+        kannErzeugen && (form.status ?? "inquiry") === "inquiry" ? { status: "drafted" } : {},
+      );
+      if (!saved) return;
+      if (kannErzeugen) {
+        try {
+          const res = await renderOffer(saved.id, ["docx", "pdf"]);
+          if (res.pdf_error) toast.error(`Word-Datei fertig, PDF fehlgeschlagen: ${res.pdf_error}`);
+          else toast.success("Vertragsentwurf als Word und PDF erstellt");
+          if (res.summary_error && !/Keine Vorlage/.test(res.summary_error)) {
+            toast.warning(`Übersichtsblatt nicht erstellt: ${res.summary_error}`);
+          }
+        } catch (e: any) {
+          toast.error(`Gespeichert, aber Word/PDF nicht erstellt: ${e.message ?? e}`);
+        }
+      } else if (monthlyNet <= 0) {
+        toast.info("Gespeichert. Word und PDF entstehen automatisch, sobald das Honorar eingetragen ist.");
+      }
+      onSaved?.(saved, neu);
+      onOpenChange(false);
     } finally {
       setSaving(false);
-    }
-  };
-
-  const buildDocument = async (formats: ("docx" | "pdf")[]) => {
-    setRendering(true);
-    try {
-      const saved = await persist();
-      if (!saved) return;
-      const res = await renderOffer(saved.id, formats);
-      setDocx(res.docx_path ?? null);
-      setPdf(res.pdf_path ?? null);
-      setSummaryDocx(res.summary_docx_path ?? null);
-      setSummaryPdf(res.summary_pdf_path ?? null);
-      if (res.pdf_error) {
-        toast.error(`Word-Datei fertig, PDF fehlgeschlagen: ${res.pdf_error}`);
-      } else {
-        toast.success(formats.includes("pdf") ? "Vertragsentwurf als Word und PDF erzeugt" : "Vertragsentwurf als Word erzeugt");
-      }
-      // Das Uebersichtsblatt ist eine Beigabe: sein Fehlen darf den
-      // Vertragsentwurf nicht als gescheitert erscheinen lassen.
-      if (res.summary_error) {
-        toast.warning(`Übersichtsblatt nicht erzeugt: ${res.summary_error}`);
-      }
-      if (saved.status === "inquiry") set("status", "drafted");
-    } catch (e: any) {
-      toast.error(e.message ?? "Erzeugen fehlgeschlagen");
-    } finally {
-      setRendering(false);
     }
   };
 
@@ -637,33 +637,32 @@ export function OfferWizard({ open, onOpenChange, offer }: Props) {
                 </CollapsibleContent>
               </Collapsible>
 
-              {/* Erzeugen */}
+              {/* Dateien: entstehen beim Speichern automatisch */}
               <div className="border rounded-md p-4 space-y-3">
-                <div className="flex flex-wrap gap-2">
-                  <Button onClick={() => buildDocument(["docx", "pdf"])} disabled={rendering} className="gap-1.5">
-                    {rendering ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-                    Word und PDF erzeugen
-                  </Button>
-                  <Button variant="outline" onClick={() => buildDocument(["docx"])} disabled={rendering}>
-                    Nur Word
-                  </Button>
+                <div className="flex items-start gap-2 text-sm">
+                  <FileText className="w-4 h-4 mt-0.5 shrink-0 text-muted-foreground" />
+                  <span>
+                    Beim Speichern entstehen Vertragsentwurf und Übersichtsblatt automatisch als Word und PDF.
+                    Die vorherige Fassung wird dabei ersetzt.
+                  </span>
                 </div>
                 {(docx || pdf) && (
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    {docx && (
-                      <Button variant="secondary" size="sm" className="gap-1.5" onClick={() => openFile(docx)}>
-                        <Download className="w-3.5 h-3.5" />Word öffnen
-                      </Button>
-                    )}
+                  <div className="flex flex-wrap gap-2 items-center">
+                    <span className="text-xs text-muted-foreground">Letzte Fassung:</span>
                     {pdf && (
                       <Button variant="secondary" size="sm" className="gap-1.5" onClick={() => openFile(pdf)}>
                         <Download className="w-3.5 h-3.5" />PDF öffnen
                       </Button>
                     )}
+                    {docx && (
+                      <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => openFile(docx)}>
+                        <Download className="w-3.5 h-3.5" />Word öffnen
+                      </Button>
+                    )}
                   </div>
                 )}
                 {(summaryDocx || summaryPdf) && (
-                  <div className="flex flex-wrap gap-2 items-center pt-1">
+                  <div className="flex flex-wrap gap-2 items-center">
                     <span className="text-xs text-muted-foreground">Übersichtsblatt:</span>
                     {summaryPdf && (
                       <Button variant="secondary" size="sm" className="gap-1.5" onClick={() => openFile(summaryPdf)}>
@@ -677,11 +676,6 @@ export function OfferWizard({ open, onOpenChange, offer }: Props) {
                     )}
                   </div>
                 )}
-                <p className="text-xs text-muted-foreground">
-                  Das PDF wird über CloudConvert erzeugt, denselben Weg nutzen schon die Rechnungen.
-                  Das einseitige Übersichtsblatt entsteht automatisch mit, sobald unter „Vorlagen“
-                  eine Vorlage der Art „Übersichtsblatt“ hochgeladen ist.
-                </p>
               </div>
 
               {/* Nachverfolgung */}
@@ -742,7 +736,7 @@ export function OfferWizard({ open, onOpenChange, offer }: Props) {
             <>
               {step >= 1 && (
                 <Button variant="outline" onClick={save} disabled={saving || !(form.prospect_name ?? "").trim()}>
-                  Speichern und schließen
+                  {saving ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" />Speichern…</> : "Speichern und schließen"}
                 </Button>
               )}
               <Button onClick={() => setStep((s) => s + 1)} disabled={!canContinue} className="gap-1.5">
@@ -751,7 +745,9 @@ export function OfferWizard({ open, onOpenChange, offer }: Props) {
             </>
           ) : (
             <Button onClick={save} disabled={saving || !(form.prospect_name ?? "").trim()} className="gap-1.5">
-              {saving ? "Speichern…" : <>Angebot speichern<Check className="w-4 h-4" /></>}
+              {saving
+                ? <><Loader2 className="w-4 h-4 animate-spin" />Speichern und Word/PDF erstellen…</>
+                : <>Angebot speichern<Check className="w-4 h-4" /></>}
             </Button>
           )}
         </div>

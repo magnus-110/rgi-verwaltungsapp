@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft, Building2, CheckCircle2, Globe, Inbox as InboxIcon, Loader2, Mail, Phone, Plus, Search,
-  Smartphone, StickyNote, Trash2, User, UserPlus, X,
+  Smartphone, StickyNote, Trash2, User, UserPlus, X, Handshake,
 } from "lucide-react";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -26,8 +26,10 @@ import { useStaffProfiles, staffName, type StaffProfile } from "@/hooks/useRepor
 import { MiniTag, StaffAvatar } from "@/components/reports/reportUi";
 import { dateTime, shortDate } from "@/lib/reports";
 import { CreateContactDialog } from "@/components/contacts/CreateContactDialog";
+import { OfferWizard } from "@/components/rgi-intern/offers/OfferWizard";
+import type { Offer } from "@/hooks/useOffers";
 import {
-  INQUIRY_FOLDER_LABEL, KIND_LABEL, SOURCE_LABEL, inquiryDetails, inquiryOrigin, inquirySummary,
+  INQUIRY_FOLDER_LABEL, KIND_LABEL, SOURCE_LABEL, angebotAusAnfrage, inquiryDetails, inquiryOrigin, inquirySummary,
   type InquiryFolder, type InquiryKind,
 } from "@/lib/inquiries";
 import {
@@ -215,6 +217,21 @@ function InquiryDetail({
   const [contactOpen, setContactOpen] = useState(false);
   const [leadOpen, setLeadOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [angebotOpen, setAngebotOpen] = useState(false);
+  // Gibt es zu dieser Anfrage schon ein Angebot?
+  const { data: angebot } = useQuery({
+    queryKey: ["rgi", "offers", "zur-anfrage", id],
+    queryFn: async (): Promise<Offer | null> => {
+      const { data } = await (supabase as any)
+        .from("offers")
+        .select("*, items:offer_items(*)")
+        .eq("inquiry_id", id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return (data as Offer) ?? null;
+    },
+  });
 
   // Beim Öffnen als gelesen markieren.
   useEffect(() => {
@@ -280,6 +297,11 @@ function InquiryDetail({
               <Button size="sm" variant="outline" onClick={() => setContactOpen(true)} disabled={!!inq.contact_id}>
                 <User className="mr-1.5 h-4 w-4" /> {inq.contact_id ? "Kontakt angelegt" : "Als Kontakt anlegen"}
               </Button>
+              {inq.kind === "verwaltung" && (
+                <Button size="sm" variant="outline" onClick={() => setAngebotOpen(true)}>
+                  <Handshake className="mr-1.5 h-4 w-4" /> {angebot ? "Angebot öffnen" : "Angebot erstellen"}
+                </Button>
+              )}
               {canLead && (
                 <Button size="sm" variant="outline" onClick={() => setLeadOpen(true)} disabled={!!inq.broker_lead_id}>
                   <UserPlus className="mr-1.5 h-4 w-4" /> {inq.broker_lead_id ? "Interessent angelegt" : "Als Interessent übernehmen"}
@@ -434,6 +456,20 @@ function InquiryDetail({
         }}
       />
       <LeadDialog inquiry={inq} open={leadOpen} onOpenChange={setLeadOpen} />
+      <OfferWizard
+        open={angebotOpen}
+        onOpenChange={setAngebotOpen}
+        offer={angebot ?? null}
+        vorlage={angebot ? null : angebotAusAnfrage(inq)}
+        onSaved={(_o, neu) => {
+          if (!neu) return;
+          update.mutate({
+            id: inq.id,
+            patch: { status: inq.status === "neu" ? "in_bearbeitung" : inq.status, ...(!inq.assigned_to ? { assigned_to: user?.id ?? null } : {}) },
+            event: { kind: "system", body: "Angebot erstellt (RGI Intern › Angebote)" },
+          });
+        }}
+      />
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>

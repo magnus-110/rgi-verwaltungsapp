@@ -76,6 +76,7 @@ export interface Offer {
   pdf_storage_path: string | null;
   summary_docx_storage_path: string | null;
   summary_pdf_storage_path: string | null;
+  inquiry_id?: string | null;
   sent_on: string | null;
   follow_up_on: string | null;
   decided_on: string | null;

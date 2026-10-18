@@ -197,3 +197,74 @@ export function inquiryOrigin(attr: Record<string, unknown> | null | undefined):
   ];
   return z.filter(([, v]) => v).map(([label, v]) => ({ label, value: String(v) }));
 }
+
+/** Zahl aus freier Eingabe („ca. 12“, „12 Whg.“) – sonst leer. */
+function ganzzahl(v: unknown): number | null {
+  const s = String(v ?? "");
+  if (/^[<>]|\d+\s*-\s*\d+/.test(s.trim())) return null; // alte Spannen wie „10-50“
+  const m = s.match(/\d+/);
+  return m ? Number(m[0]) : null;
+}
+
+/** Ersten Tag eines Monats in n Monaten (für den gewünschten Beginn). */
+function monatsersterIn(n: number, von = new Date()): string {
+  const d = new Date(von.getFullYear(), von.getMonth() + n, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+}
+
+const BEGINN_MONATE: Record<string, number> = { sofort: 1, "1-3-monate": 2, "3-6-monate": 4, "6-12-monate": 9 };
+
+/**
+ * Aus einer Verwaltungs-Anfrage ein vorausgefülltes Angebot machen.
+ * Alles, was nicht in ein eigenes Feld passt, landet in den Notizen.
+ */
+export function angebotAusAnfrage(inq: {
+  id: string; nummer: number; name: string | null; email: string | null; phone: string | null;
+  data: Record<string, unknown>; contact_id: string | null; created_at: string; source: string;
+}): Record<string, unknown> {
+  const d = inq.data ?? {};
+  const adr = (d.address ?? {}) as Record<string, string>;
+  const strasse = [adr.strasse, adr.hausnummer].filter(Boolean).join(" ").trim();
+  const ort = (adr.ort || (d.location as string) || "").trim();
+  const weg = d.serviceType !== "mv";
+  const kontakt = (d.kontakt ?? {}) as Record<string, unknown>;
+  const wuensche = (d.wuensche ?? kontakt.wuensche) as string | undefined;
+  const beirat = d.isBeirat === true || d.isBeirat === "ja";
+  const monate = BEGINN_MONATE[String(d.startDate ?? "")];
+
+  const notizen = [
+    `Aus Anfrage #${inq.nummer} vom ${new Date(inq.created_at).toLocaleDateString("de-DE")}`,
+    d.units ? `Einheiten laut Anfrage: ${wert("units", d.units)}` : "",
+    d.garages ? `Garagen/Stellplätze laut Anfrage: ${d.garages}` : "",
+    d.startDate ? `Beginn: ${wert("startDate", d.startDate)}${monate ? " (Datum geschätzt)" : ""}` : "",
+    d.reason ? `Grund: ${wert("reason", d.reason)}` : "",
+    d.ownerRelation ? `Eigentümer: ${wert("ownerRelation", d.ownerRelation)}` : "",
+    d.buildingAge ? `Alter des Hauses: ${wert("buildingAge", d.buildingAge)}` : "",
+    d.isBeirat != null && weg ? `Anfragende Person im Beirat: ${beirat ? "ja" : "nein"}` : "",
+    wuensche ? `Wünsche: ${wuensche}` : "",
+  ].filter(Boolean).join("\n");
+
+  return {
+    status: "inquiry",
+    inquiry_id: inq.id,
+    management_mode: weg ? "weg" : "rent",
+    prospect_name: weg
+      ? `WEG ${strasse || ort || inq.name || ""}`.trim()
+      : (inq.name || `Mietverwaltung ${strasse || ort}`).trim(),
+    prospect_contact_id: inq.contact_id,
+    contact_person: inq.name,
+    contact_email: inq.email,
+    contact_phone: inq.phone,
+    object_address: strasse || null,
+    object_zip: adr.plz || null,
+    object_city: ort || null,
+    object_representative: weg && beirat && inq.name ? `der Verwaltungsbeirat, ${inq.name}` : null,
+    units_apartment: ganzzahl(d.units),
+    units_parking: ganzzahl(d.garages),
+    desired_start: monate ? monatsersterIn(monate) : null,
+    previous_manager: d.reason === "selbstverwaltung" ? "Selbstverwaltung" : null,
+    inquiry_source: `${SOURCE_LABEL[inq.source] ?? inq.source} (Anfrage #${inq.nummer})`,
+    inquiry_date: inq.created_at.slice(0, 10),
+    notes: notizen,
+  };
+}

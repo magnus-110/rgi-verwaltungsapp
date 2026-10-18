@@ -574,12 +574,28 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Immer nur die neueste Fassung behalten: was vorher erzeugt wurde und
+    // jetzt nicht mehr gilt (anderer Name, PDF fehlgeschlagen …), wird gelöscht.
     await admin.from("offers").update({
       docx_storage_path: docxPath,
-      ...(pdfPath ? { pdf_storage_path: pdfPath } : {}),
-      ...(summaryDocxPath ? { summary_docx_storage_path: summaryDocxPath } : {}),
-      ...(summaryPdfPath ? { summary_pdf_storage_path: summaryPdfPath } : {}),
+      pdf_storage_path: pdfPath,
+      summary_docx_storage_path: summaryDocxPath,
+      summary_pdf_storage_path: summaryPdfPath,
     }).eq("id", offer.id);
+
+    const neuePfade = new Set([docxPath, pdfPath, summaryDocxPath, summaryPdfPath].filter(Boolean) as string[]);
+    const altePfade = [
+      offer.docx_storage_path, offer.pdf_storage_path,
+      offer.summary_docx_storage_path, offer.summary_pdf_storage_path,
+    ].filter((p: string | null) => p && !neuePfade.has(p)) as string[];
+    if (altePfade.length) {
+      try {
+        await admin.storage.from("invoices").remove(altePfade);
+        await admin.from("building_files").delete().in("file_path", altePfade);
+      } catch (re) {
+        console.error("Alte Angebotsdateien nicht gelöscht", re);
+      }
+    }
 
     // --- Ablage in der Firmenablage -----------------------------------------
     // Die Dateien werden NICHT kopiert: der Eintrag zeigt auf denselben Pfad im
