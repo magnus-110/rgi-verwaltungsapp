@@ -105,7 +105,6 @@ begin
    where lower(l.external_email) = partner
      and (e.broker_property_id is null or l.property_id = e.broker_property_id)
      and coalesce(e.date, now()) >= l.created_at - interval '1 day'
-     and l.status not in ('abschluss', 'absage')
    order by l.created_at desc limit 1;
   if lead is null then return; end if;
   update public.emails set broker_property_id = prop, broker_lead_id = lead where id = e.id;

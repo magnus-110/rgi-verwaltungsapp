@@ -124,6 +124,7 @@ export interface BrokerLead {
   source: string | null;
   inquiry_id: string | null;
   last_contact_at: string | null;
+  archived_at?: string | null;
   outcome_reason: string | null;
   created_by: string | null;
   created_at: string;

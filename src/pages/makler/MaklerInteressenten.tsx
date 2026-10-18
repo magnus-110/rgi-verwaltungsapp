@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd";
-import { AlertTriangle, CalendarDays, Plus, Users } from "lucide-react";
+import { AlertTriangle, CalendarDays, Eye, EyeOff, Plus, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -15,6 +15,7 @@ import {
   LEAD_SPALTEN,
   LEAD_STATUS,
   QUELLEN,
+  db,
   fehler,
   istStill,
   kurzDatumZeit,
@@ -49,6 +50,8 @@ function Inhalt() {
   const [quelle, setQuelle] = useState("alle");
   const [neu, setNeu] = useState(false);
   const [ausgang, setAusgang] = useState<{ lead: BrokerLead; nurAbsage?: boolean } | null>(null);
+  const [zeigeAusgeblendete, setZeigeAusgeblendete] = useState(false);
+  const [alleFertigen, setAlleFertigen] = useState(false);
   // Sofort umsortieren, bis die Daten neu geladen sind.
   const [lokal, setLokal] = useState<Record<string, LeadStatus>>({});
   useEffect(() => setLokal({}), [leadsDaten]);
@@ -67,8 +70,9 @@ function Inhalt() {
     () =>
       leads
         .map((l) => (lokal[l.id] ? { ...l, status: lokal[l.id] } : l))
-        .filter((l) => (objekt === "alle" || l.property_id === objekt) && (quelle === "alle" || (l.source ?? "manuell") === quelle)),
-    [leads, lokal, objekt, quelle],
+        .filter((l) => (objekt === "alle" || l.property_id === objekt) && (quelle === "alle" || (l.source ?? "manuell") === quelle))
+        .filter((l) => zeigeAusgeblendete || !l.archived_at),
+    [leads, lokal, objekt, quelle, zeigeAusgeblendete],
   );
 
   const spalten = useMemo(() => {
@@ -82,6 +86,9 @@ function Inhalt() {
     setLokal((x) => ({ ...x, [lead.id]: status }));
     try {
       await leadStandSetzen(lead.id, status, userId, grund);
+      if (lead.archived_at && status !== "abschluss" && status !== "absage") {
+        await db.from("broker_leads").update({ archived_at: null }).eq("id", lead.id);
+      }
       toast.success(`${leadName(lead)}: ${LEAD_LABEL[status]}`);
     } catch (e) {
       setLokal((x) => {
@@ -108,6 +115,21 @@ function Inhalt() {
     wechseln(lead, r.destination.droppableId as LeadSpalte);
   };
 
+  const anzahlAusgeblendet = leads.filter((l) => l.archived_at).length;
+
+  /** Abgeschlossene ausblenden (bleiben gespeichert) oder wieder einblenden. */
+  const ausblenden = async (ids: string[], aus: boolean) => {
+    if (ids.length === 0) return;
+    const { error } = await db.from("broker_leads").update({ archived_at: aus ? new Date().toISOString() : null }).in("id", ids);
+    if (error) return fehler("Konnte nicht geändert werden", error);
+    toast.success(aus ? (ids.length === 1 ? "Ausgeblendet" : `${ids.length} Interessenten ausgeblendet`) : "Wieder eingeblendet");
+    neuLaden();
+  };
+
+  /** In „Abgeschlossen" erst nur die neuesten zeigen, sonst wird die Spalte endlos. */
+  const MAX_FERTIG = 5;
+  const sichtbar = (key: LeadSpalte, l: BrokerLead[]) => (key === "abgeschlossen" && !alleFertigen ? l.slice(0, MAX_FERTIG) : l);
+
   const objekteMitLeads = objekte.filter((o) => leads.some((l) => l.property_id === o.id));
 
   return (
@@ -133,6 +155,12 @@ function Inhalt() {
             {QUELLEN.map((q) => <SelectItem key={q.key} value={q.key} className="min-h-10">{q.label}</SelectItem>)}
           </SelectContent>
         </Select>
+        {anzahlAusgeblendet > 0 && (
+          <Button variant="ghost" className="h-11 justify-start text-muted-foreground" onClick={() => setZeigeAusgeblendete((x) => !x)}>
+            {zeigeAusgeblendete ? <EyeOff className="h-4 w-4 mr-1.5" /> : <Eye className="h-4 w-4 mr-1.5" />}
+            {zeigeAusgeblendete ? "Ausgeblendete verbergen" : `Ausgeblendete zeigen (${anzahlAusgeblendet})`}
+          </Button>
+        )}
       </div>
 
       {isLoading ? (
@@ -150,9 +178,10 @@ function Inhalt() {
                 <p className="text-sm text-muted-foreground px-1">Niemand</p>
               ) : (
                 <div className="space-y-2">
-                  {spalten[s.key].map((l) => (
+                  {s.key === "abgeschlossen" && <AlleAusblenden leads={spalten[s.key]} onAusblenden={ausblenden} />}
+                  {sichtbar(s.key, spalten[s.key]).map((l) => (
                     <div key={l.id} className="rounded-xl border bg-card">
-                      <LeadKarte lead={l} besichtigung={naechsteBesichtigung.get(l.id)} />
+                      <LeadKarte lead={l} besichtigung={naechsteBesichtigung.get(l.id)} onAusblenden={ausblenden} />
                       <div className="border-t px-3 py-2">
                         <Select value={l.status} onValueChange={(v) => wechseln(l, v as LeadStatus)}>
                           <SelectTrigger className="h-11" aria-label="Stand ändern"><SelectValue /></SelectTrigger>
@@ -163,6 +192,7 @@ function Inhalt() {
                       </div>
                     </div>
                   ))}
+                  {s.key === "abgeschlossen" && <MehrZeigen anzahl={spalten[s.key].length} offen={alleFertigen} onUmschalten={() => setAlleFertigen((x) => !x)} />}
                 </div>
               )}
             </section>
@@ -184,8 +214,9 @@ function Inhalt() {
                       {s.label}
                       <span className="rounded-full bg-background px-2 text-xs font-medium text-muted-foreground">{spalten[s.key].length}</span>
                     </h2>
+                    {s.key === "abgeschlossen" && <AlleAusblenden leads={spalten[s.key]} onAusblenden={ausblenden} />}
                     <div className="space-y-2 mt-1">
-                      {spalten[s.key].map((l, i) => (
+                      {sichtbar(s.key, spalten[s.key]).map((l, i) => (
                         <Draggable key={l.id} draggableId={l.id} index={i}>
                           {(drag, ds) => (
                             <div
@@ -194,12 +225,13 @@ function Inhalt() {
                               {...drag.dragHandleProps}
                               className={cn("rounded-lg border bg-card", ds.isDragging && "shadow-lg rotate-1")}
                             >
-                              <LeadKarte lead={l} besichtigung={naechsteBesichtigung.get(l.id)} />
+                              <LeadKarte lead={l} besichtigung={naechsteBesichtigung.get(l.id)} onAusblenden={ausblenden} />
                             </div>
                           )}
                         </Draggable>
                       ))}
                       {prov.placeholder}
+                      {s.key === "abgeschlossen" && <MehrZeigen anzahl={spalten[s.key].length} offen={alleFertigen} onUmschalten={() => setAlleFertigen((x) => !x)} />}
                     </div>
                   </section>
                 )}
@@ -225,14 +257,50 @@ function Inhalt() {
   );
 }
 
-function LeadKarte({ lead, besichtigung }: { lead: BrokerLead; besichtigung?: string }) {
+function AlleAusblenden({ leads, onAusblenden }: { leads: BrokerLead[]; onAusblenden: (ids: string[], aus: boolean) => void }) {
+  const offen = leads.filter((l) => !l.archived_at);
+  if (offen.length === 0) return null;
+  return (
+    <button
+      type="button"
+      onClick={() => onAusblenden(offen.map((l) => l.id), true)}
+      className="mx-2 mb-1 inline-flex min-h-9 items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+    >
+      <EyeOff className="h-3.5 w-3.5" />Alle {offen.length} ausblenden
+    </button>
+  );
+}
+
+function MehrZeigen({ anzahl, offen, onUmschalten }: { anzahl: number; offen: boolean; onUmschalten: () => void }) {
+  if (anzahl <= 5) return null;
+  return (
+    <button type="button" onClick={onUmschalten} className="w-full min-h-10 rounded-lg text-sm text-primary hover:bg-background">
+      {offen ? "Weniger anzeigen" : `${anzahl - 5} weitere anzeigen`}
+    </button>
+  );
+}
+
+function LeadKarte({ lead, besichtigung, onAusblenden }: { lead: BrokerLead; besichtigung?: string; onAusblenden?: (ids: string[], aus: boolean) => void }) {
   const still = istStill(lead);
   const fertig = lead.status === "abschluss" || lead.status === "absage";
   return (
     <Link to={`/makler/interessenten/${lead.id}`} className="block p-3 min-h-[44px] hover:bg-muted/40 rounded-lg">
       <div className="flex items-start justify-between gap-2">
         <span className="font-medium text-sm leading-snug break-words">{leadName(lead)}</span>
-        {fertig && <LeadBadge status={lead.status} className="shrink-0" />}
+        <span className="flex shrink-0 items-center gap-1">
+          {fertig && <LeadBadge status={lead.status} />}
+          {fertig && onAusblenden && (
+            <button
+              type="button"
+              title={lead.archived_at ? "Wieder einblenden" : "Ausblenden"}
+              aria-label={lead.archived_at ? "Wieder einblenden" : "Ausblenden"}
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onAusblenden([lead.id], !lead.archived_at); }}
+              className="-m-1 rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              {lead.archived_at ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+            </button>
+          )}
+        </span>
       </div>
       <div className="text-xs text-muted-foreground truncate mt-0.5">{lead.broker_properties?.title ?? ""}</div>
       <div className="flex flex-wrap items-center gap-1.5 mt-2">
