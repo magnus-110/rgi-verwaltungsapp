@@ -12,7 +12,7 @@ import { DmsJobsTray } from "./finance/DmsJobsTray";
 import { PasskeyPromptDialog } from "./PasskeyPromptDialog";
 import { TimeClockReminderDialog } from "./timeclock/TimeClockReminderDialog";
 import { RequireMfa } from "./RequireMfa";
-import { BrokerModeProvider } from "@/hooks/useBrokerMode";
+import { BrokerModeProvider, useBrokerMode } from "@/hooks/useBrokerMode";
 import { BackendHealthProvider } from "@/hooks/useBackendHealth";
 import { BackendStatusBanner } from "@/components/system/BackendStatusBanner";
 import { BulkSendWatcher } from "@/lib/bulkSendWatch";
@@ -27,6 +27,7 @@ interface AdminLayoutProps {
 const AdminLayoutContent = ({ children }: AdminLayoutProps) => {
   const { user, profile, loading } = useAuth();
   const { managementMode, setManagementMode } = useManagementMode();
+  const { brokerActive } = useBrokerMode();
 
   if (loading) {
     return (
@@ -87,7 +88,7 @@ const AdminLayoutContent = ({ children }: AdminLayoutProps) => {
             <header className="h-16 border-b bg-background flex items-center px-4 shrink-0 hidden lg:flex">
               <SidebarTrigger className="mr-4" />
               <h1 className="heading-primary text-xl font-semibold truncate">
-                {managementMode === 'weg' ? 'WEG-Verwaltung' : 'Mietverwaltung'}
+                {brokerActive ? 'Makler' : managementMode === 'weg' ? 'WEG-Verwaltung' : 'Mietverwaltung'}
               </h1>
               <div className="ml-auto flex items-center gap-1">
                 <AblageButton />

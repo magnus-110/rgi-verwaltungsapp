@@ -71,7 +71,7 @@ import { useComposeEmail } from "@/contexts/ComposeEmailContext";
 import { useMailboxAbos, useSetMailboxAbos } from "@/hooks/useNotifications";
 import { EmailAttachments } from "@/components/email/EmailAttachments";
 import { AssignEmailDialog } from "@/components/email/AssignEmailDialog";
-import { AssignBrokerLeadDialog } from "@/components/email/AssignBrokerLeadDialog";
+import { MaklerZuordnenDialog } from "@/components/email/MaklerZuordnenDialog";
 import { SearchableFilterSelect } from "@/components/email/SearchableFilterSelect";
 
 import { EmailHtmlBody } from "@/components/email/EmailHtmlBody";
@@ -2169,13 +2169,14 @@ export const Inbox = () => {
                                   >
                                     <Link2 className="h-4 w-4" />
                                   </Button>
-                                  {profile?.broker_mode_enabled && (
+                                  {(profile?.role === "admin" || profile?.broker_mode_enabled) && (
                                     <Button
                                       variant="ghost"
                                       size="icon"
                                       className="h-8 w-8"
                                       onClick={() => setBrokerLeadEmailId(selectedEmail.id)}
-                                      title="Interessent zuordnen"
+                                      title="Makler zuordnen"
+                                      aria-label="Makler zuordnen"
                                     >
                                       <UserPlus className="h-4 w-4" />
                                     </Button>
@@ -2507,8 +2508,8 @@ export const Inbox = () => {
         }
       />
 
-      {profile?.broker_mode_enabled && brokerLeadEmailId && (
-        <AssignBrokerLeadDialog
+      {(profile?.role === "admin" || profile?.broker_mode_enabled) && brokerLeadEmailId && (
+        <MaklerZuordnenDialog
           open={!!brokerLeadEmailId}
           onOpenChange={(o) => !o && setBrokerLeadEmailId(null)}
           emailId={brokerLeadEmailId}

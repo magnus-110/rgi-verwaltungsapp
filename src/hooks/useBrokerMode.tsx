@@ -1,60 +1,64 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { useLocation } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 
-export type BrokerMode = 'rent' | 'sale' | null;
-
+/**
+ * Makler-Modus: ein einziger Maklerbereich (früher getrennt in Vermietung
+ * und Verkauf). Gespeichert unter dem alten Schlüssel „brokerMode" – alte
+ * Werte „rent"/„sale" gelten als eingeschaltet.
+ */
 interface BrokerModeContextType {
-  brokerMode: BrokerMode;
-  setBrokerMode: (mode: BrokerMode) => void;
-  brokerSectionOpen: boolean;
-  setBrokerSectionOpen: (open: boolean) => void;
+  /** Ist der Maklerbereich gerade aktiv (und darf die Person ihn nutzen)? */
+  brokerActive: boolean;
+  setBrokerActive: (on: boolean) => void;
+  /** Darf die Person den Maklerbereich überhaupt nutzen? */
+  brokerAllowed: boolean;
 }
 
 const BrokerModeContext = createContext<BrokerModeContextType | undefined>(undefined);
+const KEY = "brokerMode";
+
+function gespeichert(): boolean {
+  try {
+    const v = localStorage.getItem(KEY);
+    return v === "on" || v === "rent" || v === "sale";
+  } catch {
+    return false;
+  }
+}
 
 export const useBrokerMode = () => {
   const ctx = useContext(BrokerModeContext);
-  if (!ctx) throw new Error('useBrokerMode must be used within BrokerModeProvider');
+  if (!ctx) throw new Error("useBrokerMode must be used within BrokerModeProvider");
   return ctx;
 };
 
-/**
- * Wie useBrokerMode, nur ohne Absturz ausserhalb des Providers.
- *
- * Die mobile Kopfleiste steht auch auf Seiten, die nicht im AdminLayout
- * haengen (etwa dem Chat der Mieter). Dort gibt es keinen Makler-Modus — und
- * das ist kein Fehler, sondern der Normalfall.
- */
-export const useBrokerModeOptional = (): BrokerMode => {
-  const ctx = useContext(BrokerModeContext);
-  return ctx?.brokerMode ?? null;
-};
+/** Wie useBrokerMode, nur ohne Absturz außerhalb des Providers. */
+export const useBrokerModeOptional = (): BrokerModeContextType | null => useContext(BrokerModeContext) ?? null;
 
 export const BrokerModeProvider = ({ children }: { children: ReactNode }) => {
-  const [brokerMode, setBrokerModeState] = useState<BrokerMode>(() => {
-    try {
-      const v = localStorage.getItem('brokerMode');
-      return v === 'rent' || v === 'sale' ? v : null;
-    } catch { return null; }
-  });
-  const [brokerSectionOpen, setBrokerSectionOpenState] = useState<boolean>(() => {
-    try { return localStorage.getItem('brokerSectionOpen') !== '0'; } catch { return true; }
-  });
+  const { profile } = useAuth();
+  const location = useLocation();
+  const brokerAllowed = profile?.role === "admin" || (profile?.role === "employee" && !!profile?.broker_mode_enabled);
+  const [on, setOn] = useState<boolean>(gespeichert);
 
-  const setBrokerMode = (mode: BrokerMode) => {
-    setBrokerModeState(mode);
+  const setBrokerActive = useCallback((next: boolean) => {
+    setOn(next);
     try {
-      if (mode) localStorage.setItem('brokerMode', mode);
-      else localStorage.removeItem('brokerMode');
-    } catch {}
-  };
+      if (next) localStorage.setItem(KEY, "on");
+      else localStorage.removeItem(KEY);
+    } catch {
+      /* egal */
+    }
+  }, []);
 
-  const setBrokerSectionOpen = (open: boolean) => {
-    setBrokerSectionOpenState(open);
-    try { localStorage.setItem('brokerSectionOpen', open ? '1' : '0'); } catch {}
-  };
+  // Wer per Link direkt im Maklerbereich landet, sieht auch das Makler-Menü.
+  useEffect(() => {
+    if (brokerAllowed && location.pathname.startsWith("/makler") && !on) setBrokerActive(true);
+  }, [brokerAllowed, location.pathname, on, setBrokerActive]);
 
   return (
-    <BrokerModeContext.Provider value={{ brokerMode, setBrokerMode, brokerSectionOpen, setBrokerSectionOpen }}>
+    <BrokerModeContext.Provider value={{ brokerActive: brokerAllowed && on, setBrokerActive, brokerAllowed }}>
       {children}
     </BrokerModeContext.Provider>
   );
