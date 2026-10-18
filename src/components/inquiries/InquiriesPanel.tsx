@@ -485,6 +485,9 @@ function LeadDialog({ inquiry, open, onOpenChange }: { inquiry: Inquiry; open: b
         external_phone: inquiry.phone,
         status: "neu",
         notes: `Aus Anfrage #${inquiry.nummer} (${KIND_LABEL[inquiry.kind]})`,
+        // Herkunft für den Maklerbereich (Spalten aus 20261018180000_makler_neu.sql)
+        source: inquiry.source === "nutzer_app" ? "portal" : inquiry.source === "manuell" ? "manuell" : "website",
+        inquiry_id: inquiry.id,
         created_by: user?.id ?? null,
       } as any)
       .select("id")

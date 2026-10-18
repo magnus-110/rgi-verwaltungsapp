@@ -19,7 +19,7 @@ import {
   StickyNote,
   Users,
   Wallet,
-  Workflow, ReceiptText, ClipboardList } from 'lucide-react';
+  Workflow, ReceiptText, ClipboardList, LayoutDashboard, SlidersHorizontal, Monitor } from 'lucide-react';
 
 /**
  * Die Navigation — an einer Stelle.
@@ -85,12 +85,20 @@ export const adminMenu: MenuItem[] = [
   { title: 'Einstellungen', url: '/settings', icon: Settings, abschnitt: 'Intern' },
 ];
 
+/**
+ * Maklerbereich (Umbau 18.10.2026): ein Bereich für Kauf und Miete.
+ * Termine, Postfach und Adressen sind dieselben Seiten wie sonst auch.
+ */
 export const brokerMenu: MenuItem[] = [
+  { title: 'Übersicht', url: '/makler', icon: LayoutDashboard },
   { title: 'Objekte', url: '/makler/objekte', icon: Home },
+  { title: 'Interessenten', url: '/makler/interessenten', icon: Users },
+  { title: 'Termine', url: '/calendar', icon: CalendarDays },
   { title: 'Postfach', url: '/postfach', icon: Mail },
   { title: 'Adressen', url: '/contacts', icon: BookUser },
-  { title: 'Kalender', url: '/calendar', icon: CalendarDays },
-  { title: 'Einstellungen', url: '/settings', icon: Settings },
+  { title: 'Schaufenster', url: '/makler/schaufenster', icon: Monitor },
+  { title: 'Makler-Einstellungen', url: '/makler/einstellungen', icon: SlidersHorizontal, adminOnly: true, abschnitt: 'Intern' },
+  { title: 'Einstellungen', url: '/settings', icon: Settings, abschnitt: 'Intern' },
 ];
 
 /** Steht man gerade auf einem der Unterpunkte dieser Gruppe? */
@@ -107,7 +115,7 @@ export function istAktiv(item: MenuItem, pfad: string): boolean {
   if (item.url === '/zahlungen') {
     return pfad.startsWith('/zahlungen') || pfad.startsWith('/ueberweisungen');
   }
-  if (item.url === '/makler/objekte') return pfad.startsWith('/makler');
+  if (item.url === '/makler') return pfad === '/makler' || pfad === '/makler/';
   if (item.url === '/dashboard') return pfad === '/dashboard';
   return pfad.startsWith(item.url);
 }

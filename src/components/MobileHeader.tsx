@@ -11,6 +11,7 @@ import {
   type MenuItem,
 } from "@/lib/adminNavigation";
 import { useBrokerModeOptional } from "@/hooks/useBrokerMode";
+import { ModusSchalter } from "@/components/broker/ModusSchalter";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import {
@@ -35,10 +36,10 @@ export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileH
   const location = useLocation();
   const { signOut, profile } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
-  const brokerMode = useBrokerModeOptional();
+  const broker = useBrokerModeOptional();
 
   const istVerwaltung = userRole === 'admin' || userRole === 'employee';
-  const istMakler = !!profile?.broker_mode_enabled && brokerMode !== null;
+  const istMakler = !!broker?.brokerActive;
   /** Dieselbe Liste wie in der Seitenleiste — es gibt nur eine. */
   const verwaltungsMenue = menueFuer(
     profile?.role,
@@ -156,39 +157,19 @@ export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileH
                 </div>
               </div>
 
-              {/* Management Mode Toggle for Admin and Employee */}
+              {/* Bereich: WEG · Miete · Makler */}
               {(userRole === 'admin' || userRole === 'employee') && managementMode && onModeChange && (
                 <div className="p-4 border-b">
                   <div className="space-y-3">
                     <label className="text-xs uppercase tracking-wider text-muted-foreground font-medium">
-                      Verwaltungsmodus
+                      Bereich
                     </label>
-                    <div className="flex bg-muted rounded-lg p-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => onModeChange('weg')}
-                        className={`flex-1 rounded-md transition-colors ${
-                          managementMode === 'weg' 
-                            ? 'bg-primary text-primary-foreground' 
-                            : 'hover:bg-background text-muted-foreground'
-                        }`}
-                      >
-                        WEG
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => onModeChange('rent')}
-                        className={`flex-1 rounded-md transition-colors ${
-                          managementMode === 'rent' 
-                            ? 'bg-primary text-primary-foreground' 
-                            : 'hover:bg-background text-muted-foreground'
-                        }`}
-                      >
-                        Miete
-                      </Button>
-                    </div>
+                    <ModusSchalter
+                      managementMode={managementMode}
+                      onModeChange={onModeChange}
+                      onDone={() => setIsOpen(false)}
+                      className="[&>button]:min-h-11"
+                    />
                   </div>
                 </div>
               )}

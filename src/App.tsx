@@ -58,7 +58,13 @@ const EtvProxy = lazy(() => import("./pages/EtvProxy").then(m => ({ default: m.E
 const CashAuditProxy = lazy(() => import("./pages/CashAuditProxy").then(m => ({ default: m.CashAuditProxy })));
 const EtvProtocolSign = lazy(() => import("./pages/EtvProtocolSign").then(m => ({ default: m.EtvProtocolSign })));
 const Transfers = lazy(() => import("./pages/Transfers").then(m => ({ default: m.Transfers })));
-const BrokerProperties = lazy(() => import("./pages/BrokerProperties").then(m => ({ default: m.BrokerProperties })));
+const MaklerUebersicht = lazy(() => import("./pages/makler/MaklerUebersicht"));
+const MaklerObjekte = lazy(() => import("./pages/makler/MaklerObjekte"));
+const MaklerObjekt = lazy(() => import("./pages/makler/MaklerObjekt"));
+const MaklerExpose = lazy(() => import("./pages/makler/MaklerExpose"));
+const MaklerInteressenten = lazy(() => import("./pages/makler/MaklerInteressenten"));
+const MaklerInteressent = lazy(() => import("./pages/makler/MaklerInteressent"));
+const MaklerEinstellungen = lazy(() => import("./pages/makler/MaklerEinstellungen"));
 
 const WegOwnerDashboard = lazy(() => import("./pages/weg-owner/Dashboard").then(m => ({ default: m.WegOwnerDashboard })));
 const WegOwnerReports = lazy(() => import("./pages/weg-owner/Reports").then(m => ({ default: m.WegOwnerReports })));
@@ -184,9 +190,15 @@ const App = () => (
               <Route path="/jahreszyklus/klassisch" element={<AdminLayout><JahreszyklusAlt /></AdminLayout>} />
               <Route path="/rgi-intern" element={<AdminLayout><RgiIntern /></AdminLayout>} />
               <Route path="/anruf" element={<IncomingCall />} />
+              {/* Maklerbereich */}
               <Route path="/makler/schaufenster" element={<AdminLayout><MaklerSchaufenster /></AdminLayout>} />
-              <Route path="/makler/objekte" element={<AdminLayout><BrokerProperties /></AdminLayout>} />
-              <Route path="/makler/objekte/:id" element={<AdminLayout><BrokerProperties /></AdminLayout>} />
+              <Route path="/makler" element={<AdminLayout><MaklerUebersicht /></AdminLayout>} />
+              <Route path="/makler/objekte" element={<AdminLayout><MaklerObjekte /></AdminLayout>} />
+              <Route path="/makler/objekte/:id" element={<AdminLayout><MaklerObjekt /></AdminLayout>} />
+              <Route path="/makler/objekte/:id/expose" element={<MaklerExpose />} />
+              <Route path="/makler/interessenten" element={<AdminLayout><MaklerInteressenten /></AdminLayout>} />
+              <Route path="/makler/interessenten/:id" element={<AdminLayout><MaklerInteressent /></AdminLayout>} />
+              <Route path="/makler/einstellungen" element={<AdminLayout><MaklerEinstellungen /></AdminLayout>} />
               
               
               {/* Legacy admin routes for compatibility */}

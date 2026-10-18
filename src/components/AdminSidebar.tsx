@@ -1,6 +1,7 @@
 import React from "react";
-import { LogOut, ToggleLeft, ToggleRight, ChevronDown, ChevronRight } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { ModusSchalter } from "@/components/broker/ModusSchalter";
 import { useAuth } from "@/hooks/useAuth";
 import {
   Sidebar,
@@ -29,9 +30,7 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
   const currentPath = location.pathname;
   const collapsed = state === "collapsed";
 
-  const { brokerMode, setBrokerMode, brokerSectionOpen, setBrokerSectionOpen } = useBrokerMode();
-  const brokerEnabled = !!profile?.broker_mode_enabled;
-  const isBrokerActive = brokerEnabled && brokerMode !== null;
+  const { brokerActive: isBrokerActive } = useBrokerMode();
 
   const menuItems = isBrokerActive ? brokerMenu : adminMenu;
   // Abzeichen am Postfach: neue Meldungen, für die noch niemand zuständig ist.
@@ -65,111 +64,15 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
           )}
         </div>
 
-        {/* Verwaltungsmodus */}
-        <div className="p-4 border-b border-border">
-          {!collapsed ? (
-            <div className="space-y-3">
-              <label className="label-text text-xs uppercase tracking-wider text-muted-foreground">
-                Verwaltungsmodus
-              </label>
-              <div className="flex bg-muted rounded-lg p-1">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => { onModeChange('weg'); setBrokerMode(null); }}
-                  className={`flex-1 rounded-md transition-colors ${
-                    !isBrokerActive && managementMode === 'weg'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'hover:bg-background text-muted-foreground'
-                  }`}
-                >
-                  WEG
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => { onModeChange('rent'); setBrokerMode(null); }}
-                  className={`flex-1 rounded-md transition-colors ${
-                    !isBrokerActive && managementMode === 'rent'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'hover:bg-background text-muted-foreground'
-                  }`}
-                >
-                  Miete
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="flex justify-center">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onModeChange(managementMode === 'weg' ? 'rent' : 'weg')}
-                className="p-2 rounded-md hover:bg-muted"
-              >
-                {managementMode === 'weg' ? (
-                  <ToggleLeft className="h-4 w-4 text-primary" />
-                ) : (
-                  <ToggleRight className="h-4 w-4 text-primary" />
-                )}
-              </Button>
-            </div>
+        {/* Bereich: WEG · Miete · Makler */}
+        <div className={collapsed ? "py-3 border-b border-border" : "p-4 border-b border-border"}>
+          {!collapsed && (
+            <label className="label-text text-xs uppercase tracking-wider text-muted-foreground block mb-3">
+              Bereich
+            </label>
           )}
+          <ModusSchalter managementMode={managementMode} onModeChange={onModeChange} kompakt={collapsed} />
         </div>
-
-        {/* Makler-Modus (nur sichtbar wenn freigeschaltet) */}
-        {brokerEnabled && !collapsed && (
-          <div className="p-4 border-b border-border">
-            <button
-              type="button"
-              onClick={() => setBrokerSectionOpen(!brokerSectionOpen)}
-              className="w-full flex items-center justify-between mb-3 group"
-            >
-              <label className="label-text text-xs uppercase tracking-wider text-muted-foreground cursor-pointer">
-                Makler
-              </label>
-              {brokerSectionOpen ? (
-                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground group-hover:text-foreground" />
-              ) : (
-                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground group-hover:text-foreground" />
-              )}
-            </button>
-            {brokerSectionOpen && (
-              <div className="flex bg-muted rounded-lg p-1">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setBrokerMode('rent');
-                    navigate('/makler/objekte');
-                  }}
-                  className={`flex-1 rounded-md transition-colors ${
-                    isBrokerActive && brokerMode === 'rent'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'hover:bg-background text-muted-foreground'
-                  }`}
-                >
-                  Vermietung
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setBrokerMode('sale');
-                    navigate('/makler/objekte');
-                  }}
-                  className={`flex-1 rounded-md transition-colors ${
-                    isBrokerActive && brokerMode === 'sale'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'hover:bg-background text-muted-foreground'
-                  }`}
-                >
-                  Verkauf
-                </Button>
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Navigation: fünf Zwischenüberschriften (Umbau 15.10.2026) */}
         <SidebarGroup className="px-4 flex-1">

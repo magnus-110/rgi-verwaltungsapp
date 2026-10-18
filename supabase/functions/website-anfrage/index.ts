@@ -249,7 +249,7 @@ Deno.serve(async (req) => {
       };
       let lead = await admin
         .from("broker_leads")
-        .insert({ ...basis, source: s(body?.source, 20) === "nutzer_app" ? "nutzer_app" : "website", inquiry_id: inquiryId })
+        .insert({ ...basis, source: s(body?.source, 20) === "nutzer_app" ? "portal" : "website", inquiry_id: inquiryId })
         .select("id")
         .single();
       if (lead.error) lead = await admin.from("broker_leads").insert(basis).select("id").single();
