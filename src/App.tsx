@@ -1,3 +1,4 @@
+import { RequireMfa } from "./components/RequireMfa";
 import React, { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -195,7 +196,7 @@ const App = () => (
               <Route path="/makler" element={<AdminLayout><MaklerUebersicht /></AdminLayout>} />
               <Route path="/makler/objekte" element={<AdminLayout><MaklerObjekte /></AdminLayout>} />
               <Route path="/makler/objekte/:id" element={<AdminLayout><MaklerObjekt /></AdminLayout>} />
-              <Route path="/makler/objekte/:id/expose" element={<MaklerExpose />} />
+              <Route path="/makler/objekte/:id/expose" element={<RequireMfa><MaklerExpose /></RequireMfa>} />
               <Route path="/makler/interessenten" element={<AdminLayout><MaklerInteressenten /></AdminLayout>} />
               <Route path="/makler/interessenten/:id" element={<AdminLayout><MaklerInteressent /></AdminLayout>} />
               <Route path="/makler/einstellungen" element={<AdminLayout><MaklerEinstellungen /></AdminLayout>} />

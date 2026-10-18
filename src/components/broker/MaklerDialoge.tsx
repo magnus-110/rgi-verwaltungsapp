@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -285,6 +286,7 @@ export function BesichtigungDialog({
   leadName: string;
 }) {
   const { userId } = useBrokerAccess();
+  const qcKalender = useQueryClient();
   const neuLaden = useMaklerNeuLaden();
   const [tag, setTag] = useState("");
   const [zeit, setZeit] = useState("10:00");
@@ -341,6 +343,7 @@ export function BesichtigungDialog({
       }
       toast.success("Besichtigung eingetragen", { description: "Der Termin steht im Kalender." });
       neuLaden();
+      qcKalender.invalidateQueries({ queryKey: ["calendar-events"] });
       onOpenChange(false);
     } catch (e) {
       fehler("Besichtigung konnte nicht eingetragen werden", e);

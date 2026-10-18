@@ -105,7 +105,7 @@ export const MaklerZuordnenDialog = ({ open, onOpenChange, emailId }: Props) => 
         .select("id");
       if (e1) throw e1;
       if (!geaendert || geaendert.length === 0) throw new Error("Keine Berechtigung, diese E-Mail zu ändern.");
-      if (lead) {
+      if (lead && (mail as any)?.broker_lead_id !== lead) {
         const { error: e2 } = await db.from("broker_lead_events").insert({
           lead_id: lead,
           event_type: "email",

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -29,6 +30,8 @@ interface Zeile {
  */
 const DisplayPropertyOrder: React.FC = () => {
   const { toast } = useToast();
+  const qc = useQueryClient();
+  const objekteNeu = () => qc.invalidateQueries({ queryKey: ['broker'] });
   const [zeilen, setZeilen] = useState<Zeile[]>([]);
   const [loading, setLoading] = useState(true);
   const [spaltenFehlen, setSpaltenFehlen] = useState(false);
@@ -66,14 +69,15 @@ const DisplayPropertyOrder: React.FC = () => {
     // Zeile und bräche ab, weil wir nur die Reihenfolge mitschicken.
     const ergebnisse = await Promise.all(
       nummeriert.map((z) =>
-        db.from('broker_properties').update({ display_order: z.display_order }).eq('id', z.id),
+        db.from('broker_properties').update({ display_order: z.display_order }).eq('id', z.id).select('id'),
       ),
     );
-    const fehler = ergebnisse.find((r: any) => r.error);
+    const fehler = ergebnisse.find((r: any) => r.error || !r.data?.length);
+    objekteNeu();
     if (fehler) {
       toast({
         title: 'Reihenfolge nicht gespeichert',
-        description: fehler.error.message,
+        description: fehler.error?.message ?? 'Keine Berechtigung für dieses Objekt.',
         variant: 'destructive',
       });
       laden();
@@ -90,9 +94,10 @@ const DisplayPropertyOrder: React.FC = () => {
 
   const sichtbarkeit = async (z: Zeile, sichtbar: boolean) => {
     setZeilen((prev) => prev.map((x) => (x.id === z.id ? { ...x, display_hidden: !sichtbar } : x)));
-    const { error } = await db.from('broker_properties').update({ display_hidden: !sichtbar }).eq('id', z.id);
-    if (error) {
-      toast({ title: 'Nicht gespeichert', description: error.message, variant: 'destructive' });
+    const { data: geaendert, error } = await db.from('broker_properties').update({ display_hidden: !sichtbar }).eq('id', z.id).select('id');
+    objekteNeu();
+    if (error || !geaendert?.length) {
+      toast({ title: 'Nicht gespeichert', description: error?.message ?? 'Keine Berechtigung für dieses Objekt.', variant: 'destructive' });
       laden();
     }
   };
@@ -103,6 +108,7 @@ const DisplayPropertyOrder: React.FC = () => {
       .from('broker_properties')
       .update({ display_order: null })
       .in('id', zeilen.map((z) => z.id));
+    objekteNeu();
     if (error) {
       toast({ title: 'Nicht gespeichert', description: error.message, variant: 'destructive' });
     }

@@ -266,12 +266,12 @@ export function useLeadEmails(leadId: string | undefined, email: string | null |
       ];
       if (adresse) {
         abfragen.push(
-          db.from("emails").select(EMAIL_SELECT).ilike("from_address", adresse).is("deleted_at", null).order("date", { ascending: false }).limit(50),
+          db.from("emails").select(EMAIL_SELECT).ilike("from_address", adresse.replace(/[\\%_]/g, (z) => "\\" + z)).is("deleted_at", null).order("date", { ascending: false }).limit(50),
         );
         const varianten = Array.from(new Set([adresse, adresse.toLowerCase()]));
         for (const v of varianten) {
           abfragen.push(
-            db.from("emails").select(EMAIL_SELECT).contains("to_addresses", [v]).is("deleted_at", null).order("date", { ascending: false }).limit(50),
+            db.from("emails").select(EMAIL_SELECT).contains("to_addresses", JSON.stringify([v])).is("deleted_at", null).order("date", { ascending: false }).limit(50),
           );
         }
       }
