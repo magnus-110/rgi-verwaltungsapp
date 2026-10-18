@@ -37,6 +37,8 @@ type TextFeld = (typeof TEXT_FELDER)[number];
 export type ObjektForm = Record<ZahlFeld | TextFeld, string> & {
   listing_type: "sale" | "rent";
   features: string[];
+  /** immowelt-Nummern, mit Komma getrennt */
+  portal_ids: string;
 };
 
 const FELD_NAME: Partial<Record<ZahlFeld, string>> = {
@@ -51,7 +53,11 @@ function zahlText(v: number | null | undefined): string {
 }
 
 export function formAus(p: BrokerProperty): ObjektForm {
-  const f = { listing_type: p.listing_type === "sale" ? "sale" : "rent", features: [...(p.features ?? [])] } as ObjektForm;
+  const f = {
+    listing_type: p.listing_type === "sale" ? "sale" : "rent",
+    features: [...(p.features ?? [])],
+    portal_ids: (p.portal_ids ?? []).join(", "),
+  } as ObjektForm;
   for (const k of [...ZAHL_FELDER, ...GANZZAHL_FELDER]) f[k] = zahlText(p[k] as number | null);
   for (const k of TEXT_FELDER) f[k] = ((p[k] as string | null) ?? "").toString();
   // Ältere Objekte haben nur „address" – als Straße übernehmen.
@@ -82,6 +88,7 @@ export function payloadAus(f: ObjektForm): Record<string, unknown> {
   }
   for (const k of TEXT_FELDER) p[k] = f[k].trim() || null;
   p.title = f.title.trim();
+  p.portal_ids = Array.from(new Set((f.portal_ids ?? "").split(/[\s,;]+/).map((x) => x.trim().toLowerCase()).filter(Boolean)));
   // Altes Feld „address" weiter befüllen (andere Stellen lesen es noch).
   p.address = [f.street.trim(), f.house_number.trim()].filter(Boolean).join(" ") || null;
   return p;
@@ -244,8 +251,12 @@ export function ObjektFormular({ form, setFeld }: { form: ObjektForm; setFeld: <
           {text("city", "Ort")}
         </div>
         <div className="mt-3">{text("district", "Ortsteil", "optional")}</div>
+        <Feld label="immowelt-Nummer (Online-ID)" id="f-portal_ids" className="mt-3">
+          <Input id="f-portal_ids" className="h-11" value={form.portal_ids ?? ""} placeholder="z. B. 2suad5k" onChange={(e) => setFeld("portal_ids", e.target.value)} />
+        </Feld>
         <p className="text-xs text-muted-foreground mt-3">
           Auf der Website erscheinen Straße und Hausnummer nur, wenn sie hier eingetragen sind.
+          Mit der immowelt-Nummer landen Anfragen von immowelt automatisch als Interessent bei diesem Objekt.
         </p>
       </Karte>
 

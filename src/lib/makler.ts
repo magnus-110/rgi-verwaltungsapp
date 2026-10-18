@@ -79,6 +79,7 @@ export interface BrokerProperty {
   house_number: string | null;
   district: string | null;
   closed_at: string | null;
+  portal_ids?: string[] | null;
 }
 
 export interface BrokerImage {
@@ -207,6 +208,7 @@ export function schrittIndex(status: LeadStatus): number {
 export const QUELLEN: { key: string; label: string }[] = [
   { key: "website", label: "Website" },
   { key: "portal", label: "Nutzer-App" },
+  { key: "immowelt", label: "immowelt" },
   { key: "email", label: "E-Mail" },
   { key: "telefon", label: "Telefon" },
   { key: "manuell", label: "Manuell" },
