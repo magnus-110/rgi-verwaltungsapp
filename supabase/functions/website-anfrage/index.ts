@@ -20,13 +20,14 @@ const ERLAUBT = [
   /^http:\/\/localhost:\d+$/,
 ];
 
-const ARTEN: Record<string, "verwaltung" | "bewertung" | "suchauftrag" | "kontakt" | "objekt"> = {
+const ARTEN: Record<string, "verwaltung" | "bewertung" | "suchauftrag" | "kontakt" | "objekt" | "gesuch"> = {
   verwaltung: "verwaltung",
   bewertung: "bewertung",
   suchauftrag: "suchauftrag",
   kontakt: "kontakt",
   "kontakt-immobilie": "objekt",
   objekt: "objekt",
+  gesuch: "gesuch", // Meldung eines Eigentümers zu einem Gesuch (nur Nutzer-App)
 };
 
 const ART_TITEL: Record<string, string> = {
@@ -35,6 +36,7 @@ const ART_TITEL: Record<string, string> = {
   suchauftrag: "Suchauftrag",
   kontakt: "Kontaktanfrage",
   objekt: "Anfrage zu einem Objekt",
+  gesuch: "Meldung zu einem Gesuch",
 };
 
 // Verständliche Bezeichnungen für die Felder der Formulare.
@@ -55,6 +57,8 @@ const LABELS: Record<string, string> = {
   message: "Nachricht",
   property_title: "Objekt",
   property_address: "Objekt-Ort",
+  gesuch_titel: "Gesuch",
+  wohnung: "Immobilie",
   immobilienart: "Immobilienart",
   hausart: "Hausart",
   wohnungsart: "Wohnungsart",
@@ -85,7 +89,7 @@ const LABELS: Record<string, string> = {
 
 const AUSLASSEN = new Set([
   "firstName", "lastName", "vorname", "nachname", "name", "email", "phone", "telefon",
-  "datenschutz", "kontakt", "property_id", "hp", "website_url",
+  "datenschutz", "kontakt", "property_id", "hp", "website_url", "gesuch_id", "broker_property_id",
 ]);
 
 const corsFor = (origin: string | null) => ({
@@ -176,7 +180,7 @@ Deno.serve(async (req) => {
   const { name, email, phone, wuensche } = kontaktDaten(data);
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ ok: false, error: "Bitte eine gültige E-Mail-Adresse angeben" }, 400);
   if (!name) return json({ ok: false, error: "Bitte einen Namen angeben" }, 400);
-  const datenschutz = data?.datenschutz === true || data?.kontakt?.datenschutz === true || kind === "objekt" || kind === "kontakt";
+  const datenschutz = data?.datenschutz === true || data?.kontakt?.datenschutz === true || kind === "objekt" || kind === "kontakt" || kind === "gesuch";
 
   const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
     auth: { autoRefreshToken: false, persistSession: false },
@@ -205,6 +209,27 @@ Deno.serve(async (req) => {
     brokerPropertyId = bp?.id ?? null;
   }
 
+  // Angemeldet (Nutzer-App)? Dann wissen wir, wer es war – z. B. für „Interesse gemeldet“.
+  let userId: string | null = null;
+  const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+  if (token && s(body?.source, 20) === "nutzer_app") {
+    const { data: u } = await admin.auth.getUser(token);
+    userId = u?.user?.id ?? null;
+  }
+
+  // Meldung zu einem Gesuch: nur angemeldet und nur zu einem freigegebenen Gesuch.
+  let gesuchId: string | null = null;
+  let gesuchZustaendig: string | null = null;
+  if (kind === "gesuch") {
+    const gid = s(data?.gesuch_id, 60);
+    if (!userId || !/^[0-9a-f-]{36}$/i.test(gid)) return json({ ok: false, error: "Nicht möglich" }, 400);
+    const { data: g } = await admin.from("broker_gesuche").select("id, titel, status, assigned_to, created_by").eq("id", gid).maybeSingle();
+    if (!g || g.status !== "sichtbar") return json({ ok: false, error: "Dieses Gesuch gibt es nicht mehr" }, 400);
+    gesuchId = g.id;
+    gesuchZustaendig = g.assigned_to ?? null;
+    data.gesuch_titel = g.titel;
+  }
+
   const attribution = body?.attribution && typeof body.attribution === "object" ? body.attribution : {};
   let inquiryId: string | null = null;
   let nummer: number | null = null;
@@ -220,6 +245,8 @@ Deno.serve(async (req) => {
       attribution,
       page_url: s(body?.page_url, 500) || null,
       broker_property_id: brokerPropertyId,
+      user_id: userId,
+      gesuch_id: gesuchId,
       consent_at: datenschutz ? new Date().toISOString() : null,
       ip_hash: ipHash,
     })
@@ -282,7 +309,9 @@ Deno.serve(async (req) => {
   if (inquiryId) {
     try {
       const { data: admins } = await admin.from("profiles").select("user_id").eq("role", "admin");
-      const rows = (admins ?? []).filter((a: any) => a.user_id !== brokerOwner).map((a: any) => ({
+      const empfaenger = new Set<string>((admins ?? []).map((a: any) => a.user_id));
+      if (gesuchZustaendig) empfaenger.add(gesuchZustaendig);
+      const rows = [...empfaenger].filter((u) => u !== brokerOwner).map((u) => ({ user_id: u })).map((a: any) => ({
         user_id: a.user_id,
         type: "anfrage",
         title: `Neue ${ART_TITEL[kind]}: ${name}`,

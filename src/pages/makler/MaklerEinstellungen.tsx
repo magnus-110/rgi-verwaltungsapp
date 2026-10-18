@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -87,6 +88,8 @@ function Inhalt() {
         </p>
       </section>
 
+      <NutzerAppSchalter />
+
       <section className="rounded-xl border bg-card p-4 sm:p-5">
         <h2 className="font-display text-base font-semibold">Vertretungen</h2>
         <p className="text-sm text-muted-foreground mb-4">Die Vertretung sieht und bearbeitet die Objekte des Maklers – bis zum gewählten Tag.</p>
@@ -155,5 +158,42 @@ function Inhalt() {
         onJa={() => loeschen && entfernen(loeschen)}
       />
     </div>
+  );
+}
+
+/**
+ * Hauptschalter für „Immobilien von RGI“ in der Nutzer-App.
+ * Aus: Eigentümer sehen nichts davon. RGI-Mitarbeiter sehen die Seiten trotzdem (Vorschau).
+ */
+function NutzerAppSchalter() {
+  const qc = useQueryClient();
+  const { data, isLoading } = useQuery({
+    queryKey: ["rgi", "portal-immobilien-aktiv"],
+    queryFn: async () => {
+      const { data, error } = await db.from("rgi_company_settings").select("id, portal_immobilien_aktiv").limit(1).maybeSingle();
+      if (error) throw error;
+      return data as { id: string; portal_immobilien_aktiv: boolean } | null;
+    },
+  });
+  const umschalten = async (v: boolean) => {
+    if (!data) return;
+    const { data: r, error } = await db.from("rgi_company_settings").update({ portal_immobilien_aktiv: v }).eq("id", data.id).select("id");
+    if (error) return fehler("Konnte nicht gespeichert werden", error);
+    if (!r || r.length === 0) return void toast.error("Keine Berechtigung.");
+    toast.success(v ? "Eigentümer sehen jetzt „Immobilien von RGI“" : "Für Eigentümer wieder ausgeblendet");
+    qc.invalidateQueries({ queryKey: ["rgi", "portal-immobilien-aktiv"] });
+  };
+  return (
+    <section className="rounded-xl border bg-card p-4 sm:p-5 mb-4">
+      <div className="flex items-center justify-between gap-4 min-h-11">
+        <div>
+          <Label htmlFor="portal-immo" className="text-base font-semibold cursor-pointer">„Immobilien von RGI“ in der Nutzer-App</Label>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Angebote, Gesuche und Suchaufträge für Eigentümer. Aus: Eigentümer sehen davon nichts – ihr seht es zur Vorschau trotzdem.
+          </p>
+        </div>
+        <Switch id="portal-immo" checked={!!data?.portal_immobilien_aktiv} disabled={isLoading || !data} onCheckedChange={umschalten} />
+      </div>
+    </section>
   );
 }

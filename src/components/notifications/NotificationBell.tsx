@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, Check, Clock, ClipboardList, Inbox, Mail, MessageSquare, StickyNote, ListChecks, UserPlus, Receipt } from 'lucide-react';
+import { Bell, Check, Clock, ClipboardList, Inbox, Mail, MessageSquare, StickyNote, ListChecks, UserPlus, Receipt, Search } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import {
@@ -25,6 +25,7 @@ const ICONS: Record<NotificationType, typeof Bell> = {
   report_reply: ClipboardList,
   anfrage: Inbox,
   makler_interessent: UserPlus,
+  suchauftrag: Search,
   mahnung: Receipt,
 };
 
@@ -41,6 +42,7 @@ const ICON_TONE: Record<NotificationType, string> = {
   report_reply: 'bg-[#EDF2E6] text-[#4e6b3c]',
   anfrage: 'bg-[#FFF4E3] text-[#8a6417]',
   makler_interessent: 'bg-[#FFF4E3] text-[#8a6417]',
+  suchauftrag: 'bg-sky-50 text-sky-800',
   mahnung: 'bg-[#FBEAE5] text-[#B4472B]',
 };
 

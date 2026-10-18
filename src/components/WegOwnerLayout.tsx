@@ -77,7 +77,7 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
 
   const p = location.pathname;
   // Unterseiten, die über „Mehr" erreichbar sind, markieren den Reiter „Mehr".
-  const unterMehr = ["/weg-owner/mehr", "/weg-owner/angebote", "/weg-owner/chatbot", "/weg-owner/forum", "/weg-owner/resolutions",
+  const unterMehr = ["/weg-owner/mehr", "/weg-owner/angebote", "/weg-owner/immobilien", "/weg-owner/chatbot", "/weg-owner/forum", "/weg-owner/resolutions",
     "/weg-owner/terminabfrage", "/weg-owner/umfrage", "/weg-owner/kassenpruefung", "/weg-owner/service-hub",
     "/weg-owner/settings", "/weg-owner/change-password"];
   const reiter = [

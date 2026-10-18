@@ -64,6 +64,7 @@ const MaklerObjekte = lazy(() => import("./pages/makler/MaklerObjekte"));
 const MaklerObjekt = lazy(() => import("./pages/makler/MaklerObjekt"));
 const MaklerExpose = lazy(() => import("./pages/makler/MaklerExpose"));
 const MaklerInteressenten = lazy(() => import("./pages/makler/MaklerInteressenten"));
+const MaklerGesuche = lazy(() => import("./pages/makler/MaklerGesuche"));
 const MaklerInteressent = lazy(() => import("./pages/makler/MaklerInteressent"));
 const MaklerEinstellungen = lazy(() => import("./pages/makler/MaklerEinstellungen"));
 
@@ -79,7 +80,7 @@ const WegOwnerDatePoll = lazy(() => import("./pages/weg-owner/DatePoll").then(m 
 const WegOwnerResolutions = lazy(() => import("./pages/weg-owner/Resolutions").then(m => ({ default: m.WegOwnerResolutions })));
 const WegOwnerNebenkostenTool = lazy(() => import("./pages/weg-owner/NebenkostenTool").then(m => ({ default: m.WegOwnerNebenkostenTool })));
 const WegOwnerMehr = lazy(() => import("./pages/weg-owner/Mehr"));
-const WegOwnerAngebote = lazy(() => import("./pages/weg-owner/Angebote"));
+const WegOwnerImmobilien = lazy(() => import("./pages/weg-owner/Immobilien"));
 const WegOwnerServiceHubSuccess = lazy(() => import("./pages/weg-owner/ServiceHubSuccess").then(m => ({ default: m.WegOwnerServiceHubSuccess })));
 const SurveyRunner = lazy(() => import("./components/survey/SurveyRunner"));
 const OwnerSurveysLanding = lazy(() => import("./components/survey/OwnerSurveysLanding"));
@@ -196,6 +197,7 @@ const App = () => (
               <Route path="/makler/objekte/:id" element={<AdminLayout><MaklerObjekt /></AdminLayout>} />
               <Route path="/makler/objekte/:id/expose" element={<RequireMfa><MaklerExpose /></RequireMfa>} />
               <Route path="/makler/interessenten" element={<AdminLayout><MaklerInteressenten /></AdminLayout>} />
+              <Route path="/makler/gesuche" element={<AdminLayout><MaklerGesuche /></AdminLayout>} />
               <Route path="/makler/interessenten/:id" element={<AdminLayout><MaklerInteressent /></AdminLayout>} />
               <Route path="/makler/einstellungen" element={<AdminLayout><MaklerEinstellungen /></AdminLayout>} />
               
@@ -217,7 +219,8 @@ const App = () => (
               <Route path="/weg-owner/chatbot" element={<WegOwnerLayout><WegOwnerChatbot /></WegOwnerLayout>} />
               <Route path="/weg-owner/settings" element={<WegOwnerLayout><WegOwnerSettings /></WegOwnerLayout>} />
               <Route path="/weg-owner/mehr" element={<WegOwnerLayout><WegOwnerMehr /></WegOwnerLayout>} />
-              <Route path="/weg-owner/angebote" element={<WegOwnerLayout><WegOwnerAngebote /></WegOwnerLayout>} />
+              <Route path="/weg-owner/immobilien" element={<WegOwnerLayout><WegOwnerImmobilien /></WegOwnerLayout>} />
+              <Route path="/weg-owner/angebote" element={<Navigate to="/weg-owner/immobilien" replace />} />
               <Route path="/weg-owner/files" element={<WegOwnerLayout><WegOwnerFiles /></WegOwnerLayout>} />
               <Route path="/weg-owner/meetings" element={<WegOwnerLayout><WegOwnerMeetings /></WegOwnerLayout>} />
               <Route path="/weg-owner/umfragen" element={<WegOwnerLayout><OwnerSurveysLanding /></WegOwnerLayout>} />

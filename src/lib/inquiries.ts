@@ -4,7 +4,7 @@
  */
 
 export type InquiryFolder = "neu" | "in_bearbeitung" | "erledigt";
-export type InquiryKind = "verwaltung" | "bewertung" | "suchauftrag" | "kontakt" | "objekt";
+export type InquiryKind = "verwaltung" | "bewertung" | "suchauftrag" | "kontakt" | "objekt" | "gesuch";
 
 export const INQUIRY_FOLDER_IDS: Record<InquiryFolder, string> = {
   neu: "__inquiries_new__",
@@ -32,6 +32,7 @@ export const KIND_LABEL: Record<InquiryKind, string> = {
   suchauftrag: "Suchauftrag",
   kontakt: "Kontakt",
   objekt: "Objekt-Anfrage",
+  gesuch: "Meldung zu Gesuch",
 };
 
 export const SOURCE_LABEL: Record<string, string> = {
@@ -58,6 +59,8 @@ const LABELS: Record<string, string> = {
   message: "Nachricht",
   property_title: "Objekt",
   property_address: "Objekt-Ort",
+  gesuch_titel: "Gesuch",
+  wohnung: "Immobilie",
   immobilienart: "Immobilienart",
   hausart: "Hausart",
   wohnungsart: "Wohnungsart",
@@ -123,7 +126,7 @@ const WERTE: Record<string, Record<string, string>> = {
 /** Felder, die schon oben bei der Person stehen oder intern sind. */
 const AUSLASSEN = new Set([
   "firstName", "lastName", "vorname", "nachname", "name", "email", "phone", "telefon",
-  "datenschutz", "property_id", "broker_property_id", "hp", "website_url",
+  "datenschutz", "property_id", "broker_property_id", "hp", "website_url", "gesuch_id",
 ]);
 
 function wert(key: string, v: unknown): string {
@@ -179,6 +182,7 @@ export function inquirySummary(kind: InquiryKind, data: Record<string, unknown> 
     return [art, einheiten, ort].filter(Boolean).join(" · ");
   }
   if (kind === "objekt") return String(d.property_title ?? "");
+  if (kind === "gesuch") return [d.gesuch_titel, d.wohnung].filter(Boolean).join(" · ");
   if (kind === "bewertung") return [wert("immobilienart", d.immobilienart), (d.adresse as any)?.ort].filter(Boolean).join(" · ");
   if (kind === "suchauftrag") return [wert("immobilienart", d.immobilienart), d.ort].filter(Boolean).join(" · ");
   if (kind === "kontakt") return String(d.anliegen ?? d.nachricht ?? "").slice(0, 80);

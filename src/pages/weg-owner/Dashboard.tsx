@@ -10,6 +10,7 @@ import { OwnerAnnualCycleWidget } from "@/components/dashboard/OwnerAnnualCycleW
 import { EmergencyContactsWidget } from "@/components/forum/EmergencyContactsWidget";
 import { PROPERTY_MANAGER_FALLBACK } from "@/lib/emergencyContactInfo";
 import { cn } from "@/lib/utils";
+import { AngebotStartKarte } from "@/components/owner/AngebotStartKarte";
 
 interface Building { id: string; name: string; address: string | null }
 
@@ -213,6 +214,8 @@ export const WegOwnerDashboard = () => {
             <OwnerAnnualCycleWidget buildings={buildings} />
           </div>
         )}
+
+        <AngebotStartKarte />
 
         {/* Quick actions */}
         <section data-tour="dashboard-quick">

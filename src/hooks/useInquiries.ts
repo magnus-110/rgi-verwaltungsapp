@@ -25,6 +25,8 @@ export interface Inquiry {
   page_url: string | null;
   broker_property_id: string | null;
   broker_lead_id: string | null;
+  gesuch_id?: string | null;
+  user_id?: string | null;
   contact_id: string | null;
   consent_at: string | null;
   is_read: boolean;

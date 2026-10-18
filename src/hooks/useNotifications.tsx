@@ -25,6 +25,7 @@ export type NotificationType =
   | 'report_reply'
   | 'anfrage'
   | 'makler_interessent'
+  | 'suchauftrag'
   | 'mahnung';
 
 export interface AppNotification {

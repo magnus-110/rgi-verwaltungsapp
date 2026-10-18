@@ -80,6 +80,11 @@ export interface BrokerProperty {
   district: string | null;
   closed_at: string | null;
   portal_ids?: string[] | null;
+  portal_zielgruppe?: Zielgruppe;
+  portal_orte?: string[];
+  portal_gebaeude?: string[];
+  portal_bis?: string | null;
+  portal_startseite?: boolean;
 }
 
 export interface BrokerImage {
@@ -484,3 +489,13 @@ export async function neuestesExpose(propertyId: string): Promise<File | null> {
   if (error || !blob) return null;
   return new File([blob], data.file_name || "Expose.pdf", { type: data.mime_type || "application/pdf" });
 }
+
+// ---------------------------------------------------------------------------
+// Nutzer-App: wer sieht ein Angebot oder Gesuch?
+// ---------------------------------------------------------------------------
+export type Zielgruppe = "alle" | "orte" | "gebaeude";
+export const ZIELGRUPPEN: { key: Zielgruppe; label: string }[] = [
+  { key: "alle", label: "Alle Häuser" },
+  { key: "orte", label: "Nur Häuser in bestimmten Orten" },
+  { key: "gebaeude", label: "Nur ausgewählte Häuser" },
+];

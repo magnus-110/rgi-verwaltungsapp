@@ -9,7 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useHasVisibleSurveys } from "@/hooks/useSurvey";
 import { PortalAbschnitt, PortalSeitenkopf, PortalZeile } from "@/components/weg-owner/PortalListe";
-import { useAngebote } from "@/pages/weg-owner/Angebote";
+import { usePortalAngebote, usePortalImmobilienStatus } from "@/hooks/usePortalImmobilien";
 
 export default function WegOwnerMehr() {
   const navigate = useNavigate();
@@ -17,7 +17,9 @@ export default function WegOwnerMehr() {
   const { hasSurveys } = useHasVisibleSurveys(profile?.user_id);
   const [hatTerminabfrage, setHatTerminabfrage] = useState(false);
   const [hatKassenpruefung, setHatKassenpruefung] = useState(false);
-  const { data: angebote = [] } = useAngebote();
+  const immo = usePortalImmobilienStatus();
+  const { data: angebote = [] } = usePortalAngebote(immo.sichtbar);
+  const neueAngebote = angebote.filter((a) => !a.gemeldet && Date.now() - new Date(a.created_at).getTime() < 14 * 86400000).length;
 
   useEffect(() => {
     if (!profile?.user_id) return;
@@ -66,16 +68,16 @@ export default function WegOwnerMehr() {
         </PortalAbschnitt>
 
         <PortalAbschnitt titel="Service">
-          {angebote.length > 0 && (
+<PortalZeile icon={Receipt} titel="Nebenkostenabrechnung für Mieter" onClick={() => navigate("/weg-owner/service-hub/nebenkosten")} />
+          {immo.sichtbar && (
             <PortalZeile
               icon={Building2}
-              titel="Angebote"
-              untertitel="Aktuelle Immobilien von RGI"
-              onClick={() => navigate("/weg-owner/angebote")}
-              rechts={<span className="text-[11px] font-semibold rounded-full px-2.5 py-1 bg-primary/10 text-[#8A4100]">{angebote.length}</span>}
+              titel="Immobilien von RGI"
+              untertitel="Angebote und Gesuche"
+              onClick={() => navigate("/weg-owner/immobilien")}
+              rechts={neueAngebote > 0 ? <span className="text-[11px] font-semibold rounded-full px-2.5 py-1 bg-primary/10 text-[#8A4100]">{neueAngebote} neu</span> : undefined}
             />
           )}
-          <PortalZeile icon={Receipt} titel="Nebenkostenabrechnung für Mieter" onClick={() => navigate("/weg-owner/service-hub/nebenkosten")} />
         </PortalAbschnitt>
 
         <PortalAbschnitt titel="Konto">

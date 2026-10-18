@@ -297,6 +297,11 @@ function InquiryDetail({
               <Button size="sm" variant="outline" onClick={() => setContactOpen(true)} disabled={!!inq.contact_id}>
                 <User className="mr-1.5 h-4 w-4" /> {inq.contact_id ? "Kontakt angelegt" : "Als Kontakt anlegen"}
               </Button>
+              {inq.kind === "gesuch" && (
+                <Button size="sm" variant="outline" asChild>
+                  <a href="/makler/gesuche"><Search className="mr-1.5 h-4 w-4" /> Zum Gesuch</a>
+                </Button>
+              )}
               {inq.kind === "verwaltung" && (
                 <Button size="sm" variant="outline" onClick={() => setAngebotOpen(true)}>
                   <Handshake className="mr-1.5 h-4 w-4" /> {angebot ? "Angebot öffnen" : "Angebot erstellen"}

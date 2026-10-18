@@ -11,6 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CreateContactDialog } from "@/components/contacts/CreateContactDialog";
 import { ContactPicker } from "./ContactPicker";
 import { Segmente } from "./MaklerUi";
+import { ZielgruppeFelder } from "./Zielgruppe";
+import { useGesuche } from "@/hooks/useGesuche";
+import { passtZu } from "@/lib/gesuche";
 import { useBrokerAccess, useBrokerDocuments, useBrokerStaff, useMaklerNeuLaden } from "@/hooks/useMakler";
 import {
   UNTERLAGEN_CHECKLISTE,
@@ -119,6 +122,35 @@ export function ObjektSeitenleiste({ p, onUnterlagen }: { p: BrokerProperty; onU
           <SchalterZeile id="sw-web" label="Website" checked={p.show_on_website} onChange={(v) => aendern({ show_on_website: v })} />
           <SchalterZeile id="sw-app" label="Nutzer-App" hilfe="Für angemeldete Eigentümer und Mieter" checked={p.show_in_portal} onChange={(v) => aendern({ show_in_portal: v })} />
         </div>
+        {p.show_in_portal && (
+          <div className="mt-2 space-y-3 rounded-lg border border-primary/30 bg-primary/5 p-3">
+            <ZielgruppeFelder
+              idPrefix="obj"
+              zielgruppe={p.portal_zielgruppe ?? "alle"}
+              orte={p.portal_orte ?? []}
+              gebaeude={p.portal_gebaeude ?? []}
+              onChange={(patch) =>
+                aendern({
+                  ...(patch.zielgruppe ? { portal_zielgruppe: patch.zielgruppe } : {}),
+                  ...(patch.orte ? { portal_orte: patch.orte } : {}),
+                  ...(patch.gebaeude ? { portal_gebaeude: patch.gebaeude } : {}),
+                })
+              }
+            />
+            <div className="space-y-1.5">
+              <Label htmlFor="obj-bis">Sichtbar bis (leer = ohne Ende)</Label>
+              <Input id="obj-bis" type="date" className="h-11" value={p.portal_bis ?? ""} onChange={(e) => aendern({ portal_bis: e.target.value || null })} />
+            </div>
+            <SchalterZeile
+              id="sw-start"
+              label="Darf auf der Startseite erscheinen"
+              hilfe="Nur bei Eigentümern, die das in ihren Einstellungen erlaubt haben"
+              checked={!!p.portal_startseite}
+              onChange={(v) => aendern({ portal_startseite: v })}
+            />
+          </div>
+        )}
+        <PassendeSuchauftraege p={p} />
         <p className={cn("mt-3 rounded-lg px-3 py-2 text-xs", sichtbar ? "bg-emerald-50 text-emerald-800" : "bg-muted text-muted-foreground")}>
           Auf Website und Nutzer-App erscheinen nur Objekte mit dem Stand „In Vermarktung" oder „Reserviert".
           Abgeschlossene Objekte erscheinen als Referenz, wenn „Als Referenz zeigen" an ist.
@@ -239,5 +271,18 @@ function EigentuemerDaten({ contactId }: { contactId: string }) {
         <ExternalLink className="h-4 w-4" />In Adressen öffnen
       </Link>
     </div>
+  );
+}
+
+/** Hinweis: welche freigegebenen Gesuche/Suchaufträge grob zum Objekt passen. */
+function PassendeSuchauftraege({ p }: { p: BrokerProperty }) {
+  const { data: gesuche = [] } = useGesuche();
+  const passend = gesuche.filter((g) => g.status === "sichtbar" && passtZu(g, p));
+  if (passend.length === 0) return null;
+  return (
+    <Link to="/makler/gesuche" className="mt-3 flex min-h-11 items-center justify-between rounded-lg bg-sky-50 px-3 py-2 text-sm text-sky-900 hover:bg-sky-100">
+      <span>{passend.length === 1 ? "1 Suchauftrag passt" : `${passend.length} Suchaufträge passen`}</span>
+      <span className="text-xs">ansehen ›</span>
+    </Link>
   );
 }
