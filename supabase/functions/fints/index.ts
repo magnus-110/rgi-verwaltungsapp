@@ -32,7 +32,7 @@ import { BalanceInteraction } from "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2
 import { HICAZ } from "https://cdn.jsdelivr.net/npm/lib-fints@1.5.2/dist/segments/HICAZ.js";
 import { requireAdmin } from "../_shared/require-admin.ts";
 import { glaeubigerIdGueltig, pain001, pain008, sepaId, summeVon } from "../_shared/sepa.ts";
-import { sammelueberweisung } from "./zahlung.ts";
+import { einzellastschriften, sammelueberweisung } from "./zahlung.ts";
 import {
   addHashes,
   bestandAbziehen,
@@ -772,7 +772,9 @@ async function zahlungSenden(admin: any, runId: string, akzeptiert: Record<strin
     const konto = (config.bankingInformation?.upd?.bankAccounts ?? []).find((a: any) => cleanIban(a.iban) === iban);
     if (!konto) throw new Error("Die Bank kennt dieses Konto unter diesem Zugang nicht.");
     const lastschrift = lauf.art === "lastschrift";
-    if (!config.isAccountTransactionSupported(konto, lastschrift ? "HKDME" : "HKCCM")) {
+    // Umweg: Bank erlaubt für dieses Konto nur einzelne Lastschriften (keine Sammellastschrift)
+    const einzeln = lastschrift && !config.isAccountTransactionSupported(konto, "HKDME") && config.isAccountTransactionSupported(konto, "HKDSE");
+    if (!einzeln && !config.isAccountTransactionSupported(konto, lastschrift ? "HKDME" : "HKCCM")) {
       throw new Error(
         lastschrift
           ? "Für dieses Konto ist der Lastschrift-Einzug bei der Bank nicht freigeschaltet (Inkasso-Vereinbarung nötig)."
@@ -804,6 +806,12 @@ async function zahlungSenden(admin: any, runId: string, akzeptiert: Record<strin
         mandatsreferenz: p.mandatsreferenz,
         mandatDatum: p.mandat_datum,
       }));
+      if (einzeln) {
+        return await einzelnSenden(admin, {
+          runId, lauf, posten, config, konto, ende, userId, zugangId: zugang.id,
+          glaeubigerName: inhaber || `WEG ${haus?.name ?? ""}`, glaeubigerIban: iban, glaeubigerId: gid, einzugAm, einzuege,
+        });
+      }
       summe = summeVon(einzuege);
       pain = pain008({
         absender: "RGI Immobilien GmbH & Co. KG",
@@ -857,6 +865,71 @@ async function zahlungSenden(admin: any, runId: string, akzeptiert: Record<strin
     await ende("fehler", { fehler: text });
     return { ok: false, status: "fehler", fehler: text };
   }
+}
+
+/**
+ * Lastschriften einzeln einreichen (eine Freigabe je Lastschrift).
+ * Schon gesendete Posten werden übersprungen – auch beim erneuten Versuch.
+ */
+async function einzelnSenden(admin: any, x: any) {
+  const offen = x.posten.filter((p: any) => !p.einzel_status);
+  const unklar = x.posten.filter((p: any) => p.einzel_status === "unklar");
+  const auftraege = offen.map((p: any) => {
+    const e = x.einzuege.find((z: any) => z.endToEndId === p.end_to_end_id) ?? x.einzuege[x.posten.indexOf(p)];
+    return {
+      id: p.id,
+      name: p.empfaenger,
+      pain: pain008({
+        absender: "RGI Immobilien GmbH & Co. KG",
+        glaeubigerName: x.glaeubigerName,
+        glaeubigerIban: x.glaeubigerIban,
+        glaeubigerId: x.glaeubigerId,
+        einzugAm: x.einzugAm,
+        einzuege: [e],
+        msgId: sepaId("RGI"),
+      }),
+    };
+  });
+
+  let r: any = { status: "gesendet", ergebnisse: {}, antworten: [] };
+  if (auftraege.length) {
+    r = await einzellastschriften({
+      config: x.config,
+      konto: x.konto,
+      auftraege,
+      bis: START + GESAMT_MS,
+      warteAufFreigabeMs: TAN_WARTEZEIT_MS,
+      gemeldet: async (id: string, status: "gesendet" | "unklar") => {
+        await admin.from("payment_run_items").update({ einzel_status: status, einzel_gesendet_am: status === "gesendet" ? new Date().toISOString() : null }).eq("id", id);
+      },
+    });
+  }
+
+  const { data: stand } = await admin.from("payment_run_items").select("empfaenger, einzel_status").eq("run_id", x.runId);
+  const alle = stand ?? [];
+  const fertig = alle.length > 0 && alle.every((p: any) => p.einzel_status === "gesendet");
+  const ungeklaert = alle.filter((p: any) => p.einzel_status === "unklar").map((p: any) => p.empfaenger);
+  const felder: Record<string, unknown> = {
+    connection_id: x.zugangId,
+    pain_xml: auftraege.map((a: any) => a.pain).join("\n\n") || null,
+    bank_antwort: r.antworten,
+  };
+  if (fertig) {
+    felder.gesendet_am = new Date().toISOString();
+    felder.gesendet_von = x.userId;
+    felder.fehler = null;
+    await x.ende("gesendet", felder);
+    return { ok: true, status: "gesendet" };
+  }
+  const hinweis = [
+    r.fehler,
+    !r.fehler && !auftraege.length && ungeklaert.length ? "Alle übrigen Lastschriften sind ungeklärt." : null,
+    ungeklaert.length ? `Bitte im Online-Banking prüfen, ob eingereicht: ${ungeklaert.join(", ")}.` : null,
+    "Die Bank erlaubt für dieses Konto nur einzelne Lastschriften (je eine Freigabe).",
+  ].filter(Boolean).join(" ");
+  felder.fehler = hinweis;
+  await x.ende(auftraege.length === 0 && ungeklaert.length ? "unklar" : "fehler", felder);
+  return { ok: false, status: "fehler", fehler: hinweis };
 }
 
 /** Frühester Einzugstag einer Basislastschrift: zwei Bankarbeitstage ab heute. */

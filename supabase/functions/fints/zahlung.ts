@@ -82,6 +82,22 @@ class HKDME extends SegmentDefinition {
   ];
 }
 
+/**
+ * SEPA-Einzellastschrift – Umweg, wenn die Bank für ein Konto keine
+ * Sammellastschrift (HKDME) freigeschaltet hat. Kein Summenfeld.
+ */
+class HKDSE extends SegmentDefinition {
+  version = 2;
+  constructor() {
+    super("HKDSE");
+  }
+  elements = [
+    new InternationalAccountGroup("account", 1, 1),
+    new AlphaNumeric("sepaDescriptor", 1, 1, 256),
+    new Binary("painMessage", 1, 1),
+  ];
+}
+
 /** Namensabgleich Prüfauftrag */
 class HKVPP extends SegmentDefinition {
   version = 1;
@@ -151,46 +167,18 @@ function segmenteEintragen() {
     Map.prototype.get = original;
   }
   if (!liste) throw new Error("Segmentliste von lib-fints nicht gefunden");
-  for (const d of [new HKCCM(), new HKDME(), new HKVPP(), new HIVPP(), new HKVPA()]) (liste as Map<string, unknown>).set((d as any).id, d);
+  for (const d of [new HKCCM(), new HKDME(), new HKDSE(), new HKVPP(), new HIVPP(), new HKVPA()]) (liste as Map<string, unknown>).set((d as any).id, d);
   registriert = true;
 }
 
 // ── Ablauf ──────────────────────────────────────────────────────────────────
 
-export interface ZahlungErgebnis {
-  status: "gesendet" | "pruefung" | "fehler" | "unklar";
-  fehler?: string;
-  vop?: { gesamt: string | null; zeilen: VopZeile[]; hinweis: string | null };
-  antworten: { code: number; text: string }[];
-}
+type Antwort = { code: number; text: string; params?: string[] };
 
-interface Optionen {
-  config: any;
-  /** Überweisung (HKCCM, mit Empfängerüberprüfung) oder Lastschrift (HKDME) */
-  art?: "ueberweisung" | "lastschrift";
-  konto: any; // Eintrag aus upd.bankAccounts
-  pain: string;
-  summe: number;
-  /** vom Menschen bestätigtes Prüfergebnis je End-to-End-ID */
-  akzeptiert?: Record<string, string> | null;
-  /** spätester Zeitpunkt (ms) für das Warten auf die Freigabe */
-  bis: number;
-  warteAufFreigabeMs: number;
-}
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-export async function sammelueberweisung(o: Optionen): Promise<ZahlungErgebnis> {
-  segmenteEintragen();
-  const config = o.config;
-  const lastschrift = o.art === "lastschrift";
-  const AUFTRAG = lastschrift ? "HKDME" : "HKCCM";
-  const tm = config.selectedTanMethod;
-  if (!tm?.isDecoupled) throw new Error("Für Zahlungen wird ein TAN-Verfahren mit Freigabe in der App benötigt.");
-
+/** Dialog mit der Bank eröffnen; liefert `senden` (eine Nachricht) und `beenden`. */
+async function dialogOeffnen(config: any) {
   const dialog: any = new Dialog(config, false);
   const antworten: { code: number; text: string; bezug?: string }[] = [];
-  type Antwort = { code: number; text: string; params?: string[] };
   const fehlerText = (a: Antwort[]) =>
     a.filter((x) => x.code >= 9000 && x.code !== 9050 && x.code !== 9800).map((x) => x.text).join(" · ");
 
@@ -202,9 +190,9 @@ export async function sammelueberweisung(o: Optionen): Promise<ZahlungErgebnis> 
     dialog.dialogId = r.dialogId;
     const a: Antwort[] = antwort.getBankAnswers();
     antworten.push(...a.map((x) => ({ code: x.code, text: x.text, bezug: "Anmeldung" })));
-    if (!r.success) return { status: "fehler", fehler: fehlerText(a) || "Die Bank hat die Anmeldung abgelehnt.", antworten };
+    if (!r.success) return { fehler: fehlerText(a) || "Die Bank hat die Anmeldung abgelehnt.", antworten };
     if (r.requiresTan) {
-      return { status: "fehler", fehler: "Die Bank verlangt schon für die Anmeldung eine Freigabe. Bitte zuerst „Jetzt abrufen“ ausführen.", antworten };
+      return { fehler: "Die Bank verlangt schon für die Anmeldung eine Freigabe. Bitte zuerst „Jetzt abrufen“ ausführen.", antworten };
     }
     dialog.currentInteractionIndex++;
     dialog.isInitialized = true;
@@ -257,6 +245,45 @@ export async function sammelueberweisung(o: Optionen): Promise<ZahlungErgebnis> 
       /* egal */
     }
   };
+
+  return { senden, beenden, antworten, fehlerText };
+}
+
+
+export interface ZahlungErgebnis {
+  status: "gesendet" | "pruefung" | "fehler" | "unklar";
+  fehler?: string;
+  vop?: { gesamt: string | null; zeilen: VopZeile[]; hinweis: string | null };
+  antworten: { code: number; text: string }[];
+}
+
+interface Optionen {
+  config: any;
+  /** Überweisung (HKCCM, mit Empfängerüberprüfung) oder Lastschrift (HKDME) */
+  art?: "ueberweisung" | "lastschrift";
+  konto: any; // Eintrag aus upd.bankAccounts
+  pain: string;
+  summe: number;
+  /** vom Menschen bestätigtes Prüfergebnis je End-to-End-ID */
+  akzeptiert?: Record<string, string> | null;
+  /** spätester Zeitpunkt (ms) für das Warten auf die Freigabe */
+  bis: number;
+  warteAufFreigabeMs: number;
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+export async function sammelueberweisung(o: Optionen): Promise<ZahlungErgebnis> {
+  segmenteEintragen();
+  const config = o.config;
+  const lastschrift = o.art === "lastschrift";
+  const AUFTRAG = lastschrift ? "HKDME" : "HKCCM";
+  const tm = config.selectedTanMethod;
+  if (!tm?.isDecoupled) throw new Error("Für Zahlungen wird ein TAN-Verfahren mit Freigabe in der App benötigt.");
+
+  const d = await dialogOeffnen(config);
+  if ("fehler" in d) return { status: "fehler", fehler: d.fehler, antworten: d.antworten };
+  const { senden, beenden, antworten, fehlerText } = d;
 
   const version = lastschrift ? Math.min(2, config.getMaxSupportedTransactionVersion("HKDME") ?? 1) : 1;
   const hkccm = {
@@ -371,6 +398,121 @@ export async function sammelueberweisung(o: Optionen): Promise<ZahlungErgebnis> 
       vop,
       antworten,
     };
+  } finally {
+    await beenden();
+  }
+}
+
+// ── Umweg: einzelne Lastschriften (HKDSE) ──────────────────────────────────
+
+export type EinzelStatus = "gesendet" | "unklar";
+
+export interface EinzelErgebnis {
+  /** alle gesendet → „gesendet“; sonst „fehler“ (Rest kann später nachgeschickt werden) */
+  status: "gesendet" | "fehler";
+  fehler?: string;
+  ergebnisse: Record<string, EinzelStatus>;
+  antworten: { code: number; text: string }[];
+}
+
+/**
+ * Jede Lastschrift als eigener Auftrag mit eigener Freigabe in der App –
+ * für Konten, bei denen die Bank keine Sammellastschrift erlaubt.
+ * Läuft in EINEM Dialog nacheinander, solange die Zeit reicht. Was nicht
+ * mehr drankommt, schickt „Noch einmal versuchen“ nach; schon gesendete
+ * Lastschriften werden dabei nie ein zweites Mal geschickt.
+ */
+export async function einzellastschriften(o: {
+  config: any;
+  konto: any;
+  auftraege: { id: string; pain: string; name: string }[];
+  bis: number;
+  warteAufFreigabeMs: number;
+  /** nach jeder Lastschrift sofort speichern (falls der Aufruf danach abbricht) */
+  gemeldet: (id: string, status: EinzelStatus) => Promise<void>;
+}): Promise<EinzelErgebnis> {
+  segmenteEintragen();
+  const config = o.config;
+  const tm = config.selectedTanMethod;
+  if (!tm?.isDecoupled) throw new Error("Für Zahlungen wird ein TAN-Verfahren mit Freigabe in der App benötigt.");
+  const ergebnisse: Record<string, EinzelStatus> = {};
+
+  const d = await dialogOeffnen(config);
+  if ("fehler" in d) return { status: "fehler", fehler: d.fehler, ergebnisse, antworten: d.antworten };
+  const { senden, beenden, antworten, fehlerText } = d;
+  const version = Math.min(2, config.getMaxSupportedTransactionVersion("HKDSE") ?? 1);
+  const account = internationalAccount(config, config.getBankAccount(o.konto));
+  const hktan = (prozess: "4" | "S", ref?: string) => ({
+    header: { segId: "HKTAN", segNr: 0, version: tm.version },
+    tanProcess: prozess,
+    segId: "HKDSE",
+    orderRef: ref,
+    nextTan: prozess === "S" ? false : undefined,
+    tanMedia: tanMedium(config),
+  });
+  const offeneFreigabe = (antwort: any) => {
+    const h = antwort.findSegment("HITAN");
+    return h?.orderReference && h.orderReference !== "noref" ? String(h.orderReference) : null;
+  };
+  const rest = (gesendet: number) => {
+    const offen = o.auftraege.length - gesendet;
+    return offen > 0 ? ` ${gesendet} von ${o.auftraege.length} sind gesendet – „Noch einmal versuchen“ schickt die übrigen ${offen}.` : "";
+  };
+
+  try {
+    let gesendet = 0;
+    for (const a of o.auftraege) {
+      // Für eine weitere Freigabe braucht es noch genug Zeit
+      if (o.bis - Date.now() < 30_000) {
+        return { status: "fehler", fehler: `Die Zeit für weitere Freigaben ist um.${rest(gesendet)}`, ergebnisse, antworten };
+      }
+      let s = await senden([
+        { header: { segId: "HKDSE", segNr: 0, version }, account, sepaDescriptor: PAIN008, painMessage: a.pain },
+        hktan("4"),
+      ]);
+      const f = fehlerText(s.alle);
+      if (f) return { status: "fehler", fehler: `${a.name}: ${f}.${rest(gesendet)}`, ergebnisse, antworten };
+      let ref = offeneFreigabe(s.antwort);
+      if (!ref && s.hatFuer("HKDSE", 20)) {
+        ergebnisse[a.id] = "gesendet";
+        await o.gemeldet(a.id, "gesendet");
+        gesendet++;
+        continue;
+      }
+      if (!ref) {
+        ergebnisse[a.id] = "unklar";
+        await o.gemeldet(a.id, "unklar");
+        return { status: "fehler", fehler: `${a.name}: Die Bank hat keine Freigabe angefordert. Bitte im Online-Banking nachsehen.${rest(gesendet)}`, ergebnisse, antworten };
+      }
+      // Freigabe in der App abwarten
+      const ende = Math.min(Date.now() + o.warteAufFreigabeMs, o.bis);
+      await sleep(Math.max(tm.decoupled?.waitingSecondsBeforeFirstStatusRequest ?? 0, 3) * 1000);
+      let ok = false;
+      while (Date.now() < ende) {
+        s = await senden([hktan("S", ref)]);
+        const f2 = fehlerText(s.alle);
+        if (f2) return { status: "fehler", fehler: `${a.name}: ${f2}.${rest(gesendet)}`, ergebnisse, antworten };
+        if (!s.hat(3956) && (s.hatFuer("HKTAN", 20) || s.hatFuer("HKDSE", 20) || s.hat(900))) {
+          ok = true;
+          break;
+        }
+        await sleep(Math.max(tm.decoupled?.waitingSecondsBetweenStatusRequests ?? 0, 2) * 1000);
+      }
+      if (!ok) {
+        ergebnisse[a.id] = "unklar";
+        await o.gemeldet(a.id, "unklar");
+        return {
+          status: "fehler",
+          fehler: `${a.name}: Die Freigabe in der App kam nicht rechtzeitig. Bitte im Online-Banking nachsehen, ob diese Lastschrift eingereicht wurde.${rest(gesendet)}`,
+          ergebnisse,
+          antworten,
+        };
+      }
+      ergebnisse[a.id] = "gesendet";
+      await o.gemeldet(a.id, "gesendet");
+      gesendet++;
+    }
+    return { status: "gesendet", ergebnisse, antworten };
   } finally {
     await beenden();
   }

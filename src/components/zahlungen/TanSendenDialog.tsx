@@ -29,7 +29,7 @@ interface Lauf {
   zustand: Zustand;
   fehler?: string | null;
   vop?: { gesamt: string | null; zeilen: VopZeile[]; hinweis: string | null } | null;
-  posten: { end_to_end_id: string; empfaenger: string; iban: string; betrag: number; invoice_id?: string | null }[];
+  posten: { end_to_end_id: string; empfaenger: string; iban: string; betrag: number; invoice_id?: string | null; einzel_status?: string | null }[];
 }
 
 const ERGEBNIS: Record<string, { text: string; stil: string; icon: typeof CheckCircle2 }> = {
@@ -74,6 +74,11 @@ export function TanSendenDialog({ laufIds, onClose }: { laufIds: string[] | null
       if (error && !data) throw new Error(error.message);
       if (data?.error) throw new Error(data.error);
       setze(lauf.id, { zustand: (data.status as Zustand) ?? "fehler", fehler: data.fehler ?? null, vop: data.vop ?? null });
+      if (lauf.art === "lastschrift") {
+        // Stand der einzelnen Lastschriften neu holen (Umweg Einzellastschrift)
+        const { data: p } = await (supabase as any).from("payment_run_items").select("end_to_end_id, einzel_status").eq("run_id", lauf.id);
+        if (p) setLaeufe((ls) => ls.map((l) => (l.id === lauf.id ? { ...l, posten: l.posten.map((x) => ({ ...x, einzel_status: p.find((y: any) => y.end_to_end_id === x.end_to_end_id)?.einzel_status ?? null })) } : l)));
+      }
       if (data.status === "gesendet") toast.success(`${lauf.name}: an die Bank übergeben`);
     } catch (e: any) {
       setze(lauf.id, { zustand: "fehler", fehler: e?.message || "Senden fehlgeschlagen" });
@@ -92,7 +97,7 @@ export function TanSendenDialog({ laufIds, onClose }: { laufIds: string[] | null
     (async () => {
       const { data, error } = await (supabase as any)
         .from("payment_runs")
-        .select("id, art, faellig_am, konto_iban, summe, anzahl, status, fehler, empfaengerpruefung, buildings(name), payment_run_items(end_to_end_id, empfaenger, iban, betrag, invoice_id)")
+        .select("id, art, faellig_am, konto_iban, summe, anzahl, status, fehler, empfaengerpruefung, buildings(name), payment_run_items(end_to_end_id, empfaenger, iban, betrag, invoice_id, einzel_status)")
         .in("id", laufIds);
       if (error) {
         toast.error("Zahlläufe konnten nicht geladen werden");
@@ -185,7 +190,7 @@ export function TanSendenDialog({ laufIds, onClose }: { laufIds: string[] | null
               {l.zustand === "sendet" && (
                 <div className="flex items-center gap-2 border-t bg-primary/5 px-4 py-3 text-sm">
                   <Smartphone className="h-4 w-4 shrink-0 text-primary" />
-                  {l.art === "lastschrift" ? "Kommt gleich eine Anfrage in die Banking-App: bitte dort freigeben." : "Die Bank prüft die Empfänger. Kommt eine Anfrage in die Banking-App: bitte dort freigeben."}
+                  {l.art === "lastschrift" ? "Kommt gleich eine Anfrage in die Banking-App: bitte dort freigeben. Erlaubt die Bank für dieses Konto nur einzelne Lastschriften, kommt für jede Lastschrift eine eigene Anfrage – bitte alle nacheinander freigeben." : "Die Bank prüft die Empfänger. Kommt eine Anfrage in die Banking-App: bitte dort freigeben."}
                 </div>
               )}
 
@@ -258,7 +263,7 @@ export function TanSendenDialog({ laufIds, onClose }: { laufIds: string[] | null
               {l.zustand === "fehler" && (
                 <div className="flex flex-wrap justify-end gap-2 border-t px-4 py-3">
                   <Button variant="outline" onClick={() => nichtSenden(l)} disabled={!!aktiv}>
-                    Verwerfen
+                    {l.posten.some((p) => p.einzel_status === "gesendet") ? "Rest nicht senden" : "Verwerfen"}
                   </Button>
                   <Button onClick={() => senden(l)} disabled={!!aktiv}>
                     Noch einmal versuchen
