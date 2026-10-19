@@ -72,13 +72,21 @@ export function heuteIso(): string {
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 }
 
-/** Frühester Einzugstag einer Basislastschrift: zwei Bankarbeitstage ab heute. */
+/**
+ * Frühester Einzugstag einer Basislastschrift: zwei Bankarbeitstage nach dem
+ * Einreichungstag. Nach 15 Uhr (Einreichungsschluss der Bank) oder am
+ * Wochenende zählt erst der nächste Bankarbeitstag.
+ */
 export function fruehesterEinzug(ab = new Date()): string {
   const d = new Date(ab);
+  const werktag = (x: Date) => x.getDay() !== 0 && x.getDay() !== 6;
+  if (!werktag(d) || d.getHours() >= 15) {
+    do d.setDate(d.getDate() + 1); while (!werktag(d));
+  }
   let n = 0;
   while (n < 2) {
     d.setDate(d.getDate() + 1);
-    if (d.getDay() !== 0 && d.getDay() !== 6) n++;
+    if (werktag(d)) n++;
   }
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 }

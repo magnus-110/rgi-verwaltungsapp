@@ -792,9 +792,13 @@ async function zahlungSenden(admin: any, runId: string, akzeptiert: Record<strin
       if (!glaeubigerIdGueltig(gid)) throw new Error("Für diese Liegenschaft ist keine gültige Gläubiger-ID hinterlegt.");
       const fehlt = posten.filter((p: any) => !p.mandatsreferenz || !p.mandat_datum);
       if (fehlt.length) throw new Error(`Mandat unvollständig bei: ${fehlt.map((p: any) => p.empfaenger).join(", ")}`);
-      const einzugAm = lauf.faellig_am ?? lauf.ausfuehrung_am;
-      if (!einzugAm || einzugAm < frueheserEinzug()) {
-        throw new Error(`Der Einzugstag muss mindestens zwei Bankarbeitstage in der Zukunft liegen (frühestens ${frueheserEinzug()}).`);
+      // Zu früh (z. B. nach Einreichungsschluss am Nachmittag)? Dann auf den
+      // frühestmöglichen Tag verschieben, statt die Bank ablehnen zu lassen.
+      let einzugAm = lauf.faellig_am ?? lauf.ausfuehrung_am;
+      const frueh = frueheserEinzug();
+      if (!einzugAm || einzugAm < frueh) {
+        einzugAm = frueh;
+        await admin.from("payment_runs").update({ faellig_am: frueh }).eq("id", runId);
       }
       const einzuege = posten.map((p: any) => ({
         name: p.empfaenger,
@@ -932,13 +936,29 @@ async function einzelnSenden(admin: any, x: any) {
   return { ok: false, status: "fehler", fehler: hinweis };
 }
 
-/** Frühester Einzugstag einer Basislastschrift: zwei Bankarbeitstage ab heute. */
+/**
+ * Frühester Einzugstag einer Basislastschrift: zwei Bankarbeitstage nach dem
+ * Einreichungstag. Nach Einreichungsschluss (15 Uhr deutscher Zeit) oder am
+ * Wochenende zählt erst der nächste Bankarbeitstag als Einreichungstag.
+ */
+const EINREICHUNGSSCHLUSS_STUNDE = 15;
 function frueheserEinzug(): string {
-  const d = new Date();
+  const jetzt = new Date();
+  const teile = Object.fromEntries(
+    new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hour12: false })
+      .formatToParts(jetzt)
+      .map((p) => [p.type, p.value]),
+  );
+  const d = new Date(Date.UTC(Number(teile.year), Number(teile.month) - 1, Number(teile.day)));
+  const werktag = (x: Date) => x.getUTCDay() !== 0 && x.getUTCDay() !== 6;
+  const weiter = () => d.setUTCDate(d.getUTCDate() + 1);
+  if (!werktag(d) || Number(teile.hour) >= EINREICHUNGSSCHLUSS_STUNDE) {
+    do weiter(); while (!werktag(d));
+  }
   let n = 0;
   while (n < 2) {
-    d.setDate(d.getDate() + 1);
-    if (d.getDay() !== 0 && d.getDay() !== 6) n++;
+    weiter();
+    if (werktag(d)) n++;
   }
   return d.toISOString().slice(0, 10);
 }
