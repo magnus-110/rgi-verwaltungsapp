@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 import { bankName, cleanIban, euro, ibanFormatiert } from "@/lib/bankInfo";
 import { ibanGueltig } from "@/lib/sepa";
-import { ladeEigentuemer, mandatBereit, mandatVerfallen, type Eigentuemer } from "@/lib/eigentuemer";
+import { ladeEigentuemer, mandatBereit, mandatVerfallen, monatlich, type Eigentuemer } from "@/lib/eigentuemer";
 import { fruehesterEinzug, heuteIso, plusMonate, type AuftragsArt, type Betragsquelle, type Rhythmus } from "@/lib/auftraege";
 import type { KontoZeile } from "@/components/konten/kontenTypes";
 
@@ -36,6 +36,63 @@ const einheitText = (e: Eigentuemer | null | undefined) => (e?.einheit ? (/^\d+$
 /** „Abrechnungsspitze 2025 - Guthaben 0003 EG rechts" */
 const spitzenZweck = (jahr: string, nachzahlung: boolean, e: Eigentuemer | null | undefined) =>
   `Abrechnungsspitze ${jahr} - ${nachzahlung ? "Nachzahlung" : "Guthaben"} ${einheitText(e)} ${e?.lage ?? ""}`.replace(/\s+/g, " ").trim();
+
+/** „01–09/2026“, „11/2025–02/2026“ oder „09/2026“ (Monate als JJJJ-MM). */
+export function zeitraumText(von: string, bis: string): string {
+  if (!von || !bis) return "";
+  const [vj, vm] = von.split("-");
+  const [bj, bm] = bis.split("-");
+  if (von === bis) return `${vm}/${vj}`;
+  return vj === bj ? `${vm}–${bm}/${bj}` : `${vm}/${vj}–${bm}/${bj}`;
+}
+
+/** Monate von–bis (JJJJ-MM, jeweils einschließlich) als Liste. */
+function monateZwischen(von: string, bis: string): string[] {
+  const out: string[] = [];
+  if (!von || !bis || von > bis) return out;
+  let [j, m] = von.split("-").map(Number);
+  for (let i = 0; i < 120; i++) {
+    const t = `${j}-${String(m).padStart(2, "0")}`;
+    if (t > bis) break;
+    out.push(t);
+    m++;
+    if (m > 12) { m = 1; j++; }
+  }
+  return out;
+}
+
+/** Vormonat (JJJJ-MM). */
+function vormonat(jm: string): string {
+  let [j, m] = jm.split("-").map(Number);
+  m--;
+  if (m < 1) { m = 12; j--; }
+  return `${j}-${String(m).padStart(2, "0")}`;
+}
+
+/** Platzhalter im Verwendungszweck eines Einzugs füllen. */
+function zweckFuellen(vorlage: string, e: Eigentuemer | null | undefined, monatJahr: string, zeitraum: string): string {
+  const [jahr, monat] = (monatJahr || "").split("-");
+  return vorlage
+    .replace(/\{einheit\}/g, einheitText(e))
+    .replace(/\{lage\}/g, e?.lage ?? "")
+    .replace(/\{monat\}/g, monat ?? "")
+    .replace(/\{jahr\}/g, jahr ?? "")
+    .replace(/\{zeitraum\}/g, zeitraum)
+    .replace(/\s+/g, " ")
+    .replace(/\s*-\s*$/, "")
+    .trim();
+}
+
+const NZ_STANDARD = "Hausgeld-Nachzahlung {zeitraum} - {einheit} {lage}";
+const NZ_ERSTATTUNG = "Hausgeld-Erstattung {zeitraum} - {einheit} {lage}";
+
+const PLATZHALTER: { wert: string; text: string }[] = [
+  { wert: "{einheit}", text: "Einheit" },
+  { wert: "{lage}", text: "Lage" },
+  { wert: "{monat}", text: "Monat" },
+  { wert: "{jahr}", text: "Jahr" },
+  { wert: "{zeitraum}", text: "Zeitraum" },
+];
 
 /**
  * Neuer Auftrag: Überweisung (einmalig an einen oder mehrere Empfänger),
@@ -64,6 +121,13 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
   const [tag, setTag] = useState("1");
   const [erster, setErster] = useState(() => plusMonate(heuteIso().slice(0, 8) + "01", 1));
   const [speichert, setSpeichert] = useState(false);
+  // Hausgeld-Nachzahlung (rückwirkende Hausgeldänderung)
+  const [nzAb, setNzAb] = useState(() => `${new Date().getFullYear()}-01`);
+  const [nzBis, setNzBis] = useState(() => vormonat(heuteIso().slice(0, 7)));
+  const [nzWerte, setNzWerte] = useState<Record<string, string>>({});
+  const [nzGuthaben, setNzGuthaben] = useState(false);
+  // Monat/Jahr für die Platzhalter {monat} und {jahr}
+  const [zweckMonat, setZweckMonat] = useState(() => heuteIso().slice(0, 7));
 
   const { data: gebaeude = [] } = useQuery({
     queryKey: ["konten-liegenschaften"],
@@ -87,6 +151,38 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
     queryFn: () => ladeEigentuemer(buildingId),
   });
 
+  // Hausgeld-Verlauf je Einheit (für die Nachzahlung)
+  const { data: kosten = [] } = useQuery({
+    queryKey: ["hausgeld-verlauf", buildingId, eigentuemer.map((e) => e.assignmentId).join(",")],
+    enabled: !!buildingId && quelle === "nachzahlung" && eigentuemer.length > 0,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("contact_building_costs")
+        .select("assignment_id, amount, interval, valid_from, valid_to")
+        .in("assignment_id", eigentuemer.map((e) => e.assignmentId))
+        .eq("cost_type", "Hausgeld");
+      if (error) throw error;
+      return (data ?? []) as { assignment_id: string; amount: number; interval: string | null; valid_from: string | null; valid_to: string | null }[];
+    },
+  });
+  /** Hausgeld je Monat am Stichtag (JJJJ-MM-TT) laut Verlauf. */
+  const hausgeldAm = (assignmentId: string, tag: string) =>
+    Math.round(
+      kosten
+        .filter((k) => k.assignment_id === assignmentId && (!k.valid_from || k.valid_from <= tag) && (!k.valid_to || k.valid_to >= tag))
+        .reduce((s, k) => s + monatlich(Number(k.amount) || 0, k.interval), 0) * 100,
+    ) / 100;
+  const nzMonate = monateZwischen(nzAb, nzBis);
+  const nzZeitraum = zeitraumText(nzAb, nzBis);
+  /** Rechnung je Eigentümer: alt (Monat vor der Änderung), neu (je Monat), Differenz gesamt */
+  const nzRechnung = (e: Eigentuemer) => {
+    const altTag = `${vormonat(nzAb)}-15`;
+    const alt = hausgeldAm(e.assignmentId, altTag);
+    const neu = nzMonate.map((m) => hausgeldAm(e.assignmentId, `${m}-15`));
+    const differenz = Math.round(neu.reduce((s, n) => s + (n - alt), 0) * 100) / 100;
+    return { alt, neu: neu[neu.length - 1] ?? 0, differenz };
+  };
+
   const auswahlListe = useMemo(
     () =>
       konten
@@ -109,7 +205,11 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
       setZweck((z) => (z.includes("{") ? "" : z));
       setTitel((t) => (t === "Hausgeld" ? "" : t));
     }
-    if (art === "einzug") setFaellig(fruehesterEinzug());
+    if (art === "einzug") {
+      setFaellig(fruehesterEinzug());
+      setZweckMonat(fruehesterEinzug().slice(0, 7));
+    }
+    if (art !== "einzug" && quelle === "nachzahlung") setQuelle("fest");
     if (art === "ueberweisung") setFaellig(heuteIso());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [art]);
@@ -155,7 +255,34 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
         .map((e) => ({ name: e.name.trim(), iban: cleanIban(e.iban), betrag: zahl(e.betrag), zweck: e.zweck.trim(), e: null as Eigentuemer | null, art: "ueberweisung" as const }));
     }
     if (quelle === "fest") {
-      return ausgewaehlt.map((e) => ({ name: e.name, iban: e.mandat?.iban ?? e.iban, betrag: zahl(festBetrag), zweck: "", e, art: "einzug" as const }));
+      return ausgewaehlt.map((e) => ({
+        name: e.name,
+        iban: e.mandat?.iban ?? e.iban,
+        betrag: zahl(festBetrag),
+        zweck: art === "einzug" && zweck.trim() ? zweckFuellen(zweck, e, zweckMonat, "") : "",
+        e,
+        art: "einzug" as const,
+      }));
+    }
+    if (quelle === "nachzahlung") {
+      return eigentuemer
+        .map((e) => {
+          const eigen = nzWerte[e.assignmentId];
+          const v = eigen !== undefined && eigen.trim() !== "" ? zahl(eigen) : nzRechnung(e).differenz;
+          return { e, v };
+        })
+        .filter(({ v }) => Number.isFinite(v) && Math.abs(v) >= 0.01)
+        .filter(({ v }) => v > 0 || nzGuthaben)
+        // ohne vollständiges Mandat kann nicht eingezogen werden (steht in der Liste dabei)
+        .filter(({ e, v }) => v < 0 || mandatBereit(e.mandat))
+        .map(({ e, v }) => ({
+          name: e.name,
+          iban: v > 0 ? e.mandat?.iban ?? e.iban : e.iban,
+          betrag: Math.abs(v),
+          zweck: zweckFuellen(zweck || (v > 0 ? NZ_STANDARD : NZ_ERSTATTUNG), e, zweckMonat, nzZeitraum),
+          e,
+          art: v > 0 ? ("einzug" as const) : ("ueberweisung" as const),
+        }));
     }
     if (quelle === "abrechnung") {
       return eigentuemer
@@ -174,7 +301,8 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
     // Wirtschaftsplan
     const monate = { monatlich: 1, quartal: 3, halbjahr: 6, jahr: 12 }[rhythmus];
     return ausgewaehlt.map((e) => ({ name: e.name, iban: e.mandat?.iban ?? e.iban, betrag: Math.round(e.hausgeldMonat * monate * 100) / 100, zweck: "", e, art: "einzug" as const }));
-  }, [quelle, art, empfaenger, ausgewaehlt, festBetrag, eigentuemer, ergebnis, guthabenAuszahlen, rhythmus, spitzenJahr]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quelle, art, empfaenger, ausgewaehlt, festBetrag, eigentuemer, ergebnis, guthabenAuszahlen, rhythmus, spitzenJahr, nzWerte, nzGuthaben, kosten, nzAb, nzBis, zweck, zweckMonat]);
 
   const summeEin = posten.filter((p) => p.art === "einzug").reduce((s, p) => s + (Number.isFinite(p.betrag) ? p.betrag : 0), 0);
   const summeAus = posten.filter((p) => p.art === "ueberweisung").reduce((s, p) => s + (Number.isFinite(p.betrag) ? p.betrag : 0), 0);
@@ -191,6 +319,9 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
     if (art === "einzug" && faellig < fruehesterEinzug()) return `Einzug frühestens am ${fruehesterEinzug().split("-").reverse().join(".")}.`;
     if (art === "dauerlastschrift" && !erster) return "Bitte den ersten Einzug angeben.";
     if (quelle === "abrechnung" && !/^\d{4}$/.test(spitzenJahr)) return "Bitte das Abrechnungsjahr angeben.";
+    if (quelle === "nachzahlung" && (!nzAb || !nzBis || nzAb > nzBis)) return "Bitte den Zeitraum der Nachzahlung prüfen.";
+    const zuLang = posten.find((p) => (p.zweck || "").length > 140);
+    if (zuLang) return `Verwendungszweck bei ${zuLang.name} ist zu lang (höchstens 140 Zeichen).`;
     return null;
   };
 
@@ -203,7 +334,7 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
     setSpeichert(true);
     try {
       const gruppen: { art: AuftragsArt; liste: typeof posten }[] =
-        quelle === "abrechnung"
+        quelle === "abrechnung" || quelle === "nachzahlung"
           ? [
               { art: "einzug" as AuftragsArt, liste: posten.filter((p) => p.art === "einzug") },
               { art: "ueberweisung" as AuftragsArt, liste: posten.filter((p) => p.art === "ueberweisung") },
@@ -212,7 +343,13 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
       for (const g of gruppen) {
         const ersterTag = art === "dauerlastschrift" ? `${erster.slice(0, 8)}${String(Math.min(28, Math.max(1, Number(tag) || 1))).padStart(2, "0")}` : faellig;
         const standardTitel =
-          art === "dauerlastschrift" ? "Hausgeld" : quelle === "abrechnung" ? (g.art === "einzug" ? `Abrechnungsspitze ${spitzenJahr} – Nachzahlungen` : `Abrechnungsspitze ${spitzenJahr} – Guthaben`) : g.art === "einzug" ? "Einzug" : "Überweisung";
+          art === "dauerlastschrift"
+            ? "Hausgeld"
+            : quelle === "abrechnung"
+              ? (g.art === "einzug" ? `Abrechnungsspitze ${spitzenJahr} – Nachzahlungen` : `Abrechnungsspitze ${spitzenJahr} – Guthaben`)
+              : quelle === "nachzahlung"
+                ? (g.art === "einzug" ? `Hausgeld-Nachzahlung ${nzZeitraum}` : `Hausgeld-Erstattung ${nzZeitraum}`)
+                : g.art === "einzug" ? "Einzug" : "Überweisung";
         const { data: auftrag, error } = await (supabase as any)
           .from("payment_orders")
           .insert({
@@ -220,8 +357,13 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
             konto_iban: kontoIban,
             art: g.art,
             betragsquelle: quelle,
-            titel: titel.trim() || standardTitel,
-            verwendungszweck: quelle === "abrechnung" ? null : zweck.trim() || (art === "dauerlastschrift" ? "Hausgeld {monat} - {einheit} {lage}" : null),
+            titel: (quelle === "nachzahlung" && g.art === "ueberweisung" ? "" : titel.trim()) || standardTitel,
+            verwendungszweck:
+              quelle === "abrechnung"
+                ? null
+                : quelle === "nachzahlung"
+                  ? zweck.trim() || NZ_STANDARD
+                  : zweck.trim() || (art === "dauerlastschrift" ? "Hausgeld {monat} - {einheit} {lage}" : null),
             rhythmus: art === "dauerlastschrift" ? rhythmus : null,
             faellig_am: ersterTag,
             status: "aktiv",
@@ -272,6 +414,11 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
       .replace(/\{lage\}/g, e?.lage ?? "EG links")
       .replace(/\s+/g, " ")
       .trim();
+  })();
+  const beispielEinzug = (() => {
+    const e = ausgewaehlt[0] ?? eigentuemer.find((x) => x.lage) ?? eigentuemer[0];
+    const vorlage = zweck || (quelle === "nachzahlung" ? NZ_STANDARD : "");
+    return vorlage ? zweckFuellen(vorlage, e, zweckMonat, quelle === "nachzahlung" ? nzZeitraum : "") : "";
   })();
   const setzeEmpfaenger = (i: number, feld: keyof Empfaenger, wert: string) => setEmpfaenger((l) => l.map((x, j) => (j === i ? { ...x, [feld]: wert } : x)));
 
@@ -376,6 +523,7 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
                   {(
                     [
                       ["fest", "Fester Betrag"],
+                      ...(art === "einzug" ? [["nachzahlung", "Hausgeld-Nachzahlung"]] : []),
                       ["abrechnung", "Abrechnungsspitze"],
                     ] as [Betragsquelle, string][]
                   ).map(([w, t]) => (
@@ -498,6 +646,79 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
               </div>
             )}
 
+            {/* Hausgeld-Nachzahlung (rückwirkende Hausgeldänderung) */}
+            {quelle === "nachzahlung" && (
+              <div className="space-y-4">
+                <div className="flex gap-3 rounded-xl bg-muted/60 p-3 text-sm">
+                  <Info className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                  <div>
+                    Für jeden Monat im Zeitraum: <b>neues Hausgeld minus altes Hausgeld</b> (aus dem Hausgeld-Verlauf der Einheit). Das alte Hausgeld ist das aus dem Monat vor der Änderung.
+                    Beträge lassen sich je Eigentümer überschreiben.
+                  </div>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Feld label="Änderung gilt ab">
+                    <Input type="month" value={nzAb} onChange={(e) => setNzAb(e.target.value)} className="h-11" />
+                  </Feld>
+                  <Feld label="Nachzahlen bis einschließlich" hinweis={nzMonate.length ? `${nzMonate.length} ${nzMonate.length === 1 ? "Monat" : "Monate"} · ${nzZeitraum}` : "Zeitraum prüfen"}>
+                    <Input type="month" value={nzBis} onChange={(e) => setNzBis(e.target.value)} className="h-11" />
+                  </Feld>
+                </div>
+                <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border p-3 text-sm">
+                  <span>
+                    <span className="block font-medium">Zu viel gezahltes Hausgeld zurücküberweisen</span>
+                    <span className="block text-xs text-muted-foreground">Aus: wird nicht erstattet (z. B. mit der Abrechnung verrechnen)</span>
+                  </span>
+                  <Switch checked={nzGuthaben} onCheckedChange={setNzGuthaben} />
+                </label>
+                <div className="divide-y rounded-xl border">
+                  {eigentuemer.map((e) => {
+                    const r = nzRechnung(e);
+                    const eigen = nzWerte[e.assignmentId];
+                    const v = eigen !== undefined && eigen.trim() !== "" ? zahl(eigen) : r.differenz;
+                    const ok = v <= 0 || mandatBereit(e.mandat);
+                    return (
+                      <div key={e.assignmentId} className="flex flex-wrap items-center gap-3 px-3 py-2.5">
+                        <Avatar name={e.name} />
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate font-medium">{e.name}</div>
+                          <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                            {e.einheit && <span>Einheit {e.einheit}{e.lage ? ` · ${e.lage}` : ""}</span>}
+                            <span>· {euro(r.alt)} → {euro(r.neu)} je Monat</span>
+                            <MandatChip e={e} />
+                          </div>
+                          {Number.isFinite(v) && Math.abs(v) >= 0.01 && (
+                            <div className="mt-1 truncate font-mono text-[11px] text-muted-foreground">{zweckFuellen(zweck || NZ_STANDARD, e, zweckMonat, nzZeitraum)}</div>
+                          )}
+                          {!ok && <div className="mt-1 text-xs text-amber-700">Kein vollständiges Mandat – wird nicht eingezogen, bitte anders anfordern.</div>}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {Number.isFinite(v) && Math.abs(v) >= 0.01 && (
+                            <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-semibold", v > 0 ? "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300" : "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300")}>
+                              {v > 0 ? "Einzug" : nzGuthaben ? "Erstattung" : "zu viel gezahlt"}
+                            </span>
+                          )}
+                          <div className="relative w-32">
+                            <Input
+                              inputMode="decimal"
+                              placeholder={r.differenz ? String(r.differenz.toFixed(2)).replace(".", ",") : "0,00"}
+                              value={eigen ?? ""}
+                              onChange={(ev) => setNzWerte((x) => ({ ...x, [e.assignmentId]: ev.target.value }))}
+                              className="h-10 pr-7 text-right tabular-nums"
+                              aria-label={`Nachzahlung ${e.name}`}
+                            />
+                            <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">€</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {!eigentuemer.length && <Leer text={buildingId ? (ladeEig ? "Lädt …" : "Keine Eigentümer hinterlegt") : "Bitte zuerst das Konto wählen"} />}
+                </div>
+                <p className="text-xs text-muted-foreground">Leeres Feld = berechneter Betrag (grau). Eine eigene Zahl überschreibt ihn, 0 lässt den Eigentümer weg.</p>
+              </div>
+            )}
+
             {/* Dauerlastschrift */}
             {quelle === "wirtschaftsplan" && (
               <div className="space-y-4">
@@ -579,6 +800,36 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
                   <Input inputMode="numeric" value={spitzenJahr} onChange={(e) => setSpitzenJahr(e.target.value.replace(/\D/g, "").slice(0, 4))} className="h-11 max-w-[140px]" />
                 </Feld>
               ) : (
+                art === "einzug" ? (
+                  <div className="space-y-3 sm:col-span-2">
+                    <Feld label="Verwendungszweck" hinweis={`Beispiel: ${beispielEinzug || "–"}${beispielEinzug.length > 140 ? " (zu lang – höchstens 140 Zeichen)" : ""}`} breit>
+                      <Input
+                        placeholder={quelle === "nachzahlung" ? NZ_STANDARD : "z. B. Sonderumlage Dach {einheit} {lage}"}
+                        value={zweck}
+                        onChange={(e) => setZweck(e.target.value)}
+                        className="h-11"
+                      />
+                    </Feld>
+                    <div className="flex flex-wrap items-center gap-2 text-sm">
+                      <span className="text-xs text-muted-foreground">Einfügen:</span>
+                      {PLATZHALTER.filter((x) => x.wert !== "{zeitraum}" || quelle === "nachzahlung").map((x) => (
+                        <button
+                          key={x.wert}
+                          type="button"
+                          onClick={() => setZweck((z) => `${(z || (quelle === "nachzahlung" ? NZ_STANDARD : "")).trimEnd()} ${x.wert}`.trim())}
+                          className="rounded-full border px-3 py-1 text-xs font-medium hover:border-primary hover:text-primary"
+                        >
+                          + {x.text}
+                        </button>
+                      ))}
+                    </div>
+                    {/(\{monat\}|\{jahr\})/.test(zweck) && (
+                      <Feld label="Monat und Jahr im Verwendungszweck">
+                        <Input type="month" value={zweckMonat} onChange={(e) => setZweckMonat(e.target.value)} className="h-11 max-w-[220px]" />
+                      </Feld>
+                    )}
+                  </div>
+                ) : (
                 <Feld label="Verwendungszweck" hinweis={art === "dauerlastschrift" ? `Beispiel: ${beispielZweck}` : "steht auf dem Kontoauszug des Empfängers"} breit>
                   <Input
                     placeholder={art === "dauerlastschrift" ? "Hausgeld {monat} - {einheit} {lage}" : "z. B. Re. Nr. 123, Auslagen"}
@@ -587,6 +838,7 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
                     className="h-11"
                   />
                 </Feld>
+                )
               )}
             </div>
           </Abschnitt>

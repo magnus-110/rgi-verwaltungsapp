@@ -2,7 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { ladeEigentuemer, mandatBereit, type Eigentuemer, type Mandat } from "@/lib/eigentuemer";
 
 export type AuftragsArt = "ueberweisung" | "einzug" | "dauerlastschrift";
-export type Betragsquelle = "fest" | "abrechnung" | "wirtschaftsplan";
+export type Betragsquelle = "fest" | "abrechnung" | "wirtschaftsplan" | "nachzahlung";
 export type Rhythmus = "monatlich" | "quartal" | "halbjahr" | "jahr";
 
 export interface Auftrag {

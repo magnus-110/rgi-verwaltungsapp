@@ -45,7 +45,7 @@ function anzeigeName(a: any): string {
   return (firma || [vor, nach].filter(Boolean).join(" ") || c.short_name || "Eigentümer").trim();
 }
 
-function monatlich(betrag: number, intervall: string | null): number {
+export function monatlich(betrag: number, intervall: string | null): number {
   if (intervall === "quartal" || intervall === "quarterly") return betrag / 3;
   if (intervall === "jaehrlich" || intervall === "yearly" || intervall === "jahr") return betrag / 12;
   if (intervall === "halbjaehrlich") return betrag / 6;
