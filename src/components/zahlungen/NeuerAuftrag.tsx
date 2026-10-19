@@ -83,8 +83,8 @@ function zweckFuellen(vorlage: string, e: Eigentuemer | null | undefined, monatJ
     .trim();
 }
 
-const NZ_STANDARD = "Hausgeld-Nachzahlung {zeitraum} - {einheit} {lage}";
-const NZ_ERSTATTUNG = "Hausgeld-Erstattung {zeitraum} - {einheit} {lage}";
+const NZ_STANDARD = "Sammeleinzug {zeitraum} - {einheit} {lage}";
+const NZ_ERSTATTUNG = "Erstattung {zeitraum} - {einheit} {lage}";
 
 const PLATZHALTER: { wert: string; text: string }[] = [
   { wert: "{einheit}", text: "Einheit" },
@@ -121,7 +121,7 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
   const [tag, setTag] = useState("1");
   const [erster, setErster] = useState(() => plusMonate(heuteIso().slice(0, 8) + "01", 1));
   const [speichert, setSpeichert] = useState(false);
-  // Hausgeld-Nachzahlung (rückwirkende Hausgeldänderung)
+  // Sammeleinzug (z. B. rückwirkende Hausgeldänderung)
   const [nzAb, setNzAb] = useState(() => `${new Date().getFullYear()}-01`);
   const [nzBis, setNzBis] = useState(() => vormonat(heuteIso().slice(0, 7)));
   const [nzWerte, setNzWerte] = useState<Record<string, string>>({});
@@ -319,7 +319,7 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
     if (art === "einzug" && faellig < fruehesterEinzug()) return `Einzug frühestens am ${fruehesterEinzug().split("-").reverse().join(".")}.`;
     if (art === "dauerlastschrift" && !erster) return "Bitte den ersten Einzug angeben.";
     if (quelle === "abrechnung" && !/^\d{4}$/.test(spitzenJahr)) return "Bitte das Abrechnungsjahr angeben.";
-    if (quelle === "nachzahlung" && (!nzAb || !nzBis || nzAb > nzBis)) return "Bitte den Zeitraum der Nachzahlung prüfen.";
+    if (quelle === "nachzahlung" && (!nzAb || !nzBis || nzAb > nzBis)) return "Bitte den Zeitraum des Sammeleinzugs prüfen.";
     const zuLang = posten.find((p) => (p.zweck || "").length > 140);
     if (zuLang) return `Verwendungszweck bei ${zuLang.name} ist zu lang (höchstens 140 Zeichen).`;
     return null;
@@ -348,7 +348,7 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
             : quelle === "abrechnung"
               ? (g.art === "einzug" ? `Abrechnungsspitze ${spitzenJahr} – Nachzahlungen` : `Abrechnungsspitze ${spitzenJahr} – Guthaben`)
               : quelle === "nachzahlung"
-                ? (g.art === "einzug" ? `Hausgeld-Nachzahlung ${nzZeitraum}` : `Hausgeld-Erstattung ${nzZeitraum}`)
+                ? (g.art === "einzug" ? `Sammeleinzug ${nzZeitraum}` : `Erstattung ${nzZeitraum}`)
                 : g.art === "einzug" ? "Einzug" : "Überweisung";
         const { data: auftrag, error } = await (supabase as any)
           .from("payment_orders")
@@ -523,7 +523,7 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
                   {(
                     [
                       ["fest", "Fester Betrag"],
-                      ...(art === "einzug" ? [["nachzahlung", "Hausgeld-Nachzahlung"]] : []),
+                      ...(art === "einzug" ? [["nachzahlung", "Sammeleinzug"]] : []),
                       ["abrechnung", "Abrechnungsspitze"],
                     ] as [Betragsquelle, string][]
                   ).map(([w, t]) => (
@@ -646,7 +646,7 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
               </div>
             )}
 
-            {/* Hausgeld-Nachzahlung (rückwirkende Hausgeldänderung) */}
+            {/* Sammeleinzug (z. B. rückwirkende Hausgeldänderung) */}
             {quelle === "nachzahlung" && (
               <div className="space-y-4">
                 <div className="flex gap-3 rounded-xl bg-muted/60 p-3 text-sm">
@@ -660,7 +660,7 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
                   <Feld label="Änderung gilt ab">
                     <Input type="month" value={nzAb} onChange={(e) => setNzAb(e.target.value)} className="h-11" />
                   </Feld>
-                  <Feld label="Nachzahlen bis einschließlich" hinweis={nzMonate.length ? `${nzMonate.length} ${nzMonate.length === 1 ? "Monat" : "Monate"} · ${nzZeitraum}` : "Zeitraum prüfen"}>
+                  <Feld label="Einziehen bis einschließlich" hinweis={nzMonate.length ? `${nzMonate.length} ${nzMonate.length === 1 ? "Monat" : "Monate"} · ${nzZeitraum}` : "Zeitraum prüfen"}>
                     <Input type="month" value={nzBis} onChange={(e) => setNzBis(e.target.value)} className="h-11" />
                   </Feld>
                 </div>
@@ -705,7 +705,7 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
                               value={eigen ?? ""}
                               onChange={(ev) => setNzWerte((x) => ({ ...x, [e.assignmentId]: ev.target.value }))}
                               className="h-10 pr-7 text-right tabular-nums"
-                              aria-label={`Nachzahlung ${e.name}`}
+                              aria-label={`Sammeleinzug ${e.name}`}
                             />
                             <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">€</span>
                           </div>
