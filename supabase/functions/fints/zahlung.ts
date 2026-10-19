@@ -215,18 +215,23 @@ async function dialogOeffnen(config: any) {
     const name = new Map([...nr.entries()].map(([k, v]) => [v, k]));
     const alle: Antwort[] = [];
     const je = new Map<string, Antwort[]>();
+    const mitBezug: { code: number; text: string; bezug?: string }[] = [];
     for (const g of antwort.findAllSegments("HIRMG")) {
-      for (const x of g.answers ?? []) alle.push({ code: x.code, text: x.text, params: x.params });
+      for (const x of g.answers ?? []) {
+        alle.push({ code: x.code, text: x.text, params: x.params });
+        mitBezug.push({ code: x.code, text: x.text, bezug: "Nachricht" });
+      }
     }
     for (const r of antwort.findAllSegments("HIRMS")) {
       const bezug = name.get(r.header.refSegNr) ?? "?";
       for (const x of r.answers ?? []) {
         const e = { code: x.code, text: x.text, params: x.params };
         alle.push(e);
+        mitBezug.push({ code: x.code, text: x.text, bezug });
         je.set(bezug, [...(je.get(bezug) ?? []), e]);
       }
     }
-    alle.forEach((x) => antworten.push({ code: x.code, text: x.text }));
+    mitBezug.forEach((x) => antworten.push(x));
     const fuer = (segId: string) => je.get(segId) ?? [];
     return {
       antwort,
@@ -491,7 +496,21 @@ export async function einzellastschriften(o: {
       while (Date.now() < ende) {
         s = await senden([hktan("S", ref)]);
         const f2 = fehlerText(s.alle);
-        if (f2) return { status: "fehler", fehler: `${a.name}: ${f2}.${rest(gesendet)}`, ergebnisse, antworten };
+        if (f2) {
+          // Freigabe kam an, aber die Bank meldet zugleich einen Fehler: ob die
+          // Lastschrift eingereicht ist, ist unklar → nie automatisch nochmal senden.
+          if (s.hat(900)) {
+            ergebnisse[a.id] = "unklar";
+            await o.gemeldet(a.id, "unklar");
+            return {
+              status: "fehler",
+              fehler: `${a.name}: Die Freigabe ist bei der Bank angekommen, die Bank meldet aber zugleich einen Fehler („${f2}“). Bitte im Online-Banking nachsehen, ob diese Lastschrift eingereicht wurde.${rest(gesendet)}`,
+              ergebnisse,
+              antworten,
+            };
+          }
+          return { status: "fehler", fehler: `${a.name}: ${f2}.${rest(gesendet)}`, ergebnisse, antworten };
+        }
         if (!s.hat(3956) && (s.hatFuer("HKTAN", 20) || s.hatFuer("HKDSE", 20) || s.hat(900))) {
           ok = true;
           break;
