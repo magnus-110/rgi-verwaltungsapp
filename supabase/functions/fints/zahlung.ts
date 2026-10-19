@@ -297,6 +297,13 @@ export async function sammelueberweisung(o: Optionen): Promise<ZahlungErgebnis> 
   const d = await dialogOeffnen(config);
   if ("fehler" in d) return { status: "fehler", fehler: d.fehler, antworten: d.antworten };
   const { senden, beenden, antworten, fehlerText } = d;
+  let konto: any;
+  try {
+    konto = auftragskonto(config, o.konto);
+  } catch (e) {
+    await beenden();
+    return { status: "fehler", fehler: (e as Error).message, antworten };
+  }
 
   const version = lastschrift ? Math.min(2, config.getMaxSupportedTransactionVersion("HKDME") ?? 1) : 1;
   const hkccm = {
