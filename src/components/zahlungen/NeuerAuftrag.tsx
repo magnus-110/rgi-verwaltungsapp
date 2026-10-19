@@ -25,7 +25,7 @@ interface Empfaenger {
 }
 
 const zahl = (t: string) => {
-  const v = Number(String(t).replace(/\s/g, "").replace(/\./g, "").replace(",", "."));
+  const v = Number(String(t).replace(/\s/g, "").replace(/[−–]/g, "-").replace(/\./g, "").replace(",", "."));
   return Number.isFinite(v) ? v : NaN;
 };
 const leerEmpfaenger = (): Empfaenger => ({ name: "", iban: "", betrag: "", zweck: "" });
@@ -50,7 +50,7 @@ function zweckFuellen(vorlage: string, e: Eigentuemer | null | undefined, monatJ
     .trim();
 }
 
-const NZ_STANDARD = "Sammeleinzug {monat}/{jahr} - {einheit} {lage}";
+const NZ_STANDARD = "Sammelauftrag {monat}/{jahr} - {einheit} {lage}";
 
 const PLATZHALTER: { wert: string; text: string }[] = [
   { wert: "{einheit}", text: "Einheit" },
@@ -86,7 +86,7 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
   const [tag, setTag] = useState("1");
   const [erster, setErster] = useState(() => plusMonate(heuteIso().slice(0, 8) + "01", 1));
   const [speichert, setSpeichert] = useState(false);
-  // Sammeleinzug: einmalig, Betrag je Eigentümer frei eingetragen
+  // Sammelauftrag: einmalig, Betrag je Eigentümer frei eingetragen
   const [nzWerte, setNzWerte] = useState<Record<string, string>>({});
   // Monat/Jahr für die Platzhalter {monat} und {jahr}
   const [zweckMonat, setZweckMonat] = useState(() => heuteIso().slice(0, 7));
@@ -197,14 +197,15 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
     if (quelle === "nachzahlung") {
       return eigentuemer
         .map((e) => ({ e, v: zahl(nzWerte[e.assignmentId] ?? "") }))
-        .filter(({ e, v }) => Number.isFinite(v) && v >= 0.01 && mandatBereit(e.mandat))
+        // Plus = Einzug (braucht Mandat), Minus = Überweisung an den Eigentümer
+        .filter(({ v }) => Number.isFinite(v) && Math.abs(v) >= 0.01)
         .map(({ e, v }) => ({
           name: e.name,
-          iban: e.mandat?.iban ?? e.iban,
-          betrag: v,
+          iban: v > 0 ? e.mandat?.iban ?? e.iban : cleanIban(e.iban ?? ""),
+          betrag: Math.abs(v),
           zweck: zweckFuellen(zweck || NZ_STANDARD, e, zweckMonat),
           e,
-          art: "einzug" as const,
+          art: v > 0 ? ("einzug" as const) : ("ueberweisung" as const),
         }));
     }
     if (quelle === "abrechnung") {
@@ -239,7 +240,7 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
       if (p.art === "ueberweisung" && !ibanGueltig(p.iban)) return `IBAN bei ${p.name} fehlt oder ist falsch.`;
       if (p.art === "einzug" && !mandatBereit(p.e?.mandat)) return `Für ${p.name} gibt es kein vollständiges Mandat.`;
     }
-    if (art === "einzug" && faellig < fruehesterEinzug()) return `Einzug frühestens am ${fruehesterEinzug().split("-").reverse().join(".")}.`;
+    if (art === "einzug" && posten.some((p) => p.art === "einzug") && faellig < fruehesterEinzug()) return `Einzug frühestens am ${fruehesterEinzug().split("-").reverse().join(".")}.`;
     if (art === "dauerlastschrift" && !erster) return "Bitte den ersten Einzug angeben.";
     if (quelle === "abrechnung" && !/^\d{4}$/.test(spitzenJahr)) return "Bitte das Abrechnungsjahr angeben.";
     const zuLang = posten.find((p) => (p.zweck || "").length > 140);
@@ -256,7 +257,7 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
     setSpeichert(true);
     try {
       const gruppen: { art: AuftragsArt; liste: typeof posten }[] =
-        quelle === "abrechnung"
+        quelle === "abrechnung" || quelle === "nachzahlung"
           ? [
               { art: "einzug" as AuftragsArt, liste: posten.filter((p) => p.art === "einzug") },
               { art: "ueberweisung" as AuftragsArt, liste: posten.filter((p) => p.art === "ueberweisung") },
@@ -270,7 +271,7 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
             : quelle === "abrechnung"
               ? (g.art === "einzug" ? `Abrechnungsspitze ${spitzenJahr} – Nachzahlungen` : `Abrechnungsspitze ${spitzenJahr} – Guthaben`)
               : quelle === "nachzahlung"
-                ? "Sammeleinzug"
+                ? (g.art === "einzug" ? "Sammelauftrag – Einzüge" : "Sammelauftrag – Überweisungen")
                 : g.art === "einzug" ? "Einzug" : "Überweisung";
         const { data: auftrag, error } = await (supabase as any)
           .from("payment_orders")
@@ -445,7 +446,7 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
                   {(
                     [
                       ["fest", "Fester Betrag"],
-                      ...(art === "einzug" ? [["nachzahlung", "Sammeleinzug"]] : []),
+                      ...(art === "einzug" ? [["nachzahlung", "Sammelauftrag"]] : []),
                       ["abrechnung", "Abrechnungsspitze"],
                     ] as [Betragsquelle, string][]
                   ).map(([w, t]) => (
@@ -568,16 +569,19 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
               </div>
             )}
 
-            {/* Sammeleinzug: einmalig, Betrag je Eigentümer */}
+            {/* Sammelauftrag: einmalig, Betrag je Eigentümer (Minus = Überweisung) */}
             {quelle === "nachzahlung" && (
               <div className="space-y-3">
-                <p className="text-sm text-muted-foreground">Einmaliger Einzug – bei jedem Eigentümer den Betrag eintragen. Leer oder 0 = kein Einzug.</p>
+                <p className="text-sm text-muted-foreground">Einmalig – bei jedem Eigentümer den Betrag eintragen. Positiver Betrag = Einzug, mit Minus davor (z. B. -50) = Überweisung an den Eigentümer. Leer oder 0 = nichts.</p>
                 <div className="divide-y rounded-xl border">
                   {eigentuemer.map((e) => {
                     const ok = mandatBereit(e.mandat);
                     const v = zahl(nzWerte[e.assignmentId] ?? "");
+                    const raus = Number.isFinite(v) && v <= -0.01;
+                    const ibanOk = ibanGueltig(cleanIban(e.iban ?? ""));
+                    const problem = raus ? (!ibanOk ? "Keine IBAN für die Überweisung hinterlegt" : null) : Number.isFinite(v) && v >= 0.01 && !ok ? "Kein Mandat – Einzug nicht möglich" : null;
                     return (
-                      <div key={e.assignmentId} className={cn("flex flex-wrap items-center gap-3 px-3 py-2.5", !ok && "opacity-60")}>
+                      <div key={e.assignmentId} className="flex flex-wrap items-center gap-3 px-3 py-2.5">
                         <Avatar name={e.name} />
                         <div className="min-w-0 flex-1">
                           <div className="truncate font-medium">{e.name}</div>
@@ -585,15 +589,20 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
                             {e.einheit && <span>Einheit {e.einheit}{e.lage ? ` · ${e.lage}` : ""}</span>}
                             <MandatChip e={e} />
                           </div>
-                          {ok && Number.isFinite(v) && v >= 0.01 && (
-                            <div className="mt-1 truncate font-mono text-[11px] text-muted-foreground">{zweckFuellen(zweck || NZ_STANDARD, e, zweckMonat)}</div>
+                          {Number.isFinite(v) && Math.abs(v) >= 0.01 && !problem && (
+                            <div className="mt-1 truncate text-[11px] text-muted-foreground">
+                              <span className={cn("mr-1.5 rounded px-1.5 py-0.5 font-medium", raus ? "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200" : "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200")}>
+                                {raus ? "Überweisung" : "Einzug"}
+                              </span>
+                              <span className="font-mono">{zweckFuellen(zweck || NZ_STANDARD, e, zweckMonat)}</span>
+                            </div>
                           )}
+                          {problem && <div className="mt-1 text-[11px] font-medium text-destructive">{problem}</div>}
                         </div>
                         <div className="relative w-32">
                           <Input
                             inputMode="decimal"
                             placeholder="0,00"
-                            disabled={!ok}
                             value={nzWerte[e.assignmentId] ?? ""}
                             onChange={(ev) => setNzWerte((x) => ({ ...x, [e.assignmentId]: ev.target.value }))}
                             className="h-10 pr-7 text-right tabular-nums"
