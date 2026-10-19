@@ -182,11 +182,19 @@ async function dialogOeffnen(config: any) {
   const fehlerText = (a: Antwort[]) =>
     a.filter((x) => x.code >= 9000 && x.code !== 9050 && x.code !== 9800).map((x) => x.text).join(" · ");
 
+  // Bisherige Kontodaten merken: Schickt die Bank bei der Anmeldung neue
+  // Benutzerdaten (Code 3050 „UPD nicht mehr aktuell“), baut lib-fints die
+  // Kontenliste neu – ohne BIC. Die BIC käme sonst erst über eine weitere
+  // Abfrage (HKSPA), die hier nicht läuft. Ohne BIC fehlt im Auftrag ein
+  // Pflichtfeld, und die Bank lehnt ihn erst NACH der Freigabe ab (9160).
+  const kontenVorher: any[] = [...(config.bankingInformation?.upd?.bankAccounts ?? [])];
+
   // 1) Dialog eröffnen (wie lib-fints selbst)
   {
     const nachricht = dialog.createCurrentCustomerMessage();
     const antwort = await dialog.httpClient.sendMessage(nachricht);
     const r = dialog.currentInteraction.handleClientResponse(antwort);
+    kontenErgaenzen(config, kontenVorher);
     dialog.dialogId = r.dialogId;
     const a: Antwort[] = antwort.getBankAnswers();
     antworten.push(...a.map((x) => ({ code: x.code, text: x.text, bezug: "Anmeldung" })));
@@ -293,7 +301,7 @@ export async function sammelueberweisung(o: Optionen): Promise<ZahlungErgebnis> 
   const version = lastschrift ? Math.min(2, config.getMaxSupportedTransactionVersion("HKDME") ?? 1) : 1;
   const hkccm = {
     header: { segId: AUFTRAG, segNr: 0, version },
-    account: internationalAccount(config, config.getBankAccount(o.konto)),
+    account: konto,
     sum: { value: o.summe, currency: "EUR" },
     singleBooking: true,
     sepaDescriptor: lastschrift ? PAIN008 : PAIN001,
@@ -446,7 +454,13 @@ export async function einzellastschriften(o: {
   if ("fehler" in d) return { status: "fehler", fehler: d.fehler, ergebnisse, antworten: d.antworten };
   const { senden, beenden, antworten, fehlerText } = d;
   const version = Math.min(2, config.getMaxSupportedTransactionVersion("HKDSE") ?? 1);
-  const account = internationalAccount(config, config.getBankAccount(o.konto));
+  let account: any;
+  try {
+    account = auftragskonto(config, o.konto);
+  } catch (e) {
+    await beenden();
+    return { status: "fehler", fehler: (e as Error).message, ergebnisse, antworten };
+  }
   const hktan = (prozess: "4" | "S", ref?: string) => ({
     header: { segId: "HKTAN", segNr: 0, version: tm.version },
     tanProcess: prozess,
@@ -535,6 +549,27 @@ export async function einzellastschriften(o: {
   } finally {
     await beenden();
   }
+}
+
+/** Fehlende BIC/SEPA-Angaben der (neuen) Kontenliste aus der alten ergänzen. */
+function kontenErgaenzen(config: any, vorher: any[]) {
+  const konten: any[] = config.bankingInformation?.upd?.bankAccounts ?? [];
+  const norm = (x?: string) => (x ?? "").replace(/\s/g, "").toUpperCase();
+  for (const k of konten) {
+    const alt = vorher.find((v) => (k.iban && norm(v.iban) === norm(k.iban)) || (!k.iban && v.accountNumber === k.accountNumber));
+    if (!alt) continue;
+    if (!k.bic && alt.bic) k.bic = alt.bic;
+    if (k.isSepaAccount === undefined && alt.isSepaAccount !== undefined) k.isSepaAccount = alt.isSepaAccount;
+  }
+}
+
+/** Auftragskonto im internationalen Format – ohne BIC gibt es keinen Auftrag. */
+function auftragskonto(config: any, konto: string) {
+  const a = internationalAccount(config, config.getBankAccount(konto));
+  if (a.iban && !a.bic) {
+    throw new Error("Für dieses Konto fehlt die BIC. Bitte einmal „Jetzt abrufen“ ausführen und dann erneut senden.");
+  }
+  return a;
 }
 
 function tanMedium(config: any): string | undefined {

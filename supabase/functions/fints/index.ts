@@ -731,6 +731,16 @@ async function kontoSetzen(admin: any, id: string, body: any) {
  * das Ergebnis zurück (Status „pruefung") und der Mensch entscheidet. Erst
  * mit der Freigabe in der Banking-App geht das Geld raus.
  */
+/** Neue Benutzer-/Bankdaten (z. B. nach 3050) speichern, damit sie beim nächsten Mal passen. */
+async function bankdatenMerken(admin: any, zugangId: string, config: any) {
+  try {
+    if (!config?.bankingInformation?.upd) return;
+    await admin.from("bank_connections").update({ banking_information: config.bankingInformation }).eq("id", zugangId);
+  } catch (_) {
+    // nur Komfort – der Versand selbst ist davon unabhängig
+  }
+}
+
 async function zahlungSenden(admin: any, runId: string, akzeptiert: Record<string, string> | null, userId: string | null) {
   // Sperre gegen doppelten Versand: nur aus „pruefung" oder „fehler" heraus
   const { data: lauf } = await admin
@@ -849,6 +859,7 @@ async function zahlungSenden(admin: any, runId: string, akzeptiert: Record<strin
       bis: START + GESAMT_MS,
       warteAufFreigabeMs: TAN_WARTEZEIT_MS,
     });
+    await bankdatenMerken(admin, zugang.id, config);
 
     const felder: Record<string, unknown> = {
       connection_id: zugang.id,
@@ -907,6 +918,7 @@ async function einzelnSenden(admin: any, x: any) {
         await admin.from("payment_run_items").update({ einzel_status: status, einzel_gesendet_am: status === "gesendet" ? new Date().toISOString() : null }).eq("id", id);
       },
     });
+    await bankdatenMerken(admin, x.zugangId, x.config);
   }
 
   const { data: stand } = await admin.from("payment_run_items").select("empfaenger, einzel_status").eq("run_id", x.runId);

@@ -105,10 +105,12 @@ async function ladeVerplant(itemIds: string[]): Promise<Map<string, Set<string>>
   for (let i = 0; i < itemIds.length; i += 100) {
     const { data } = await (supabase as any)
       .from("payment_run_items")
-      .select("order_item_id, run:payment_runs!inner(status, faellig_am, ausfuehrung_am)")
-      .in("order_item_id", itemIds.slice(i, i + 100))
-      .not("run.status", "in", "(abgebrochen,fehler)");
+      .select("order_item_id, einzel_status, run:payment_runs!inner(status, faellig_am, ausfuehrung_am)")
+      .in("order_item_id", itemIds.slice(i, i + 100));
     (data ?? []).forEach((r: any) => {
+      // Abgebrochene/fehlerhafte Läufe geben den Posten wieder frei – außer er
+      // ist einzeln schon gesendet oder ungeklärt (sonst droht doppelter Einzug).
+      if (["abgebrochen", "fehler"].includes(r.run?.status) && !r.einzel_status) return;
       const s = m.get(r.order_item_id) ?? new Set<string>();
       s.add(r.run?.faellig_am ?? r.run?.ausfuehrung_am ?? "*");
       m.set(r.order_item_id, s);
