@@ -24,7 +24,12 @@ function generateFriendlyPassword(): string {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if (req.method === "OPTIONS") {
+    // alle vom Browser angefragten Header erlauben (neuere Supabase-Versionen schicken zusätzliche)
+    return new Response(null, {
+      headers: { ...corsHeaders, "Access-Control-Allow-Headers": req.headers.get("access-control-request-headers") ?? corsHeaders["Access-Control-Allow-Headers"], "Access-Control-Allow-Methods": "POST, OPTIONS" },
+    });
+  }
 
   try {
     const authHeader = req.headers.get("Authorization");
@@ -32,16 +37,13 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-
-    // Verify caller is admin/employee
-    const userClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: userRes, error: userErr } = await userClient.auth.getUser();
-    if (userErr || !userRes.user) return json({ error: "Unauthorized" }, 401);
-
-    const admin = createClient(supabaseUrl, serviceKey);
+    // Aufrufer prüfen (mit dem Dienst-Schlüssel – der öffentliche Schlüssel passt nicht immer zum Login)
+    const admin = createClient(supabaseUrl, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
+    const { data: userRes, error: userErr } = await admin.auth.getUser(authHeader.slice(7));
+    if (userErr || !userRes.user) {
+      console.error("getUser failed", userErr?.message);
+      return json({ error: "Bitte neu anmelden und nochmal versuchen" }, 401);
+    }
     const { data: hasAccess } = await admin.rpc("rgi_is_admin", { _user_id: userRes.user.id });
     if (!hasAccess) return json({ error: "Forbidden" }, 403);
 
@@ -72,7 +74,7 @@ Deno.serve(async (req) => {
       const { data: p } = await admin.from("profiles").select("email, username, first_name, last_name").eq("user_id", target_user_id).maybeSingle();
       const anmeldung = p?.email && !String(p.email).toLowerCase().endsWith("@users.rgi-immobilien.app") ? p.email : p?.username || p?.email;
       const mail = willkommenWeg({ firstName: p?.first_name, lastName: p?.last_name, email: String(anmeldung ?? ""), password, neu: true });
-      const res = await sendSystemMail(admin, { kind: "willkommen_weg", to: empfaenger, subject: "Ihre neuen Zugangsdaten - RGI Verwaltungs-App", html: mail.html, refType: "user", refId: target_user_id });
+      const res = await sendSystemMail(admin, { kind: "willkommen_weg", to: empfaenger, subject: "Ihre neuen Zugangsdaten - RGI Verwaltungs-App", html: mail.html, refType: "user", refId: target_user_id, geheim: [password] });
       if (!res.ok) return json({ error: `Passwort neu gesetzt, aber die E-Mail ging nicht raus: ${res.error}` }, 500);
       return json({ success: true, sent_to: empfaenger });
     }

@@ -91,10 +91,15 @@ export function ZugangsdatenSenden({
       const { data, error } = await supabase.functions.invoke("admin-reset-password", {
         body: { target_user_id: person.userId, force_change: true, send_to_email: ziel },
       });
-      if (error) throw new Error((data as any)?.error || error.message);
+      if (error) {
+        let text = (data as any)?.error as string | undefined;
+        try { text = text || (await (error as any).context?.json?.())?.error; } catch { /* egal */ }
+        throw new Error(text || error.message);
+      }
       if ((data as any)?.error) throw new Error((data as any).error);
       toast.success(`Neue Zugangsdaten an ${ziel} geschickt`);
       qc.invalidateQueries({ queryKey: ["system-mail-protokoll"] });
+      qc.invalidateQueries({ queryKey: ["benachrichtigungen-protokoll"] });
       onOffen(false);
     } catch (e: any) {
       toast.error(e?.message || "Zugangsdaten konnten nicht geschickt werden");
@@ -171,7 +176,7 @@ export function ZugangsdatenSenden({
               </fieldset>
 
               <p className="text-xs leading-relaxed text-muted-foreground">
-                Das bisherige Passwort gilt danach nicht mehr. Beim ersten Anmelden legt der Eigentümer ein eigenes Passwort fest. Die E-Mail erscheint danach unter „Weitere automatische Mails“.
+                Das bisherige Passwort gilt danach nicht mehr. Beim ersten Anmelden legt der Eigentümer ein eigenes Passwort fest. Die E-Mail erscheint danach in der Liste – das Passwort ist dort unkenntlich gemacht.
               </p>
             </>
           )}

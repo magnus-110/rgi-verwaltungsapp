@@ -21,6 +21,8 @@ export interface SystemMail {
   attachments?: SystemMailAttachment[];
   refType?: string;
   refId?: string | null;
+  /** Werte (z. B. Passwörter), die im gespeicherten Inhalt unkenntlich gemacht werden */
+  geheim?: string[];
 }
 
 const FALLBACK_ADDRESS = "info@rgi-immobilien.de";
@@ -106,6 +108,7 @@ export async function sendSystemMail(admin: any, mail: SystemMail): Promise<{ ok
       error: error ?? null,
       ref_type: mail.refType ?? null,
       ref_id: mail.refId ?? null,
+      html: (mail.geheim ?? []).filter(Boolean).reduce((h, g) => h.split(g).join("••••••••"), mail.html),
     });
   } catch {
     // Protokoll ist nur Beiwerk.

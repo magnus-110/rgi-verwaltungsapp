@@ -32,7 +32,7 @@ async function sendToMakeWebhook(data: any) {
     auth: { autoRefreshToken: false, persistSession: false },
   })
   const mail = willkommenWeg({ firstName: data.first_name, lastName: data.last_name, email: data.email, password: data.password })
-  const res = await sendSystemMail(admin, { kind: 'willkommen_weg', to: data.email, subject: mail.subject, html: mail.html, refType: 'user' })
+  const res = await sendSystemMail(admin, { kind: 'willkommen_weg', to: data.email, subject: mail.subject, html: mail.html, refType: 'user', refId: data.user_id ?? null, geheim: [data.password] })
   return res.ok ? { success: true } : { success: false, error: res.error }
 }
 
@@ -349,6 +349,7 @@ Deno.serve(async (req) => {
     if (send_email && password) {
       await sendToMakeWebhook({
         event: "user_created",
+        user_id: authUserId,
         email,
         password,
         first_name: contact.first_name || "",

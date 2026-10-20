@@ -738,7 +738,9 @@ async function kalender(db: Db, meetingId: string, token: string) {
 
 // ───────────────────────── Einstieg ─────────────────────────
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: { ...cors, "Access-Control-Allow-Headers": req.headers.get("access-control-request-headers") ?? cors["Access-Control-Allow-Headers"], "Access-Control-Allow-Methods": "GET, POST, OPTIONS" } });
+  }
   const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   const url = new URL(req.url);
 

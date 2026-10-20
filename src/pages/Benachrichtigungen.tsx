@@ -25,7 +25,11 @@ const ART: Record<string, string> = {
   lastschrift: "Lastschrift-Ankündigung",
   hausgeld: "Hausgeld ändert sich",
   angebot: "Neues Angebot",
+  zugangsdaten: "Zugangsdaten",
+  passwort_link: "Passwort-Link",
 };
+// Mails, die nicht vom Benachrichtigungs-Dienst kommen, aber trotzdem automatisch an Eigentümer gehen
+const KONTO: Record<string, string> = { willkommen_weg: "zugangsdaten", passwort_link: "passwort_link" };
 const SYSTEM: Record<string, string> = {
   willkommen_weg: "Zugangsdaten",
   passwort_link: "Passwort-Link",
@@ -88,13 +92,33 @@ export default function Benachrichtigungen() {
         .order("created_at", { ascending: false })
         .limit(1000);
       if (error) throw error;
-      const ids = [...new Set((data ?? []).map((z: any) => z.user_id))];
+      const { data: konto } = await (supabase as any)
+        .from("system_mail_log")
+        .select("id, kind, recipient, subject, status, error, created_at, ref_id, html")
+        .in("kind", Object.keys(KONTO))
+        .order("created_at", { ascending: false })
+        .limit(500);
+      const kontoZeilen = (konto ?? []).map((k: any) => ({
+        id: `s-${k.id}`,
+        user_id: k.ref_id,
+        art: KONTO[k.kind],
+        status: k.status,
+        fehler: k.error,
+        empfaenger: k.recipient,
+        betreff: k.subject,
+        gesendet_am: k.status === "gesendet" ? k.created_at : null,
+        created_at: k.created_at,
+        html: k.html,
+      }));
+      const ids = [...new Set([...(data ?? []), ...kontoZeilen].map((z: any) => z.user_id).filter(Boolean))];
       const namen = new Map<string, any>();
       for (let i = 0; i < ids.length; i += 200) {
         const { data: p } = await supabase.from("profiles").select("user_id, first_name, last_name, email").in("user_id", ids.slice(i, i + 200) as string[]);
         (p ?? []).forEach((x: any) => namen.set(x.user_id, x));
       }
-      return (data ?? []).map((z: any) => {
+      return [...(data ?? []), ...kontoZeilen]
+        .sort((a: any, b: any) => String(b.created_at).localeCompare(String(a.created_at)))
+        .map((z: any) => {
         const p = namen.get(z.user_id);
         return { ...z, name: [p?.first_name, p?.last_name].filter(Boolean).join(" ") || "Eigentümer", email: z.empfaenger ?? p?.email ?? "" };
       });
@@ -108,7 +132,7 @@ export default function Benachrichtigungen() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("system_mail_log")
-        .select("id, kind, recipient, subject, status, error, created_at, ref_id")
+        .select("id, kind, recipient, subject, status, error, created_at, ref_id, html")
         .not("kind", "like", "benachrichtigung_%")
         .order("created_at", { ascending: false })
         .limit(500);
@@ -350,6 +374,15 @@ export default function Benachrichtigungen() {
                   {z.error && <div className="text-xs text-red-700 dark:text-red-400">{z.error}</div>}
                 </div>
                 {chip({ status: z.status })}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9"
+                  disabled={!z.html}
+                  onClick={() => setAnsicht({ betreff: z.subject, name: SYSTEM[z.kind] ?? z.kind, email: z.recipient, gesendet_am: z.created_at, html: z.html })}
+                >
+                  <Eye className="mr-1.5 h-4 w-4" /> Ansehen
+                </Button>
               </div>
             ))
           )}
@@ -363,7 +396,7 @@ export default function Benachrichtigungen() {
           <SheetHeader className="border-b px-5 py-4 text-left">
             <SheetTitle>{ansicht?.betreff}</SheetTitle>
             <SheetDescription>
-              An {ansicht?.name} ({ansicht?.email}) · {ansicht?.gesendet_am ? format(new Date(ansicht.gesendet_am), "dd.MM.yyyy, HH:mm 'Uhr'") : ""}
+              An {ansicht?.name}{ansicht?.email ? ` (${ansicht.email})` : ""} · {ansicht?.gesendet_am ? format(new Date(ansicht.gesendet_am), "dd.MM.yyyy, HH:mm 'Uhr'") : ""}
             </SheetDescription>
           </SheetHeader>
           {ansicht?.html && <iframe title="Vorschau der E-Mail" srcDoc={ansicht.html} sandbox="" className="h-[calc(100vh-96px)] w-full border-0 bg-[#F6F2ED]" />}
