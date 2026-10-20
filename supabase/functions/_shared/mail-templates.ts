@@ -83,18 +83,24 @@ export function willkommenWeg(d: { firstName?: string | null; lastName?: string 
     subject: "Ihre Zugangsdaten - RGI Verwaltungs-App",
     html: layout({
       title: "Ihre Zugangsdaten – RGI Verwaltungs-App",
-      preheader: "Nutzen Sie jetzt die RGI Verwaltungs-App für Meldungen, Dokumente und Fragen.",
+      preheader: "Meldungen, Dokumente, Versammlungen und mehr – alles zu Ihrer Eigentümergemeinschaft in einer App.",
       body:
-        p(`Hallo${n ? " " + esc(n) : ""}, ab sofort haben Sie Zugriff auf die RGI Verwaltungs-App. Erstellen Sie Meldungen, sehen Sie Ihre Dokumente ein und stellen Sie Fragen – alles an einem Ort.`) +
+        p(`Hallo${n ? " " + esc(n) : ""}, ab sofort haben Sie Zugriff auf die RGI Verwaltungs-App. Dort finden Sie alles rund um Ihre Eigentümergemeinschaft an einem Ort – am Computer und auf dem Smartphone.`) +
         infoBox("Ihre Zugangsdaten", [[d.email.includes("@") ? "E-Mail" : "Benutzername", d.email], ["Passwort", d.password]], d.neu ? "Das bisherige Passwort gilt nicht mehr. Beim ersten Anmelden legen Sie ein eigenes Passwort fest." : "Bitte ändern Sie Ihr Passwort nach dem ersten Login unter <em>Einstellungen</em>.") +
         button("Jetzt zur App", APP_URL) +
         `<p style="margin:24px 0 0 0;font-family:'Century Gothic',Arial,sans-serif;font-size:17px;color:#2F2F2F;font-weight:bold;">Was Sie in der App machen können</p>` +
         list([
-          "<strong>Meldungen</strong> – z. B. defekte Heizung, Schäden im Treppenhaus, Lichtprobleme",
-          "<strong>Dokumente</strong> – Unterlagen Ihrer Gemeinschaft und persönliche Dokumente jederzeit griffbereit",
-          "<strong>Fragen</strong> – sofortige Antworten zu Ihren Unterlagen",
-          "<strong>Schwarzes Brett</strong> – Hinweise zur Hausgemeinschaft und Termine",
-        ]),
+          "<strong>Meldungen</strong> – Schäden oder Probleme mit Foto melden und den Stand jederzeit verfolgen",
+          "<strong>Dokumente</strong> – Unterlagen Ihrer Gemeinschaft und Ihre persönlichen Dokumente, z. B. Abrechnungen und Wirtschaftspläne",
+          "<strong>Versammlungen</strong> – Einladungen, Tagesordnung und Unterlagen zur Eigentümerversammlung",
+          "<strong>Beschlüsse</strong> – alle Beschlüsse Ihrer Gemeinschaft zum Nachlesen",
+          "<strong>Terminabfragen &amp; Umfragen</strong> – bequem online abstimmen",
+          "<strong>Fragen</strong> – sofortige Antworten aus den Unterlagen Ihres Hauses",
+          "<strong>Schwarzes Brett</strong> – Aushänge und Neuigkeiten zur Hausgemeinschaft",
+          "<strong>Nebenkostenabrechnung für Mieter</strong> – Hilfe, wenn Sie Ihre Wohnung vermieten",
+          "<strong>Immobilien von RGI</strong> – aktuelle Angebote und Ihre Suchaufträge",
+        ]) +
+        p("Bei Neuigkeiten – z. B. einer Antwort auf Ihre Meldung, neuen Dokumenten oder einer Einladung – bekommen Sie automatisch eine E-Mail. Was Sie bekommen möchten, stellen Sie in der App unter <em>Einstellungen › Benachrichtigungen</em> ein.", "font-size:14px;color:#4B5563;"),
     }),
   };
 }
