@@ -19,7 +19,7 @@ import {
   StickyNote,
   Users,
   Wallet,
-  Workflow, ReceiptText, ClipboardList, LayoutDashboard, SlidersHorizontal, Search } from 'lucide-react';
+  Workflow, ReceiptText, ClipboardList, LayoutDashboard, SlidersHorizontal, Search, Send } from 'lucide-react';
 
 /**
  * Die Navigation — an einer Stelle.
@@ -80,6 +80,7 @@ export const adminMenu: MenuItem[] = [
 
   { title: 'Versammlungen', url: '/versammlungen', icon: Users, abschnitt: 'Eigentümer', modus: 'weg' },
   { title: 'Umfragen', url: '/umfragen', icon: ListChecks, abschnitt: 'Eigentümer', modus: 'weg' },
+  { title: 'Benachrichtigungen', url: '/benachrichtigungen', icon: Send, abschnitt: 'Eigentümer', modus: 'weg' },
 
   { title: 'RGI Intern', url: '/rgi-intern', icon: Briefcase, adminOnly: true, abschnitt: 'Intern' },
   { title: 'Einstellungen', url: '/settings', icon: Settings, abschnitt: 'Intern' },

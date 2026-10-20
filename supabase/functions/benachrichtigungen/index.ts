@@ -600,7 +600,20 @@ function baueMail(art: string, d: any, anrede: string, token: string): Mail | nu
 }
 
 // ───────────────────────── 3. Senden ─────────────────────────
+/** Für schon versandte Mails ohne gespeicherten Inhalt den Inhalt nachtragen (zum Nachlesen). */
+async function inhaltNachtragen(db: Db) {
+  const { data } = await db.from("benachrichtigungen").select("*").eq("status", "gesendet").is("html", null).limit(50);
+  for (const z of data ?? []) {
+    const { data: p } = await db.from("profiles").select("email, first_name, last_name").eq("user_id", z.user_id).maybeSingle();
+    const { data: k } = await db.from("contacts").select("salutation, first_name, last_name").eq("user_id", z.user_id).limit(1).maybeSingle();
+    const { data: e } = await db.from("owner_portal_einstellungen").select("abmelde_token").eq("user_id", z.user_id).maybeSingle();
+    const mail = baueMail(z.art, z.daten ?? {}, anredeText(k?.salutation, k?.last_name ?? p?.last_name, k?.first_name ?? p?.first_name), e?.abmelde_token ?? "");
+    if (mail) await db.from("benachrichtigungen").update({ empfaenger: p?.email ?? null, betreff: mail.subject, html: mail.html }).eq("id", z.id);
+  }
+}
+
 async function senden(db: Db) {
+  await inhaltNachtragen(db);
   const jetzt = berlin();
   if (jetzt.stunde >= 21 || jetzt.stunde < 7) return { gesendet: 0, grund: "Nachtruhe" };
   const { data: offen } = await db
@@ -654,6 +667,7 @@ async function senden(db: Db) {
         await fertig("uebersprungen", "nichts zu melden");
         continue;
       }
+      await db.from("benachrichtigungen").update({ empfaenger: email, betreff: mail.subject, html: mail.html }).eq("id", z.id);
       const r = await sendSystemMail(db, { kind: `benachrichtigung_${z.art}`, to: email, subject: mail.subject, html: mail.html, refType: "benachrichtigung", refId: z.id });
       if (r.ok) {
         await fertig("gesendet");
