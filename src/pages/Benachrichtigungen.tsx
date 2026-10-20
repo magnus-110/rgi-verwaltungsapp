@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { AlertCircle, CheckCircle2, Clock, Eye, Loader2, MinusCircle, RefreshCw, Search } from "lucide-react";
+import { AlertCircle, CheckCircle2, Clock, Eye, KeyRound, Loader2, MinusCircle, RefreshCw, Search } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { useManagementMode } from "@/hooks/useManagementMode";
+import { ZugangsdatenSenden } from "@/components/benachrichtigungen/ZugangsdatenSenden";
 
 const ART: Record<string, string> = {
   meldung_antwort: "Antwort auf Meldung",
@@ -53,6 +55,29 @@ export default function Benachrichtigungen() {
   const [suche, setSuche] = useState("");
   const [ansicht, setAnsicht] = useState<any | null>(null);
   const [prueft, setPrueft] = useState(false);
+  const [gebaeude, setGebaeude] = useState("alle");
+  const [zugang, setZugang] = useState(false);
+  const { managementMode } = useManagementMode();
+
+  // Gebäude und wer dort Eigentümer mit App-Zugang ist
+  const { data: haeuser = { liste: [] as { id: string; name: string }[], zuordnung: new Map<string, Set<string>>() } } = useQuery({
+    queryKey: ["benachrichtigungen-gebaeude", managementMode],
+    queryFn: async () => {
+      const [{ data: b }, { data: wob }] = await Promise.all([
+        supabase.from("buildings").select("id, name, management_mode").order("name"),
+        (supabase as any).from("weg_owner_buildings").select("user_id, building_id"),
+      ]);
+      const zuordnung = new Map<string, Set<string>>();
+      (wob ?? []).forEach((r: any) => {
+        const s = zuordnung.get(r.building_id) ?? new Set<string>();
+        s.add(r.user_id);
+        zuordnung.set(r.building_id, s);
+      });
+      const liste = (b ?? []).filter((x: any) => (x.management_mode ?? "weg") === managementMode).map((x: any) => ({ id: x.id, name: x.name }));
+      return { liste, zuordnung };
+    },
+  });
+  const imGebaeude = (uid: string | null | undefined) => gebaeude === "alle" || (!!uid && !!haeuser.zuordnung.get(gebaeude)?.has(uid));
 
   const { data: zeilen = [], isLoading } = useQuery({
     queryKey: ["benachrichtigungen-protokoll"],
@@ -83,7 +108,7 @@ export default function Benachrichtigungen() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("system_mail_log")
-        .select("id, kind, recipient, subject, status, error, created_at")
+        .select("id, kind, recipient, subject, status, error, created_at, ref_id")
         .not("kind", "like", "benachrichtigung_%")
         .order("created_at", { ascending: false })
         .limit(500);
@@ -93,18 +118,24 @@ export default function Benachrichtigungen() {
   });
 
   const heute = new Date().toISOString().slice(0, 10);
+  const alleZeilen = zeilen;
   const zahlen = useMemo(
-    () => ({
+    () => {
+      const zeilen = alleZeilen.filter((z: any) => imGebaeude(z.user_id));
+      return {
       heute: zeilen.filter((z: any) => z.status === "gesendet" && (z.gesendet_am ?? "").slice(0, 10) === heute).length,
       geplant: zeilen.filter((z: any) => z.status === "offen").length,
       fehler: zeilen.filter((z: any) => z.status === "fehler").length,
-    }),
-    [zeilen, heute],
+      };
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [alleZeilen, heute, gebaeude, haeuser],
   );
 
   const q = suche.trim().toLowerCase();
   const liste = zeilen.filter(
     (z: any) =>
+      imGebaeude(z.user_id) &&
       (art === "alle" || z.art === art) &&
       (status === "alle" || z.status === status) &&
       (!q || [z.name, z.email, z.betreff, ART[z.art]].some((t) => String(t ?? "").toLowerCase().includes(q))),
@@ -169,9 +200,14 @@ export default function Benachrichtigungen() {
           <h1 className="text-2xl font-bold md:text-3xl">Benachrichtigungen</h1>
           <p className="mt-1.5 text-sm text-muted-foreground md:text-base">Alle automatischen E-Mails an Eigentümer – was wann an wen ging, mit Vorschau.</p>
         </div>
-        <Button variant="outline" className="h-11" onClick={jetztPruefen} disabled={prueft}>
-          {prueft ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />} Jetzt prüfen
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" className="h-11" onClick={jetztPruefen} disabled={prueft}>
+            {prueft ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />} Jetzt prüfen
+          </Button>
+          <Button className="h-11" onClick={() => setZugang(true)}>
+            <KeyRound className="mr-2 h-4 w-4" /> Zugangsdaten senden
+          </Button>
+        </div>
       </header>
 
       <div className="grid grid-cols-3 gap-3">
@@ -203,6 +239,19 @@ export default function Benachrichtigungen() {
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input value={suche} onChange={(e) => setSuche(e.target.value)} placeholder="Name, E-Mail oder Betreff …" className="h-11 pl-9" aria-label="Suchen" />
             </div>
+            <Select value={gebaeude} onValueChange={setGebaeude}>
+              <SelectTrigger className="h-11 w-56" aria-label="Gebäude">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="alle">Alle Gebäude</SelectItem>
+                {haeuser.liste.map((g) => (
+                  <SelectItem key={g.id} value={g.id}>
+                    {g.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select value={art} onValueChange={setArt}>
               <SelectTrigger className="h-11 w-56" aria-label="Art">
                 <SelectValue />
@@ -265,15 +314,32 @@ export default function Benachrichtigungen() {
       )}
 
       {reiter === "system" && (
+        <div className="flex flex-wrap gap-3">
+          <Select value={gebaeude} onValueChange={setGebaeude}>
+            <SelectTrigger className="h-11 w-56" aria-label="Gebäude">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="alle">Alle Gebäude</SelectItem>
+              {haeuser.liste.map((g) => (
+                <SelectItem key={g.id} value={g.id}>
+                  {g.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+      {reiter === "system" && (
         <section className="overflow-hidden rounded-xl border bg-card">
           {laedtSystem ? (
             <div className="flex justify-center py-12">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
-          ) : !system.length ? (
+          ) : !system.filter((z: any) => gebaeude === "alle" || imGebaeude(z.ref_id)).length ? (
             <div className="px-4 py-12 text-center text-sm text-muted-foreground">Keine weiteren automatischen E-Mails.</div>
           ) : (
-            system.map((z: any) => (
+            system.filter((z: any) => gebaeude === "alle" || imGebaeude(z.ref_id)).map((z: any) => (
               <div key={z.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b px-4 py-3 last:border-0">
                 <div className="w-28 shrink-0 text-xs tabular-nums text-muted-foreground">{format(new Date(z.created_at), "dd.MM.yy HH:mm")}</div>
                 <div className="min-w-[220px] flex-1">
@@ -289,6 +355,8 @@ export default function Benachrichtigungen() {
           )}
         </section>
       )}
+
+      <ZugangsdatenSenden offen={zugang} onOffen={setZugang} gebaeude={haeuser.liste} startGebaeude={gebaeude} />
 
       <Sheet open={!!ansicht} onOpenChange={(o) => !o && setAnsicht(null)}>
         <SheetContent side="right" className="w-full p-0 sm:max-w-[720px]">

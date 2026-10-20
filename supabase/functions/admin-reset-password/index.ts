@@ -1,6 +1,8 @@
 // Admin-only: set a (possibly newly generated) initial password for a user.
 // Sets profiles.must_change_password = true so the user is forced to change on next login.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.1";
+import { sendSystemMail } from "../_shared/system-mail.ts";
+import { willkommenWeg } from "../_shared/mail-templates.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -43,7 +45,9 @@ Deno.serve(async (req) => {
     const { data: hasAccess } = await admin.rpc("rgi_is_admin", { _user_id: userRes.user.id });
     if (!hasAccess) return json({ error: "Forbidden" }, 403);
 
-    const { target_user_id, new_password, force_change = true } = await req.json();
+    const { target_user_id, new_password, force_change = true, send_to_email } = await req.json();
+    const empfaenger = send_to_email ? String(send_to_email).trim() : "";
+    if (empfaenger && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(empfaenger)) return json({ error: "E-Mail-Adresse ist ungültig" }, 400);
     if (!target_user_id) return json({ error: "target_user_id required" }, 400);
 
     const password = (new_password && String(new_password).length >= 8)
@@ -62,6 +66,16 @@ Deno.serve(async (req) => {
       must_change_password: !!force_change,
       initial_password_set_at: new Date().toISOString(),
     }).eq("user_id", target_user_id);
+
+    // Zugangsdaten direkt per E-Mail schicken (Passwort geht dann nicht an den Aufrufer zurück)
+    if (empfaenger) {
+      const { data: p } = await admin.from("profiles").select("email, username, first_name, last_name").eq("user_id", target_user_id).maybeSingle();
+      const anmeldung = p?.email && !String(p.email).toLowerCase().endsWith("@users.rgi-immobilien.app") ? p.email : p?.username || p?.email;
+      const mail = willkommenWeg({ firstName: p?.first_name, lastName: p?.last_name, email: String(anmeldung ?? ""), password, neu: true });
+      const res = await sendSystemMail(admin, { kind: "willkommen_weg", to: empfaenger, subject: "Ihre neuen Zugangsdaten - RGI Verwaltungs-App", html: mail.html, refType: "user", refId: target_user_id });
+      if (!res.ok) return json({ error: `Passwort neu gesetzt, aber die E-Mail ging nicht raus: ${res.error}` }, 500);
+      return json({ success: true, sent_to: empfaenger });
+    }
 
     return json({
       success: true,

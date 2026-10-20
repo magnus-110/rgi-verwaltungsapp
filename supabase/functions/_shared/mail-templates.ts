@@ -77,7 +77,7 @@ const name = (first?: string | null, last?: string | null) => [first, last].filt
 
 // ---------- Konto ----------
 
-export function willkommenWeg(d: { firstName?: string | null; lastName?: string | null; email: string; password: string }) {
+export function willkommenWeg(d: { firstName?: string | null; lastName?: string | null; email: string; password: string; neu?: boolean }) {
   const n = name(d.firstName, d.lastName);
   return {
     subject: "Ihre Zugangsdaten - RGI Verwaltungs-App",
@@ -86,7 +86,7 @@ export function willkommenWeg(d: { firstName?: string | null; lastName?: string 
       preheader: "Nutzen Sie jetzt die RGI Verwaltungs-App für Meldungen, Dokumente und Fragen.",
       body:
         p(`Hallo${n ? " " + esc(n) : ""}, ab sofort haben Sie Zugriff auf die RGI Verwaltungs-App. Erstellen Sie Meldungen, sehen Sie Ihre Dokumente ein und stellen Sie Fragen – alles an einem Ort.`) +
-        infoBox("Ihre Zugangsdaten", [["E-Mail", d.email], ["Passwort", d.password]], "Bitte ändern Sie Ihr Passwort nach dem ersten Login unter <em>Einstellungen</em>.") +
+        infoBox("Ihre Zugangsdaten", [[d.email.includes("@") ? "E-Mail" : "Benutzername", d.email], ["Passwort", d.password]], d.neu ? "Das bisherige Passwort gilt nicht mehr. Beim ersten Anmelden legen Sie ein eigenes Passwort fest." : "Bitte ändern Sie Ihr Passwort nach dem ersten Login unter <em>Einstellungen</em>.") +
         button("Jetzt zur App", APP_URL) +
         `<p style="margin:24px 0 0 0;font-family:'Century Gothic',Arial,sans-serif;font-size:17px;color:#2F2F2F;font-weight:bold;">Was Sie in der App machen können</p>` +
         list([
