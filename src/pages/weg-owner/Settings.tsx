@@ -8,6 +8,7 @@ import { toast } from "@/hooks/use-toast";
 import { LegalDocumentsSheet } from "@/components/LegalDocumentsSheet";
 import { OwnerSelfServiceSection } from "@/components/owner/OwnerSelfServiceSection";
 import { ImmobilienEinstellungen } from "@/components/owner/ImmobilienEinstellungen";
+import { BenachrichtigungenEinstellungen } from "@/components/owner/BenachrichtigungenEinstellungen";
 import { supabase } from "@/integrations/supabase/client";
 import { Mail, Info, HelpCircle, Lock, Fingerprint, LogOut } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -187,6 +188,8 @@ export const WegOwnerSettings = () => {
         </section>
 
         <OwnerSelfServiceSection />
+
+        <BenachrichtigungenEinstellungen />
 
         <ImmobilienEinstellungen />
 

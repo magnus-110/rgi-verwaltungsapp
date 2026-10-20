@@ -30,7 +30,15 @@ const Index = () => {
     } else if (profile.role === 'employee') {
       return <Navigate to="/admin" replace />;
     } else if (profile.role === 'weg_owner') {
-      return <Navigate to="/weg-owner" replace />;
+      let ziel = "/weg-owner";
+      try {
+        const w = sessionStorage.getItem("rgi_weiter");
+        if (w && w.startsWith("/weg-owner")) ziel = w;
+        sessionStorage.removeItem("rgi_weiter");
+      } catch {
+        // egal
+      }
+      return <Navigate to={ziel} replace />;
     } else if (profile.role === 'tenant') {
       return <Navigate to="/tenant" replace />;
     }

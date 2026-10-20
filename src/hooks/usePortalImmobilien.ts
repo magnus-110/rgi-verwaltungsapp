@@ -124,7 +124,23 @@ export function usePortalGesuche(enabled = true) {
 export interface OwnerEinstellungen {
   angebote_startseite: boolean;
   angebote_hinweis: boolean;
+  mail_meldungen: boolean;
+  mail_versammlungen: boolean;
+  mail_umfragen: boolean;
+  mail_dokumente: boolean;
+  mail_aushaenge: boolean;
 }
+
+const STANDARD: OwnerEinstellungen = {
+  angebote_startseite: false,
+  angebote_hinweis: false,
+  mail_meldungen: true,
+  mail_versammlungen: true,
+  mail_umfragen: true,
+  mail_dokumente: true,
+  mail_aushaenge: true,
+};
+const SPALTEN = Object.keys(STANDARD).join(", ");
 
 export function useOwnerPortalEinstellungen() {
   const { user } = useAuth();
@@ -133,20 +149,20 @@ export function useOwnerPortalEinstellungen() {
     queryKey: [PK, "einstellungen", user?.id],
     enabled: !!user,
     queryFn: async (): Promise<OwnerEinstellungen> => {
-      const { data } = await db.from("owner_portal_einstellungen").select("angebote_startseite, angebote_hinweis").eq("user_id", user!.id).maybeSingle();
-      return { angebote_startseite: !!data?.angebote_startseite, angebote_hinweis: !!data?.angebote_hinweis };
+      const { data } = await db.from("owner_portal_einstellungen").select(SPALTEN).eq("user_id", user!.id).maybeSingle();
+      return { ...STANDARD, ...(data ?? {}) };
     },
   });
   const setzen = async (patch: Partial<OwnerEinstellungen>) => {
     if (!user) return;
-    const neu = { ...(q.data ?? { angebote_startseite: false, angebote_hinweis: false }), ...patch };
+    const neu = { ...(q.data ?? STANDARD), ...patch };
     const { error } = await db
       .from("owner_portal_einstellungen")
       .upsert({ user_id: user.id, ...neu, updated_at: new Date().toISOString() });
     if (error) throw error;
     qc.invalidateQueries({ queryKey: [PK, "einstellungen"] });
   };
-  return { data: q.data ?? { angebote_startseite: false, angebote_hinweis: false }, setzen, isLoading: q.isLoading };
+  return { data: q.data ?? STANDARD, setzen, isLoading: q.isLoading };
 }
 
 /** Wohnungen des Eigentümers (für „Um welche Immobilie geht es?“). */

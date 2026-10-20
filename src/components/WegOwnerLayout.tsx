@@ -53,6 +53,13 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
   }
 
   if (!user) {
+    // Link aus einer E-Mail: Ziel merken und nach der Anmeldung dorthin
+    try {
+      const ziel = location.pathname + location.search;
+      if (ziel.startsWith("/weg-owner") && ziel !== "/weg-owner") sessionStorage.setItem("rgi_weiter", ziel);
+    } catch {
+      // ohne Speicher landet man einfach auf der Startseite
+    }
     return <Navigate to="/login" replace />;
   }
 

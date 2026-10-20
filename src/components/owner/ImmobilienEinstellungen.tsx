@@ -30,7 +30,6 @@ export function ImmobilienEinstellungen() {
         untertitel="Sonst nur unter „Mehr“"
         rechts={<Switch aria-label="Neue Angebote auf der Startseite zeigen" checked={data.angebote_startseite} onCheckedChange={(v) => umschalten({ angebote_startseite: v })} />}
       />
-      {/* „Hinweis bei neuen Angeboten“ (Handy) kommt, sobald das Senden gebaut ist – Spalte angebote_hinweis ist vorbereitet. */}
       <PortalZeile
         icon={Search}
         titel={eigene.length > 0 ? (eigene.length === 1 ? "Mein Suchauftrag" : `Meine Suchaufträge (${eigene.length})`) : "Suchauftrag hinzufügen"}

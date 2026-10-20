@@ -4,7 +4,7 @@
  * Suchauftrag“ und ihren eigenen – wer hinter einem Gesuch steht, bleibt offen. Alles, was Eigentümer hier abschicken, landet bei RGI.
  * Solange der Hauptschalter aus ist, sehen nur RGI-Mitarbeiter diese Seite (Vorschau).
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Building2, Check, Loader2, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -46,6 +46,17 @@ export default function WegOwnerImmobilien() {
   const [angebot, setAngebot] = useState<Angebot | null>(null);
   const [gesuch, setGesuch] = useState<PortalGesuch | null>(null);
   const [suchauftrag, setSuchauftrag] = useState<PortalGesuch | "neu" | null>(null);
+  // Link aus der E-Mail: ?angebot=<id> öffnet das Angebot direkt
+  useEffect(() => {
+    const id = params.get("angebot");
+    if (!id || !angebote.length) return;
+    const a = angebote.find((x) => x.id === id);
+    if (a) setAngebot(a);
+    const p = new URLSearchParams(params);
+    p.delete("angebot");
+    setParams(p, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [angebote, params]);
 
   if (!status.isLoading && !status.sichtbar) return <Navigate to="/weg-owner/mehr" replace />;
 

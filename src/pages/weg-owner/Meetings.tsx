@@ -63,6 +63,18 @@ export const WegOwnerMeetings = () => {
   const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(null);
   const [selectedMeetingId, setSelectedMeetingId] = useState<string | null>(null);
   const [selectedAgendaItemId, setSelectedAgendaItemId] = useState<string | null>(null);
+  // Link aus der E-Mail: ?versammlung=<id> öffnet die Versammlung direkt
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("versammlung");
+    if (!id) return;
+    (async () => {
+      const { data } = await supabase.from("etv_meetings").select("id, building_id").eq("id", id).maybeSingle();
+      if (data) {
+        setSelectedBuildingId(data.building_id);
+        setSelectedMeetingId(data.id);
+      }
+    })();
+  }, []);
   const [showSubmitTop, setShowSubmitTop] = useState(false);
 
   // TOP detail/edit

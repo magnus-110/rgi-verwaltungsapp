@@ -55,7 +55,14 @@ const fmtDateTime = (iso: string) =>
 export function PortalReports({ mode }: { mode: PortalMode }) {
   const { data: reports = [], isLoading } = usePortalReports();
   usePortalReportsLive();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Link aus der E-Mail: ?meldung=<id> öffnet die Meldung direkt
+  const [selectedId, setSelectedId] = useState<string | null>(() => {
+    try {
+      return new URLSearchParams(window.location.search).get("meldung");
+    } catch {
+      return null;
+    }
+  });
   const [createOpen, setCreateOpen] = useState(false);
   const selected = reports.find((r) => r.id === selectedId) || null;
 
