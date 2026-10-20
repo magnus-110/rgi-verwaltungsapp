@@ -595,9 +595,10 @@ export function Transfers() {
     <button
       type="button"
       onClick={() => setHaupt(r)}
+      aria-current={haupt === r ? "page" : undefined}
       className={cn(
-        "min-h-[44px] border-b-2 px-1 text-sm font-medium transition-colors md:text-[15px]",
-        haupt === r ? "border-primary font-semibold text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
+        "h-10 whitespace-nowrap rounded-full px-4 text-sm font-semibold transition-colors",
+        haupt === r ? "bg-foreground text-background shadow-sm" : "text-muted-foreground hover:text-foreground",
       )}
     >
       {text}
@@ -611,21 +612,32 @@ export function Transfers() {
         <div>
           <h1 className="text-2xl font-bold md:text-3xl">Zahlungen</h1>
           <p className="mt-1.5 text-sm text-muted-foreground md:text-base">
-            Rechnungen freigeben, eigene Aufträge anlegen – alles Freigegebene sammelt sich in der Freigabe und wird dort per TAN bezahlt.
+            Rechnungen freigeben, Hausgeld pflegen, Aufträge anlegen – alles Freigegebene geht per TAN raus.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => neuOeffnen()} className="h-11">
-            <Plus className="h-4 w-4 mr-2" /> Neuer Auftrag
+          <Button variant="outline" onClick={() => setAnsicht("freigabe")} className="h-11">
+            Freigabe{freigabeAnzahl > 0 ? ` · ${freigabeAnzahl}` : ""}
           </Button>
-          <Button onClick={() => setAnsicht("freigabe")} className="h-11">
-            Freigabe
-            {freigabeAnzahl > 0 && <span className="ml-2 rounded-full bg-background px-2 py-0.5 text-xs font-semibold text-primary">{freigabeAnzahl}</span>}
+          <Button onClick={() => neuOeffnen()} className="h-11">
+            <Plus className="h-4 w-4 mr-2" /> Neuer Auftrag
           </Button>
         </div>
       </header>
 
+      {/* Reiter */}
+      <nav aria-label="Reiter" className="-mx-3 overflow-x-auto px-3 md:mx-0 md:px-0">
+        <div className="inline-flex gap-1.5 rounded-full bg-muted p-1.5">
+          {hauptKnopf("rechnungen", `Rechnungen${direction === "outgoing" && !showPaid ? ` · ${unpaidInvoices.length + lastschriftInvoices.length}` : ""}`)}
+          {hauptKnopf("hausgeld", "Hausgeld")}
+          {hauptKnopf("auftraege", `Aufträge · ${auftragsAnzahl}`)}
+          {hauptKnopf("erledigt", "Erledigt")}
+          {hauptKnopf("gutschriften", "Gutschriften")}
+        </div>
+      </nav>
+
       {/* Filter */}
+      {haupt !== "hausgeld" && (
       <div className="flex flex-wrap gap-3">
         <label className="flex flex-1 basis-56 flex-col gap-1.5 text-xs text-muted-foreground sm:max-w-[260px]">
           Liegenschaft
@@ -682,17 +694,10 @@ export function Transfers() {
           </div>
         )}
       </div>
+      )}
 
-      {/* Reiter */}
-      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2 border-b">
-        <div className="flex flex-wrap gap-x-6" role="group" aria-label="Ansicht">
-          {hauptKnopf("rechnungen", `Rechnungen${direction === "outgoing" && !showPaid ? ` · ${unpaidInvoices.length + lastschriftInvoices.length}` : ""}`)}
-          {hauptKnopf("hausgeld", "Hausgeld")}
-          {hauptKnopf("auftraege", `Aufträge · ${auftragsAnzahl}`)}
-          {hauptKnopf("erledigt", "Erledigt")}
-          {hauptKnopf("gutschriften", "Gutschriften")}
-        </div>
-        <div className="flex flex-wrap gap-2 pb-2">
+      {!ohneRechnungen && (stuckOcrInvoices.length > 0 || selectedIds.size > 0) && (
+        <div className="flex flex-wrap gap-2">
           {!ohneRechnungen && stuckOcrInvoices.length > 0 && (
             <Button size="sm" variant="outline" onClick={retryAllStuckOcr} disabled={retryingOcr === "all"}>
               {retryingOcr === "all" ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1.5" />}
@@ -706,7 +711,7 @@ export function Transfers() {
             </Button>
           )}
         </div>
-      </div>
+      )}
 
       {/* Filter unter dem Reiter */}
       {haupt === "rechnungen" && (

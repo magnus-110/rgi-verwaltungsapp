@@ -1,7 +1,7 @@
 /**
  * Nutzer-App › Mehr › Immobilien von RGI
- * Zwei Reiter: Angebote (Kacheln) und Gesuche (RGI sucht, Eigentümer sucht,
- * eigener Suchauftrag). Alles, was Eigentümer hier abschicken, landet bei RGI.
+ * Zwei Reiter: Angebote (Kacheln) und Gesuche. Eigentümer sehen nur „RGI
+ * Suchauftrag“ und ihren eigenen – wer hinter einem Gesuch steht, bleibt offen. Alles, was Eigentümer hier abschicken, landet bei RGI.
  * Solange der Hauptschalter aus ist, sehen nur RGI-Mitarbeiter diese Seite (Vorschau).
  */
 import { useMemo, useState } from "react";
@@ -180,7 +180,7 @@ function GesuchKarte({ g, onOeffnen }: { g: PortalGesuch; onOeffnen: () => void 
     return (
       <div className="rounded-[14px] border-2 border-primary bg-primary/5 p-4 space-y-1.5">
         <div className="flex items-center justify-between gap-2">
-          <span className="rounded-full bg-primary px-2.5 py-0.5 text-[12px] font-semibold text-primary-foreground">Ihr Suchauftrag</span>
+          <span className="rounded-full bg-primary px-2.5 py-0.5 text-[12px] font-semibold text-primary-foreground">Eigener Suchauftrag</span>
           <button type="button" onClick={onOeffnen} className="min-h-11 px-2 text-[14px] font-semibold text-[#8A4100]">Bearbeiten</button>
         </div>
         <div className="text-[16px] font-semibold">{g.titel}</div>
@@ -188,19 +188,16 @@ function GesuchKarte({ g, onOeffnen }: { g: PortalGesuch; onOeffnen: () => void 
       </div>
     );
   }
-  const rgi = g.art === "rgi";
   return (
     <div className="rounded-[14px] border border-border/60 bg-card p-4 space-y-2 shadow-sm">
-      <span className={cn("inline-block rounded-full px-2.5 py-0.5 text-[12px] font-semibold", rgi ? "bg-sky-100 text-sky-900" : "bg-emerald-100 text-emerald-800")}>
-        {rgi ? "RGI sucht" : "Eigentümer sucht"}
-      </span>
+      <span className="inline-block rounded-full bg-sky-100 px-2.5 py-0.5 text-[12px] font-semibold text-sky-900">RGI Suchauftrag</span>
       <div className="text-[16px] font-semibold">{g.titel}</div>
       {eck.length > 0 && <div className="text-[13px] text-muted-foreground">{eck.join(" · ")}</div>}
       {g.beschreibung && <p className="text-[14px] leading-relaxed text-foreground/85 line-clamp-3">{g.beschreibung}</p>}
       {g.gemeldet ? (
         <div className="flex items-center gap-1.5 text-[13px] text-emerald-700"><Check className="h-4 w-4" />Gemeldet</div>
       ) : (
-        <Button variant="outline" className="h-11" onClick={onOeffnen}>{rgi ? "Unverbindlich melden" : "Ich habe etwas Passendes"}</Button>
+        <Button variant="outline" className="h-11" onClick={onOeffnen}>Ich habe etwas Passendes</Button>
       )}
     </div>
   );
@@ -327,7 +324,6 @@ function GesuchBlatt({ gesuch: g, onClose }: { gesuch: PortalGesuch; onClose: ()
   const [nachricht, setNachricht] = useState("");
   const [laeuft, setLaeuft] = useState(false);
   const [gesendet, setGesendet] = useState(false);
-  const rgi = g.art === "rgi";
   const eck = gesuchEckdatenPortal(g);
 
   const melden = async () => {
@@ -348,12 +344,12 @@ function GesuchBlatt({ gesuch: g, onClose }: { gesuch: PortalGesuch; onClose: ()
       offen
       onOffen={(o) => !o && onClose()}
       titel={g.titel}
-      text={rgi ? "RGI sucht" : "Eigentümer sucht"}
+      text="RGI Suchauftrag"
       fuss={
         gesendet ? <Danke text={DANKE_ANFRAGE} /> : (
           <Button className="h-12 w-full text-base" onClick={melden} disabled={laeuft}>
             {laeuft && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {rgi ? "Unverbindlich melden" : "Ich habe etwas Passendes"}
+            Ich habe etwas Passendes
           </Button>
         )
       }
