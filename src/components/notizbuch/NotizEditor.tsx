@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Bold, Heading2, Italic, Link2, List, ListOrdered, Quote, Paperclip, ImagePlus } from 'lucide-react';
 import { NOTIZ_TEXT_KLASSEN, notizHtmlBereinigen } from './notizHtml';
+import { dateienAusZwischenablage, hatDateien } from './zwischenablage';
 
 interface Props {
   /** Startinhalt. Der Editor ist danach selbstständig (über `key` neu setzen). */
@@ -52,10 +53,20 @@ export function NotizEditor({ initialHtml, onChange, onDateien, placeholder }: P
   };
 
   const beimEinfuegen = (e: React.ClipboardEvent<HTMLDivElement>) => {
-    const dateien = Array.from(e.clipboardData.files || []);
-    if (dateien.length) {
+    if (hatDateien(e.clipboardData)) {
       e.preventDefault();
-      onDateien(dateien);
+      // clipboardData ist nach dem Ereignis leer – darum gleich auslesen
+      const dt = e.clipboardData;
+      const sofort = Array.from(dt.files || []).length || Array.from(dt.items || []).some(i => i.kind === 'file');
+      const laden = dateienAusZwischenablage(dt);
+      if (!sofort) {
+        // Bild aus einer Webseite: wenn es sich nicht laden lässt, den Text normal einfügen
+        const html = notizHtmlBereinigen(dt.getData('text/html'));
+        laden.then(f => {
+          if (f.length) onDateien(f);
+          else if (html) { ref.current?.focus(); document.execCommand('insertHTML', false, html); melden(); }
+        });
+      } else laden.then(f => f.length && onDateien(f));
       return;
     }
     const html = e.clipboardData.getData('text/html');
@@ -132,6 +143,7 @@ export function NotizEditor({ initialHtml, onChange, onDateien, placeholder }: P
 
       <div
         ref={ref}
+        data-notiz-editor
         contentEditable
         suppressContentEditableWarning
         role="textbox"
@@ -146,7 +158,7 @@ export function NotizEditor({ initialHtml, onChange, onDateien, placeholder }: P
         className={`${NOTIZ_TEXT_KLASSEN} min-h-[220px] px-5 py-4 outline-none empty:before:pointer-events-none empty:before:text-muted-foreground empty:before:content-[attr(data-placeholder)]`}
       />
       <p className="px-5 pb-3 text-[12px] text-muted-foreground">
-        Tipp: Bildschirmfotos mit Strg + V einfügen oder Bilder und PDFs einfach hineinziehen.
+        Tipp: Bilder und Bildschirmfotos mit Strg + V einfügen oder Bilder und PDFs einfach hineinziehen.
       </p>
     </div>
   );

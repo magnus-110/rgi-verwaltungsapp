@@ -48,6 +48,7 @@ import {
 } from '@/hooks/useNotizbuch';
 import { NotizEditor } from '@/components/notizbuch/NotizEditor';
 import { NotizAnhaenge } from '@/components/notizbuch/NotizAnhaenge';
+import { useEinfuegenAufSeite } from '@/components/notizbuch/zwischenablage';
 import { BereicheDialog } from '@/components/notizbuch/BereicheDialog';
 import {
   NOTIZ_TEXT_KLASSEN,
@@ -611,6 +612,9 @@ function NotizLesen({
   onLoeschen: () => void;
 }) {
   const html = useMemo(() => notizHtmlZumAnzeigen(notiz.content), [notiz.content]);
+  // Strg + V beim Lesen: Bild direkt an diese Notiz hängen
+  const { hochladen } = useAnhangAktionen();
+  useEinfuegenAufSeite(true, files => hochladen.mutate({ noteId: notiz.id, files }));
   const zeigeText = textOhneTitel(notiz) !== '';
   const wer = notiz.updated_by ? personen[notiz.updated_by] : undefined;
 
@@ -686,6 +690,9 @@ function NotizLesen({
           <NotizAnhaenge anhaenge={notiz.anhaenge} />
         </div>
       )}
+      <p className="mt-5 text-[12px] text-muted-foreground">
+        {hochladen.isPending ? 'Lade hoch …' : 'Tipp: Mit Strg + V fügen Sie ein Bild oder Bildschirmfoto direkt an diese Notiz an.'}
+      </p>
     </article>
   );
 }
@@ -746,6 +753,8 @@ function NotizFormular({
       onGeaendert(true);
     }
   };
+
+  useEinfuegenAufSeite(true, dateienDazu);
 
   const ortWechseln = (neu: 'gebaeude' | 'bereich') => {
     setOrt(neu);
