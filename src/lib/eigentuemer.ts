@@ -13,9 +13,30 @@ export interface Eigentuemer {
   bic: string | null;
   /** monatliches Hausgeld heute laut Kostenzeilen (aus dem gültigen Wirtschaftsplan) */
   hausgeldMonat: number;
+  /** seit wann das heutige Hausgeld gilt */
+  hausgeldAb: string | null;
+  /** alle Hausgeld-Zeilen (auch frühere und künftige) */
+  hausgeldZeilen: HausgeldZeile[];
   mandat: Mandat | null;
   /** Mandat zur Freigabe (z. B. aus dem Eigentümer-Fragebogen) */
   vorschlag: Mandat | null;
+}
+
+export interface HausgeldZeile {
+  id: string;
+  amount: number;
+  interval: string | null;
+  valid_from: string | null;
+  valid_to: string | null;
+  reserve_share_monthly: number | null;
+}
+
+/** Monatliches Hausgeld eines Eigentümers an einem bestimmten Tag. */
+export function hausgeldAm(zeilen: HausgeldZeile[], tag: string): number {
+  const s = zeilen
+    .filter((k) => (!k.valid_from || k.valid_from <= tag) && (!k.valid_to || k.valid_to >= tag))
+    .reduce((x, k) => x + monatlich(Number(k.amount) || 0, k.interval), 0);
+  return Math.round(s * 100) / 100;
 }
 
 export interface Mandat {
@@ -71,7 +92,7 @@ export async function ladeEigentuemer(buildingId: string, stichtag = new Date().
   const [{ data: kosten }, { data: mandate }, { data: standardKonten }] = await Promise.all([
     (supabase as any)
       .from("contact_building_costs")
-      .select("assignment_id, amount, interval, valid_from, valid_to")
+      .select("id, assignment_id, amount, interval, valid_from, valid_to, reserve_share_monthly")
       .in("assignment_id", ids)
       .eq("cost_type", "Hausgeld"),
     (supabase as any).from("sepa_mandates").select("*").eq("building_id", buildingId).in("status", ["aktiv", "pruefen"]),
@@ -85,9 +106,14 @@ export async function ladeEigentuemer(buildingId: string, stichtag = new Date().
       // Konto der Zuordnung, sonst das Standardkonto des Kontakts
       const eigene = (standardKonten ?? []).filter((k: any) => k.contact_id === a.contact_id);
       const konto = a.contact_bank_accounts ?? eigene.find((k: any) => k.is_default) ?? eigene[0] ?? {};
-      const hausgeld = (kosten ?? [])
-        .filter((k: any) => k.assignment_id === a.id && (!k.valid_from || k.valid_from <= stichtag) && (!k.valid_to || k.valid_to >= stichtag))
-        .reduce((s: number, k: any) => s + monatlich(Number(k.amount) || 0, k.interval), 0);
+      const zeilen: HausgeldZeile[] = (kosten ?? []).filter((k: any) => k.assignment_id === a.id);
+      const hausgeld = hausgeldAm(zeilen, stichtag);
+      const heute = zeilen
+        .filter((k) => (!k.valid_from || k.valid_from <= stichtag) && (!k.valid_to || k.valid_to >= stichtag))
+        .map((k) => k.valid_from)
+        .filter(Boolean)
+        .sort()
+        .at(-1) as string | undefined;
       return {
         assignmentId: a.id,
         contactId: a.contact_id,
@@ -97,7 +123,9 @@ export async function ladeEigentuemer(buildingId: string, stichtag = new Date().
         kontoinhaber: a.iban_holder_override || konto.account_holder || null,
         iban: cleanIban(a.iban_override || konto.iban),
         bic: konto.bic ?? null,
-        hausgeldMonat: Math.round(hausgeld * 100) / 100,
+        hausgeldMonat: hausgeld,
+        hausgeldAb: heute ?? null,
+        hausgeldZeilen: zeilen,
         mandat: (mandate ?? []).find((m: any) => m.assignment_id === a.id && m.status === "aktiv") ?? null,
         vorschlag: (mandate ?? []).find((m: any) => m.assignment_id === a.id && m.status === "pruefen") ?? null,
       };

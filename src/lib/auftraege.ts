@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { ladeEigentuemer, mandatBereit, type Eigentuemer, type Mandat } from "@/lib/eigentuemer";
+import { hausgeldAm, ladeEigentuemer, mandatBereit, type Eigentuemer, type Mandat } from "@/lib/eigentuemer";
 
 export type AuftragsArt = "ueberweisung" | "einzug" | "dauerlastschrift";
 export type Betragsquelle = "fest" | "abrechnung" | "wirtschaftsplan" | "nachzahlung";
@@ -178,7 +178,8 @@ export async function faelligeAuftragsposten(auftraege?: Auftrag[]): Promise<Fae
         const e = it.assignment_id ? (eigentuemer.get(a.building_id) ?? []).find((x) => x.assignmentId === it.assignment_id) : undefined;
         const mandat: Mandat | null = (mandateDirekt ?? []).find((m: any) => m.id === it.mandate_id) ?? e?.mandat ?? null;
         let betrag = Number(it.betrag) || 0;
-        if (a.betragsquelle === "wirtschaftsplan") betrag = Math.round((e?.hausgeldMonat ?? 0) * (a.rhythmus ? MONATE[a.rhythmus] : 1) * 100) / 100;
+        // Hausgeld, das am Einzugstag gilt (eine Änderung „ab 11/2026“ greift so von selbst)
+        if (a.betragsquelle === "wirtschaftsplan") betrag = Math.round((e ? hausgeldAm(e.hausgeldZeilen, tag) : 0) * (a.rhythmus ? MONATE[a.rhythmus] : 1) * 100) / 100;
 
         const lastschrift = a.art !== "ueberweisung";
         let hinderung: string | null = null;
@@ -204,6 +205,7 @@ export async function faelligeAuftragsposten(auftraege?: Auftrag[]): Promise<Fae
           betrag,
           verwendungszweck: (it.verwendungszweck || a.verwendungszweck || a.titel)
             .replace(/\{monat\}/g, monat)
+            .replace(/\{jahr\}/g, tag.slice(0, 4))
             .replace(/\{einheit\}/g, einheit)
             .replace(/\{lage\}/g, e?.lage ?? "")
             .replace(/\s+/g, " ")

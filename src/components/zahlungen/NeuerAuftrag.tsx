@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, ArrowDownLeft, ArrowUpRight, Check, CheckCircle2, ChevronLeft, Info, Landmark, Loader2, Plus, Repeat, ShieldCheck, Trash2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
@@ -65,17 +65,44 @@ const PLATZHALTER: { wert: string; text: string }[] = [
  * (z. B. Hausgeld jeden Monat aus dem Wirtschaftsplan). Alles landet in der
  * Freigabe und geht erst mit TAN raus.
  */
-export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; onAbbrechen: () => void }) {
+export interface AuftragVorlage {
+  art: AuftragsArt;
+  quelle?: Betragsquelle;
+  buildingId?: string;
+  kontoIban?: string;
+  titel?: string;
+  zweck?: string;
+  nzWerte?: Record<string, string>;
+}
+
+export function NeuerAuftrag({
+  onFertig,
+  onAbbrechen,
+  vorlage,
+  auftragId,
+  kopie,
+}: {
+  onFertig: () => void;
+  onAbbrechen: () => void;
+  /** vorausgefüllt (z. B. Sammelauftrag aus einer Hausgeldänderung) */
+  vorlage?: AuftragVorlage;
+  /** bestehenden Auftrag bearbeiten (bzw. mit `kopie` als neuen anlegen) */
+  auftragId?: string;
+  kopie?: boolean;
+}) {
   const queryClient = useQueryClient();
   const { profile } = useAuth();
   const { managementMode } = useManagementMode();
-  const [art, setArt] = useState<AuftragsArt>("ueberweisung");
-  const [quelle, setQuelle] = useState<Betragsquelle>("fest");
-  const [buildingId, setBuildingId] = useState<string>("");
-  const [kontoIban, setKontoIban] = useState<string>("");
-  const [titel, setTitel] = useState("");
-  const [zweck, setZweck] = useState("");
-  const [faellig, setFaellig] = useState(heuteIso());
+  const bearbeiten = !!auftragId && !kopie;
+  // Vorgaben beim ersten Durchlauf nicht durch die Standardwerte überschreiben
+  const ersterLauf = useRef(!!vorlage || !!auftragId);
+  const [art, setArt] = useState<AuftragsArt>(vorlage?.art ?? "ueberweisung");
+  const [quelle, setQuelle] = useState<Betragsquelle>(vorlage?.quelle ?? (vorlage?.art === "dauerlastschrift" ? "wirtschaftsplan" : "fest"));
+  const [buildingId, setBuildingId] = useState<string>(vorlage?.buildingId ?? "");
+  const [kontoIban, setKontoIban] = useState<string>(vorlage?.kontoIban ?? "");
+  const [titel, setTitel] = useState(vorlage?.titel ?? (vorlage?.art === "dauerlastschrift" ? "Hausgeld" : ""));
+  const [zweck, setZweck] = useState(vorlage?.zweck ?? (vorlage?.art === "dauerlastschrift" ? "Hausgeld {monat} - {einheit} {lage}" : ""));
+  const [faellig, setFaellig] = useState(vorlage?.art === "einzug" ? fruehesterEinzug() : heuteIso());
   const [empfaenger, setEmpfaenger] = useState<Empfaenger[]>([leerEmpfaenger()]);
   const [festBetrag, setFestBetrag] = useState("");
   const [auswahl, setAuswahl] = useState<Record<string, boolean>>({});
@@ -87,9 +114,12 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
   const [erster, setErster] = useState(() => plusMonate(heuteIso().slice(0, 8) + "01", 1));
   const [speichert, setSpeichert] = useState(false);
   // Sammelauftrag: einmalig, Betrag je Eigentümer frei eingetragen
-  const [nzWerte, setNzWerte] = useState<Record<string, string>>({});
+  const [nzWerte, setNzWerte] = useState<Record<string, string>>(vorlage?.nzWerte ?? {});
   // Monat/Jahr für die Platzhalter {monat} und {jahr}
-  const [zweckMonat, setZweckMonat] = useState(() => heuteIso().slice(0, 7));
+  const [zweckMonat, setZweckMonat] = useState(() => (vorlage?.art === "einzug" ? fruehesterEinzug() : heuteIso()).slice(0, 7));
+  // Bearbeiten: Auswahl der Eigentümer aus dem Auftrag statt „alle mit Mandat“
+  const [startAuswahl, setStartAuswahl] = useState<Record<string, boolean> | null>(null);
+  const [original, setOriginal] = useState<any | null>(null);
 
   const { data: gebaeude = [] } = useQuery({
     queryKey: ["konten-liegenschaften"],
@@ -124,6 +154,10 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
 
   // Art wechselt → passende Betragsquelle und Datum
   useEffect(() => {
+    if (ersterLauf.current) {
+      ersterLauf.current = false;
+      return;
+    }
     if (art === "dauerlastschrift") {
       setQuelle("wirtschaftsplan");
       setZweck((z) => z || "Hausgeld {monat} - {einheit} {lage}");
@@ -169,10 +203,104 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [beschluss]);
 
-  // Eigentümer mit Mandat vorauswählen
+  // Eigentümer mit Mandat vorauswählen (beim Bearbeiten: die aus dem Auftrag)
   useEffect(() => {
-    setAuswahl(Object.fromEntries(eigentuemer.map((e) => [e.assignmentId, mandatBereit(e.mandat)])));
-  }, [eigentuemer]);
+    setAuswahl(Object.fromEntries(eigentuemer.map((e) => [e.assignmentId, startAuswahl ? !!startAuswahl[e.assignmentId] : mandatBereit(e.mandat)])));
+  }, [eigentuemer, startAuswahl]);
+
+  // Vorlage ohne Konto: erstes Konto der Liegenschaft
+  useEffect(() => {
+    if (buildingId && !kontoIban && auswahlListe.length) {
+      const k = auswahlListe.find((x) => x.building_id === buildingId);
+      if (k) setKontoIban(k.iban);
+    }
+  }, [buildingId, kontoIban, auswahlListe]);
+
+  // Bestehenden Auftrag laden
+  const { data: geladen } = useQuery({
+    queryKey: ["auftrag-bearbeiten", auftragId],
+    enabled: !!auftragId,
+    staleTime: Infinity,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).from("payment_orders").select("*, payment_order_items(*)").eq("id", auftragId).single();
+      if (error) throw error;
+      const ids = (data.payment_order_items ?? []).map((i: any) => i.id);
+      const verplant = new Set<string>();
+      if (data.art !== "dauerlastschrift" && ids.length) {
+        const { data: r } = await (supabase as any)
+          .from("payment_run_items")
+          .select("order_item_id, einzel_status, run:payment_runs!inner(status)")
+          .in("order_item_id", ids);
+        (r ?? []).forEach((x: any) => {
+          if (["abgebrochen", "fehler"].includes(x.run?.status) && !x.einzel_status) return;
+          verplant.add(x.order_item_id);
+        });
+      }
+      return { ...data, verplant };
+    },
+  });
+  useEffect(() => {
+    if (!geladen) return;
+    const a = geladen;
+    const items = (a.payment_order_items ?? []).filter((i: any) => i.aktiv);
+    setOriginal(a);
+    setBuildingId(a.building_id);
+    setKontoIban(a.konto_iban);
+    setTitel(kopie ? `${a.titel} (Kopie)` : a.titel ?? "");
+    const sammel = a.betragsquelle === "nachzahlung" || a.betragsquelle === "abrechnung";
+    const artSetzen = (x: AuftragsArt) => {
+      // Wechsel der Art soll die geladenen Werte nicht durch Standardwerte ersetzen
+      if (x !== art) ersterLauf.current = true;
+      setArt(x);
+    };
+    if (a.art === "dauerlastschrift") {
+      artSetzen("dauerlastschrift");
+      setQuelle("wirtschaftsplan");
+      setRhythmus(a.rhythmus ?? "monatlich");
+      if (a.faellig_am) {
+        setTag(String(Number(a.faellig_am.slice(8, 10))));
+        setErster(a.faellig_am);
+      }
+      setZweck(a.verwendungszweck ?? "");
+      setStartAuswahl(Object.fromEntries(items.filter((i: any) => i.assignment_id).map((i: any) => [i.assignment_id, true])));
+    } else if (sammel) {
+      artSetzen("einzug");
+      setQuelle("nachzahlung");
+      const vorz = a.art === "ueberweisung" ? -1 : 1;
+      setNzWerte(Object.fromEntries(items.filter((i: any) => i.assignment_id).map((i: any) => [i.assignment_id, String((vorz * (Number(i.betrag) || 0)).toFixed(2)).replace(".", ",")])));
+      let z = a.verwendungszweck ?? "";
+      if (!z) {
+        // Abrechnungsspitze: Text aus dem ersten Posten zur Vorlage machen
+        const m = String(items[0]?.verwendungszweck ?? "").match(/^(Abrechnungsspitze \d{4} - (?:Nachzahlung|Guthaben))/);
+        z = m ? `${m[1]} {einheit} {lage}` : "";
+      }
+      setZweck(z);
+      if (a.faellig_am) {
+        setFaellig(a.faellig_am);
+        setZweckMonat(a.faellig_am.slice(0, 7));
+      }
+    } else if (a.art === "einzug") {
+      artSetzen("einzug");
+      setQuelle("fest");
+      setFestBetrag(items[0] ? String(Number(items[0].betrag).toFixed(2)).replace(".", ",") : "");
+      setZweck(a.verwendungszweck ?? "");
+      setStartAuswahl(Object.fromEntries(items.filter((i: any) => i.assignment_id).map((i: any) => [i.assignment_id, true])));
+      if (a.faellig_am) {
+        setFaellig(a.faellig_am);
+        setZweckMonat(a.faellig_am.slice(0, 7));
+      }
+    } else {
+      artSetzen("ueberweisung");
+      setQuelle("fest");
+      setEmpfaenger(
+        items.length
+          ? items.map((i: any) => ({ name: i.name ?? "", iban: i.iban ?? "", betrag: String(Number(i.betrag).toFixed(2)).replace(".", ","), zweck: i.verwendungszweck ?? "" }))
+          : [leerEmpfaenger()],
+      );
+      if (a.faellig_am) setFaellig(a.faellig_am);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [geladen]);
 
   const istEinzug = art !== "ueberweisung";
   const ausgewaehlt = eigentuemer.filter((e) => auswahl[e.assignmentId]);
@@ -248,6 +376,71 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
     return null;
   };
 
+  /** Bestehenden Auftrag ändern: Kopf aktualisieren, Posten abgleichen (gesendete bleiben unberührt). */
+  const aendern = async () => {
+    const a = original;
+    const auftragsArt: "einzug" | "ueberweisung" = a.art === "ueberweisung" ? "ueberweisung" : "einzug";
+    const falsch = posten.find((p) => p.art !== auftragsArt);
+    if (falsch) {
+      throw new Error(
+        auftragsArt === "einzug"
+          ? `${falsch.name}: Dieser Auftrag enthält nur Einzüge. Überweisungen bitte als eigenen Auftrag anlegen.`
+          : `${falsch.name}: Dieser Auftrag enthält nur Überweisungen (Betrag mit Minus eintragen).`,
+      );
+    }
+    if (buildingId !== a.building_id) throw new Error("Die Liegenschaft eines bestehenden Auftrags kann nicht geändert werden.");
+    const ersterTag = art === "dauerlastschrift" ? `${erster.slice(0, 8)}${String(Math.min(28, Math.max(1, Number(tag) || 1))).padStart(2, "0")}` : faellig;
+    const quelleNeu: Betragsquelle = a.betragsquelle === "abrechnung" ? "abrechnung" : quelle;
+    const { error } = await (supabase as any)
+      .from("payment_orders")
+      .update({
+        konto_iban: kontoIban,
+        titel: titel.trim() || a.titel,
+        verwendungszweck: quelleNeu === "abrechnung" ? null : zweck.trim() || (art === "dauerlastschrift" ? "Hausgeld {monat} - {einheit} {lage}" : null),
+        rhythmus: art === "dauerlastschrift" ? rhythmus : null,
+        faellig_am: ersterTag,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", a.id);
+    if (error) throw error;
+
+    const verplant: Set<string> = a.verplant ?? new Set();
+    const vorhanden: any[] = [...(a.payment_order_items ?? [])];
+    const benutzt = new Set<string>();
+    const freieAktive = vorhanden.filter((i) => i.aktiv && !i.assignment_id);
+    for (const p of posten) {
+      const treffer = p.e
+        ? vorhanden.find((i) => i.assignment_id === p.e!.assignmentId && !benutzt.has(i.id))
+        : freieAktive.find((i) => !benutzt.has(i.id));
+      const zeile = {
+        assignment_id: p.e?.assignmentId ?? null,
+        mandate_id: auftragsArt !== "ueberweisung" ? p.e?.mandat?.id ?? null : null,
+        name: p.name,
+        iban: p.iban,
+        bic: auftragsArt !== "ueberweisung" ? p.e?.mandat?.bic ?? null : null,
+        betrag: quelle === "wirtschaftsplan" ? null : Math.round(p.betrag * 100) / 100,
+        verwendungszweck: quelleNeu === "abrechnung" ? p.zweck || null : p.zweck || null,
+        aktiv: true,
+      };
+      if (treffer) {
+        benutzt.add(treffer.id);
+        if (verplant.has(treffer.id)) continue; // schon gesendet – bleibt, wie es ist
+        const { error: e1 } = await (supabase as any).from("payment_order_items").update(zeile).eq("id", treffer.id);
+        if (e1) throw e1;
+      } else {
+        const { error: e2 } = await (supabase as any).from("payment_order_items").insert({ ...zeile, order_id: a.id });
+        if (e2) throw e2;
+      }
+    }
+    // Nicht mehr enthaltene Posten abschalten (gesendete bleiben)
+    for (const i of vorhanden) {
+      if (i.aktiv && !benutzt.has(i.id) && !verplant.has(i.id)) {
+        const { error: e3 } = await (supabase as any).from("payment_order_items").update({ aktiv: false }).eq("id", i.id);
+        if (e3) throw e3;
+      }
+    }
+  };
+
   const anlegen = async () => {
     const f = fehler();
     if (f) {
@@ -255,6 +448,22 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
       return;
     }
     setSpeichert(true);
+    if (bearbeiten) {
+      try {
+        if (!original) throw new Error("Auftrag wird noch geladen …");
+        await aendern();
+        toast.success(art === "dauerlastschrift" ? "Gespeichert – gilt ab dem nächsten Einzug" : "Auftrag gespeichert");
+        queryClient.invalidateQueries({ queryKey: ["auftraege"] });
+        queryClient.invalidateQueries({ queryKey: ["auftrag-bearbeiten"] });
+        queryClient.invalidateQueries({ queryKey: ["freigabe-auftraege"] });
+        onFertig();
+      } catch (e: any) {
+        toast.error(e?.message || "Auftrag konnte nicht gespeichert werden");
+      } finally {
+        setSpeichert(false);
+      }
+      return;
+    }
     try {
       const gruppen: { art: AuftragsArt; liste: typeof posten }[] =
         quelle === "abrechnung" || quelle === "nachzahlung"
@@ -357,8 +566,20 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
         <button type="button" onClick={onAbbrechen} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
           <ChevronLeft className="h-4 w-4" /> Zahlungen
         </button>
-        <h1 className="mt-2 text-2xl font-bold md:text-3xl">Neuer Auftrag</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Alles landet zuerst in der Freigabe – Geld bewegt sich erst mit deiner TAN.</p>
+        <h1 className="mt-2 text-2xl font-bold md:text-3xl">{bearbeiten ? "Auftrag bearbeiten" : "Neuer Auftrag"}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {bearbeiten
+            ? art === "dauerlastschrift"
+              ? "Änderungen gelten ab dem nächsten Einzug. Schon gesendete Einzüge bleiben, wie sie sind."
+              : "Änderungen gelten für alles, was noch nicht gesendet ist."
+            : "Alles landet zuerst in der Freigabe – Geld bewegt sich erst mit deiner TAN."}
+        </p>
+        {bearbeiten && original?.verplant?.size > 0 && (
+          <div className="mt-3 flex gap-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950/50 dark:text-amber-200">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            {original.verplant.size === 1 ? "Ein Posten ist" : `${original.verplant.size} Posten sind`} schon gesendet – diese bleiben unverändert.
+          </div>
+        )}
       </div>
 
       {/* Art */}
@@ -371,9 +592,10 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
               type="button"
               role="radio"
               aria-checked={aktiv}
+              disabled={bearbeiten && !aktiv}
               onClick={() => setArt(wert)}
               className={cn(
-                "group flex items-center gap-3 rounded-2xl border bg-card p-4 text-left transition-all",
+                "group flex items-center gap-3 rounded-2xl border bg-card p-4 text-left transition-all disabled:cursor-not-allowed disabled:opacity-40",
                 aktiv ? "border-primary bg-primary/5 shadow-sm ring-1 ring-primary" : "hover:border-foreground/25 hover:shadow-sm",
               )}
             >
@@ -455,8 +677,9 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
                       type="button"
                       role="tab"
                       aria-selected={quelle === w}
+                      disabled={bearbeiten && quelle !== w}
                       onClick={() => setQuelle(w)}
-                      className={cn("rounded-full px-3.5 py-1.5 font-medium transition-colors", quelle === w ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground")}
+                      className={cn("rounded-full px-3.5 py-1.5 font-medium transition-colors disabled:opacity-40", quelle === w ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground")}
                     >
                       {t}
                     </button>
@@ -796,7 +1019,7 @@ export function NeuerAuftrag({ onFertig, onAbbrechen }: { onFertig: () => void; 
               )}
               <Button onClick={anlegen} disabled={speichert || !!offenerFehler} className="h-12 w-full text-base">
                 {speichert ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
-                {art === "dauerlastschrift" ? "Dauerlastschrift anlegen" : "In die Freigabe"}
+                {bearbeiten ? "Änderungen speichern" : art === "dauerlastschrift" ? "Dauerlastschrift anlegen" : "In die Freigabe"}
               </Button>
               <Button variant="ghost" onClick={onAbbrechen} className="w-full">
                 Abbrechen

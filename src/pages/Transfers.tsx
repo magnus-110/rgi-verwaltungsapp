@@ -26,7 +26,11 @@ import { InvoiceDropZone } from "@/components/finance/InvoiceDropZone";
 import JSZip from "jszip";
 import { FreigabeAnsicht, useRechnungenInZahlung } from "@/components/zahlungen/FreigabeAnsicht";
 import { NeuerAuftrag } from "@/components/zahlungen/NeuerAuftrag";
-import { AuftraegeListe } from "@/components/zahlungen/AuftraegeListe";
+import { AuftraegeListe, useLaufendeAuftraege } from "@/components/zahlungen/AuftraegeListe";
+import { HausgeldAnsicht } from "@/components/zahlungen/HausgeldAnsicht";
+import { HausgeldAendern } from "@/components/zahlungen/HausgeldAendern";
+import { ErledigtLaeufe } from "@/components/zahlungen/ErledigtLaeufe";
+import type { AuftragVorlage } from "@/components/zahlungen/NeuerAuftrag";
 import { cn } from "@/lib/utils";
 
 
@@ -36,14 +40,36 @@ export function Transfers() {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Reiter: offene Rechnungen (zu prüfen), Lastschriften, Aufträge, Bezahlt, Gutschriften
-  type Reiter = "offen" | "lastschrift" | "auftraege" | "bezahlt" | "gutschriften";
-  const startReiter: Reiter =
-    searchParams.get("direction") === "incoming" ? "gutschriften" : ((searchParams.get("tab") as Reiter) || "offen");
-  const [reiter, setReiter] = useState<Reiter>(startReiter);
-  const [ansicht, setAnsicht] = useState<"liste" | "freigabe" | "neu">(
+  // Reiter: Rechnungen (zu prüfen / Lastschrift), Hausgeld, Aufträge, Erledigt, Gutschriften
+  type Haupt = "rechnungen" | "hausgeld" | "auftraege" | "erledigt" | "gutschriften";
+  type RFilter = "alle" | "offen" | "lastschrift";
+  type Reiter = RFilter | "hausgeld" | "auftraege" | "bezahlt" | "gutschriften";
+  const tabParam = searchParams.get("tab") ?? "";
+  const startHaupt: Haupt =
+    searchParams.get("direction") === "incoming"
+      ? "gutschriften"
+      : tabParam === "offen" || tabParam === "lastschrift"
+        ? "rechnungen"
+        : tabParam === "bezahlt"
+          ? "erledigt"
+          : (["rechnungen", "hausgeld", "auftraege", "erledigt", "gutschriften"] as string[]).includes(tabParam)
+            ? (tabParam as Haupt)
+            : "rechnungen";
+  const [haupt, setHaupt] = useState<Haupt>(startHaupt);
+  const [rfilter, setRfilter] = useState<RFilter>(tabParam === "offen" ? "offen" : tabParam === "lastschrift" ? "lastschrift" : "alle");
+  const [efilter, setEfilter] = useState<"alles" | "tan" | "rechnungen" | "beendet">("alles");
+  const reiter: Reiter = haupt === "rechnungen" ? rfilter : haupt === "erledigt" ? "bezahlt" : haupt;
+  const ohneRechnungen = reiter === "auftraege" || reiter === "hausgeld";
+  const [ansicht, setAnsicht] = useState<"liste" | "freigabe" | "neu" | "hausgeld-aendern">(
     searchParams.get("ansicht") === "freigabe" ? "freigabe" : "liste",
   );
+  // Neuer Auftrag: leer, vorausgefüllt oder einen bestehenden bearbeiten
+  const [neuOpts, setNeuOpts] = useState<{ vorlage?: AuftragVorlage; auftragId?: string; kopie?: boolean; zurueck?: Haupt }>({});
+  const [hgBuilding, setHgBuilding] = useState("");
+  const neuOeffnen = (o: typeof neuOpts = {}) => {
+    setNeuOpts(o);
+    setAnsicht("neu");
+  };
   const direction: Direction = reiter === "gutschriften" ? "incoming" : "outgoing";
   const showPaid = reiter === "bezahlt";
 
@@ -199,20 +225,17 @@ export function Transfers() {
   useEffect(() => {
     const next = new URLSearchParams(searchParams);
     next.delete("direction");
-    next.set("tab", reiter);
-    if (ansicht === "liste") next.delete("ansicht");
-    else next.set("ansicht", ansicht);
+    next.set("tab", haupt);
+    if (ansicht === "liste" || ansicht === "freigabe") {
+      if (ansicht === "liste") next.delete("ansicht");
+      else next.set("ansicht", ansicht);
+    }
     setSearchParams(next, { replace: true });
-  }, [reiter, ansicht]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [haupt, ansicht]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Anzahl offener Aufträge für den Reiter
-  const { data: auftragsAnzahl = 0 } = useQuery({
-    queryKey: ["auftraege", "anzahl"],
-    queryFn: async () => {
-      const { count } = await (supabase as any).from("payment_orders").select("id", { count: "exact", head: true }).in("status", ["aktiv", "pausiert"]);
-      return count ?? 0;
-    },
-  });
+  // Anzahl offener Aufträge für den Reiter (gesendete einmalige zählen nicht)
+  const { data: laufendeAuftraege = [] } = useLaufendeAuftraege();
+  const auftragsAnzahl = laufendeAuftraege.filter((a) => !a.gesendet).length;
 
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-list"],
@@ -296,6 +319,7 @@ export function Transfers() {
     return outgoingInvoices.filter((i: any) => {
       const r = gehoertZu(i);
       if (reiter === "offen") return r === "offen" && !inFreigabe(i);
+      if (reiter === "alle") return (r === "offen" && !inFreigabe(i)) || r === "lastschrift";
       return r === reiter;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -538,25 +562,42 @@ export function Transfers() {
       </div>
     );
   }
+  const gebaeudeNamen: Record<string, string> = Object.fromEntries(buildings.map((b: any) => [b.id, b.name]));
   if (ansicht === "neu") {
     return (
       <div className="p-3 md:p-0">
         <NeuerAuftrag
-          onAbbrechen={() => setAnsicht("liste")}
-          onFertig={() => { setAnsicht("liste"); setReiter("auftraege"); queryClient.invalidateQueries({ queryKey: ["auftraege"] }); }}
+          key={`${neuOpts.auftragId ?? "neu"}-${neuOpts.kopie ? "k" : ""}-${neuOpts.vorlage ? JSON.stringify(neuOpts.vorlage).length : 0}`}
+          vorlage={neuOpts.vorlage}
+          auftragId={neuOpts.auftragId}
+          kopie={neuOpts.kopie}
+          onAbbrechen={() => { setAnsicht("liste"); if (neuOpts.zurueck) setHaupt(neuOpts.zurueck); }}
+          onFertig={() => { setAnsicht("liste"); setHaupt(neuOpts.zurueck && neuOpts.auftragId ? neuOpts.zurueck : "auftraege"); queryClient.invalidateQueries({ queryKey: ["auftraege"] }); }}
+        />
+      </div>
+    );
+  }
+  if (ansicht === "hausgeld-aendern" && hgBuilding) {
+    return (
+      <div className="p-3 md:p-0">
+        <HausgeldAendern
+          buildingId={hgBuilding}
+          name={gebaeudeNamen[hgBuilding] ?? "Liegenschaft"}
+          onZurueck={() => setAnsicht("liste")}
+          onFertig={() => { setAnsicht("liste"); setHaupt("hausgeld"); }}
+          onSammelauftrag={(v) => neuOeffnen({ vorlage: { art: "einzug", quelle: "nachzahlung", ...v }, zurueck: "auftraege" })}
         />
       </div>
     );
   }
 
-  const gebaeudeNamen: Record<string, string> = Object.fromEntries(buildings.map((b: any) => [b.id, b.name]));
-  const reiterKnopf = (r: Reiter, text: string) => (
+  const hauptKnopf = (r: Haupt, text: string) => (
     <button
       type="button"
-      onClick={() => setReiter(r)}
+      onClick={() => setHaupt(r)}
       className={cn(
         "min-h-[44px] border-b-2 px-1 text-sm font-medium transition-colors md:text-[15px]",
-        reiter === r ? "border-primary font-semibold text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
+        haupt === r ? "border-primary font-semibold text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
       )}
     >
       {text}
@@ -574,7 +615,7 @@ export function Transfers() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => setAnsicht("neu")} className="h-11">
+          <Button variant="outline" onClick={() => neuOeffnen()} className="h-11">
             <Plus className="h-4 w-4 mr-2" /> Neuer Auftrag
           </Button>
           <Button onClick={() => setAnsicht("freigabe")} className="h-11">
@@ -613,7 +654,7 @@ export function Transfers() {
             className="h-11 text-sm text-foreground"
           />
         </label>
-        {reiter !== "auftraege" && (
+        {!ohneRechnungen && (
           <label className="flex basis-44 flex-col gap-1.5 text-xs text-muted-foreground">
             Zeitraum
             <Select value={periodPreset} onValueChange={setPeriodPreset}>
@@ -633,7 +674,7 @@ export function Transfers() {
             </Select>
           </label>
         )}
-        {periodPreset === "custom" && reiter !== "auftraege" && (
+        {periodPreset === "custom" && !ohneRechnungen && (
           <div className="flex items-end gap-1">
             <input type="date" value={periodFrom} onChange={(e) => setPeriodFrom(e.target.value)} className="h-11 rounded-md border bg-background px-2 text-sm" />
             <span className="pb-3 text-xs text-muted-foreground">–</span>
@@ -645,20 +686,20 @@ export function Transfers() {
       {/* Reiter */}
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2 border-b">
         <div className="flex flex-wrap gap-x-6" role="group" aria-label="Ansicht">
-          {reiterKnopf("offen", `Rechnungen offen · ${direction === "outgoing" && !showPaid ? unpaidInvoices.length : "…"}`)}
-          {reiterKnopf("lastschrift", `Lastschrift${direction === "outgoing" && !showPaid ? ` · ${lastschriftInvoices.length}` : ""}`)}
-          {reiterKnopf("auftraege", `Aufträge · ${auftragsAnzahl}`)}
-          {reiterKnopf("bezahlt", "Bezahlt")}
-          {reiterKnopf("gutschriften", "Gutschriften")}
+          {hauptKnopf("rechnungen", `Rechnungen${direction === "outgoing" && !showPaid ? ` · ${unpaidInvoices.length + lastschriftInvoices.length}` : ""}`)}
+          {hauptKnopf("hausgeld", "Hausgeld")}
+          {hauptKnopf("auftraege", `Aufträge · ${auftragsAnzahl}`)}
+          {hauptKnopf("erledigt", "Erledigt")}
+          {hauptKnopf("gutschriften", "Gutschriften")}
         </div>
         <div className="flex flex-wrap gap-2 pb-2">
-          {reiter !== "auftraege" && stuckOcrInvoices.length > 0 && (
+          {!ohneRechnungen && stuckOcrInvoices.length > 0 && (
             <Button size="sm" variant="outline" onClick={retryAllStuckOcr} disabled={retryingOcr === "all"}>
               {retryingOcr === "all" ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1.5" />}
               OCR neu starten ({stuckOcrInvoices.length})
             </Button>
           )}
-          {selectedIds.size > 0 && reiter !== "auftraege" && (
+          {selectedIds.size > 0 && !ohneRechnungen && (
             <Button size="sm" variant="outline" onClick={exportZip} disabled={exporting}>
               {exporting ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Download className="h-4 w-4 mr-1.5" />}
               ZIP export ({selectedIds.size})
@@ -667,13 +708,90 @@ export function Transfers() {
         </div>
       </div>
 
-      {reiter === "offen" && <InvoiceDropZone buildings={buildings} selectedBuildingId={buildingFilter === "all" || buildingFilter === "company" ? "" : buildingFilter} />}
+      {/* Filter unter dem Reiter */}
+      {haupt === "rechnungen" && (
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Filter">
+          {(
+            [
+              ["alle", `Alle · ${unpaidInvoices.length + lastschriftInvoices.length}`],
+              ["offen", `Zu prüfen · ${unpaidInvoices.length}`],
+              ["lastschrift", `Lastschrift · ${lastschriftInvoices.length}`],
+            ] as [RFilter, string][]
+          ).map(([f, t]) => (
+            <button
+              key={f}
+              type="button"
+              aria-pressed={rfilter === f}
+              onClick={() => setRfilter(f)}
+              className={cn("h-9 rounded-full border px-3.5 text-sm font-medium transition-colors", rfilter === f ? "border-foreground bg-foreground text-background" : "bg-card hover:border-foreground/30")}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+      )}
+      {haupt === "erledigt" && (
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Filter">
+          {(
+            [
+              ["alles", "Alles"],
+              ["tan", "Gesendet per TAN"],
+              ["rechnungen", "Bezahlte Rechnungen"],
+              ["beendet", "Beendete Aufträge"],
+            ] as [typeof efilter, string][]
+          ).map(([f, t]) => (
+            <button
+              key={f}
+              type="button"
+              aria-pressed={efilter === f}
+              onClick={() => setEfilter(f)}
+              className={cn("h-9 rounded-full border px-3.5 text-sm font-medium transition-colors", efilter === f ? "border-foreground bg-foreground text-background" : "bg-card hover:border-foreground/30")}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Hausgeld */}
+      {haupt === "hausgeld" && (
+        <HausgeldAnsicht
+          buildingFilter={buildingFilter}
+          onAendern={(b) => { setHgBuilding(b); setAnsicht("hausgeld-aendern"); }}
+          onBearbeiten={(id) => neuOeffnen({ auftragId: id, zurueck: "hausgeld" })}
+          onDauerlastschriftNeu={(b) => neuOeffnen({ vorlage: { art: "dauerlastschrift", buildingId: b }, zurueck: "hausgeld" })}
+        />
+      )}
+
+      {/* Erledigt: gesendete Zahlläufe und beendete Aufträge */}
+      {haupt === "erledigt" && efilter !== "rechnungen" && (
+        <ErledigtLaeufe
+          buildingId={buildingFilter}
+          namen={gebaeudeNamen}
+          von={periodFrom}
+          bis={periodTo}
+          zeigeLaeufe={efilter === "alles" || efilter === "tan"}
+          zeigeBeendet={efilter === "alles" || efilter === "beendet"}
+          suche={searchTerm}
+        />
+      )}
+      {haupt === "erledigt" && efilter === "alles" && <h2 className="pt-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Bezahlte Rechnungen</h2>}
+
+      {(reiter === "offen" || reiter === "alle") && <InvoiceDropZone buildings={buildings} selectedBuildingId={buildingFilter === "all" || buildingFilter === "company" ? "" : buildingFilter} />}
 
       {/* Aufträge */}
-      {reiter === "auftraege" && <AuftraegeListe buildingId={buildingFilter} suche={searchTerm} namen={gebaeudeNamen} />}
+      {reiter === "auftraege" && (
+        <AuftraegeListe
+          buildingId={buildingFilter}
+          suche={searchTerm}
+          namen={gebaeudeNamen}
+          onBearbeiten={(id) => neuOeffnen({ auftragId: id, zurueck: "auftraege" })}
+          onKopieren={(id) => neuOeffnen({ auftragId: id, kopie: true, zurueck: "auftraege" })}
+        />
+      )}
 
       {/* Rechnungen (offen / bezahlt) */}
-      {direction === "outgoing" && reiter !== "auftraege" && (
+      {direction === "outgoing" && !ohneRechnungen && !(haupt === "erledigt" && (efilter === "tan" || efilter === "beendet")) && (
         <section className="overflow-hidden rounded-xl border bg-card" aria-label={showPaid ? "Bezahlte Rechnungen" : reiter === "lastschrift" ? "Lastschriften" : "Offene Rechnungen"}>
           {filteredInvoices.length > 0 && (
             <div className="flex items-center gap-3 border-b bg-muted/30 px-4 py-2 text-xs text-muted-foreground">
@@ -690,8 +808,8 @@ export function Transfers() {
                 aria-label="Alle auswählen"
               />
               <span className="flex-1">
-                {filteredInvoices.length} {showPaid ? "bezahlt oder überwiesen" : reiter === "lastschrift" ? "per Lastschrift – wird eingezogen" : "zu prüfen"}
-                {reiter === "offen" && freigabeAnzahl > 0 && (
+                {filteredInvoices.length} {showPaid ? "bezahlt oder überwiesen" : reiter === "lastschrift" ? "per Lastschrift – wird eingezogen" : reiter === "alle" ? "offen" : "zu prüfen"}
+                {(reiter === "offen" || reiter === "alle") && freigabeAnzahl > 0 && (
                   <button type="button" onClick={() => setAnsicht("freigabe")} className="ml-2 text-primary hover:underline">
                     · {freigabeAnzahl} liegen in der Freigabe
                   </button>
