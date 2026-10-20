@@ -81,8 +81,8 @@ export default function WegOwnerImmobilien() {
           l1 ? <Laden /> : angebote.length === 0 ? (
             <Leer text="Zurzeit gibt es keine Angebote. Schauen Sie gern später wieder vorbei." />
           ) : (
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-              {angebote.map((a) => <AngebotKachel key={a.id} a={a} onClick={() => setAngebot(a)} />)}
+            <div className="mx-auto max-w-xl space-y-4">
+              {angebote.map((a) => <AngebotBeitrag key={a.id} a={a} onClick={() => setAngebot(a)} />)}
             </div>
           )
         ) : (
@@ -138,33 +138,80 @@ function istNeu(datum: string) {
   return Date.now() - new Date(datum).getTime() < NEU_TAGE * 24 * 60 * 60 * 1000;
 }
 
-function AngebotKachel({ a, onClick }: { a: Angebot; onClick: () => void }) {
+/** Ein Angebot als Beitrag im Verlauf (wie bei Instagram): Bilder zum Wischen, darunter die Eckdaten. */
+function AngebotBeitrag({ a, onClick }: { a: Angebot; onClick: () => void }) {
+  const [bild, setBild] = useState(0);
+  const bilder = a.images ?? [];
+  const eck = [
+    a.rooms ? `${zahl(a.rooms)} Zimmer` : null,
+    a.living_space_sqm ? `${zahl(a.living_space_sqm)} m²` : null,
+    a.plot_size_sqm ? `${zahl(a.plot_size_sqm)} m² Grundstück` : null,
+  ].filter(Boolean);
   return (
-    <button type="button" onClick={onClick} className="text-left bg-card rounded-[14px] border border-border/60 shadow-sm overflow-hidden transition-shadow hover:shadow-md">
-      <div className="relative aspect-[4/3] bg-muted">
-        {a.images?.[0] ? (
-          <img src={fotoUrl(a.images[0].path)} alt="" loading="lazy" className="h-full w-full object-cover" />
-        ) : (
-          <div className="flex h-full items-center justify-center text-muted-foreground"><Building2 className="h-8 w-8 opacity-40" /></div>
-        )}
-        <span className="absolute left-2 top-2 rounded-full bg-white/95 px-2 py-0.5 text-[11px] font-semibold text-foreground">
-          {a.listing_type === "sale" ? "Kauf" : "Miete"}
-        </span>
-        {a.website_state === "reserviert" ? (
-          <span className="absolute right-2 top-2 rounded-full bg-[#2B2622] px-2 py-0.5 text-[11px] font-semibold text-white">Reserviert</span>
-        ) : istNeu(a.created_at) ? (
-          <span className="absolute right-2 top-2 rounded-full bg-primary px-2 py-0.5 text-[11px] font-semibold text-primary-foreground">Neu</span>
-        ) : null}
-      </div>
-      <div className="p-2.5 space-y-0.5">
-        <div className="text-[13.5px] font-semibold leading-snug line-clamp-2">{a.title}</div>
-        <div className="text-[12px] text-muted-foreground truncate">
-          {[a.city, a.living_space_sqm ? `${zahl(a.living_space_sqm)} m²` : null].filter(Boolean).join(" · ")}
+    <article className="overflow-hidden rounded-[16px] border border-border/60 bg-card shadow-sm">
+      <div className="flex items-center gap-3 px-4 py-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-[12px] font-bold text-primary-foreground">RGI</span>
+        <div className="min-w-0 flex-1">
+          <div className="text-[14px] font-semibold leading-tight">RGI Immobilien</div>
+          <div className="truncate text-[12px] text-muted-foreground">{[a.postal_code, a.city].filter(Boolean).join(" ") || "Allgäu"}</div>
         </div>
-        <div className="pt-0.5 text-[14px] font-semibold text-[#B35500]">{preisText(a)}</div>
-        {a.gemeldet && <div className="flex items-center gap-1 text-[12px] text-emerald-700"><Check className="h-3.5 w-3.5" />Interesse gemeldet</div>}
+        <span className="rounded-full bg-muted px-2.5 py-0.5 text-[12px] font-semibold">{a.listing_type === "sale" ? "Kauf" : "Miete"}</span>
       </div>
-    </button>
+
+      <div className="relative aspect-[4/5] bg-muted">
+        {bilder.length ? (
+          <div
+            className="flex h-full snap-x snap-mandatory overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            onScroll={(e) => {
+              const el = e.currentTarget;
+              setBild(Math.round(el.scrollLeft / Math.max(1, el.clientWidth)));
+            }}
+          >
+            {bilder.map((b, i) => (
+              <button key={b.path} type="button" onClick={onClick} className="h-full w-full shrink-0 snap-center" aria-label={`Bild ${i + 1} von ${bilder.length} – Angebot öffnen`}>
+                <img src={fotoUrl(b.path)} alt={b.caption ?? ""} loading="lazy" className="h-full w-full object-cover" />
+              </button>
+            ))}
+          </div>
+        ) : (
+          <button type="button" onClick={onClick} className="flex h-full w-full items-center justify-center text-muted-foreground" aria-label="Angebot öffnen">
+            <Building2 className="h-10 w-10 opacity-40" />
+          </button>
+        )}
+        {a.website_state === "reserviert" ? (
+          <span className="pointer-events-none absolute right-3 top-3 rounded-full bg-[#2B2622] px-2.5 py-0.5 text-[12px] font-semibold text-white">Reserviert</span>
+        ) : istNeu(a.created_at) ? (
+          <span className="pointer-events-none absolute right-3 top-3 rounded-full bg-primary px-2.5 py-0.5 text-[12px] font-semibold text-primary-foreground">Neu</span>
+        ) : null}
+        {bilder.length > 1 && (
+          <>
+            <span className="pointer-events-none absolute right-3 bottom-3 rounded-full bg-black/60 px-2 py-0.5 text-[12px] font-medium text-white">
+              {bild + 1}/{bilder.length}
+            </span>
+            <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center gap-1.5">
+              {bilder.slice(0, 8).map((_, i) => (
+                <span key={i} className={cn("h-1.5 w-1.5 rounded-full", i === bild ? "bg-white" : "bg-white/50")} />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+
+      <div className="space-y-1 px-4 pb-4 pt-3">
+        <div className="text-[17px] font-bold text-[#B35500]">{preisText(a)}</div>
+        <div className="text-[15px] font-semibold leading-snug">{a.title}</div>
+        {eck.length > 0 && <div className="text-[13px] text-muted-foreground">{eck.join(" · ")}</div>}
+        {a.description && <p className="line-clamp-2 pt-1 text-[14px] leading-relaxed text-foreground/85">{a.description}</p>}
+        <div className="flex items-center justify-between gap-3 pt-2">
+          {a.gemeldet ? (
+            <span className="flex items-center gap-1.5 text-[13px] text-emerald-700"><Check className="h-4 w-4" />Interesse gemeldet</span>
+          ) : (
+            <span />
+          )}
+          <Button variant="outline" className="h-11" onClick={onClick}>Mehr ansehen</Button>
+        </div>
+      </div>
+    </article>
   );
 }
 
