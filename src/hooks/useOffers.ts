@@ -14,7 +14,7 @@ export const OFFER_STATUS_LABEL: Record<OfferStatus, string> = {
   drafted: "Entwurf",
   sent: "Versendet",
   won: "Gewonnen",
-  lost: "Verloren",
+  lost: "Abgelehnt",
   withdrawn: "Zurückgezogen",
 };
 
@@ -174,6 +174,27 @@ export function useDeleteOffer() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["rgi", "offers"] });
       toast.success("Angebot gelöscht");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
+/** Angebot als abgelehnt markieren – oder wieder öffnen. */
+export function useOfferAblehnen() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { offer: Offer; abgelehnt: boolean; grund?: string }) => {
+      const o = input.offer;
+      const aenderung = input.abgelehnt
+        ? { status: "lost", decided_on: new Date().toISOString().slice(0, 10), lost_reason: input.grund?.trim() || null }
+        : { status: o.docx_storage_path || o.pdf_storage_path ? "drafted" : "inquiry", decided_on: null, lost_reason: null };
+      const { error } = await db.from("offers").update(aenderung).eq("id", o.id);
+      if (error) throw error;
+      return input.abgelehnt;
+    },
+    onSuccess: (abgelehnt) => {
+      qc.invalidateQueries({ queryKey: ["rgi", "offers"] });
+      toast.success(abgelehnt ? "Als abgelehnt markiert – ausgeblendet" : "Angebot wieder geöffnet");
     },
     onError: (e: any) => toast.error(e.message),
   });

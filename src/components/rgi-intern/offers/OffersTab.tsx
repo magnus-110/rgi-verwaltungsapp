@@ -11,11 +11,11 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Pencil, Trash2, Search, FileText, Download, CalendarClock, ArrowRight, FileBadge } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, FileText, Download, CalendarClock, ArrowRight, FileBadge, XCircle, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  useOffers, useDeleteOffer, useConvertOfferToContract, offerSignedUrl,
+  useOffers, useDeleteOffer, useConvertOfferToContract, useOfferAblehnen, offerSignedUrl,
   OFFER_STATUS_LABEL, type Offer, type OfferStatus,
 } from "@/hooks/useOffers";
 import { OfferWizard } from "./OfferWizard";
@@ -34,6 +34,9 @@ export function OffersTab() {
   const { data: offers, isLoading } = useOffers();
   const del = useDeleteOffer();
   const convert = useConvertOfferToContract();
+  const ablehnen = useOfferAblehnen();
+  const [ablehnenFuer, setAblehnenFuer] = useState<Offer | null>(null);
+  const [grund, setGrund] = useState("");
 
   const [wizardOpen, setWizardOpen] = useState(false);
   const [editing, setEditing] = useState<Offer | null>(null);
@@ -42,11 +45,13 @@ export function OffersTab() {
   const [buildings, setBuildings] = useState<any[]>([]);
   const [targetBuilding, setTargetBuilding] = useState("");
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | OfferStatus>("all");
+  const [statusFilter, setStatusFilter] = useState<"aktuell" | "all" | OfferStatus>("aktuell");
 
   const rows = useMemo(() => {
     return (offers ?? []).filter((o) => {
-      if (statusFilter !== "all" && o.status !== statusFilter) return false;
+      // Standard: abgelehnte und zurückgezogene ausblenden
+      if (statusFilter === "aktuell" && (o.status === "lost" || o.status === "withdrawn")) return false;
+      if (statusFilter !== "all" && statusFilter !== "aktuell" && o.status !== statusFilter) return false;
       if (!search) return true;
       const q = search.toLowerCase();
       return (
@@ -98,6 +103,7 @@ export function OffersTab() {
         <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)}>
           <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
           <SelectContent>
+            <SelectItem value="aktuell">Ohne abgelehnte</SelectItem>
             <SelectItem value="all">Alle Stände</SelectItem>
             {(Object.keys(OFFER_STATUS_LABEL) as OfferStatus[]).map((s) => (
               <SelectItem key={s} value={s}>{OFFER_STATUS_LABEL[s]}</SelectItem>
@@ -113,7 +119,7 @@ export function OffersTab() {
           <Kpi label="Offene Anfragen" value={String(stats.openCount)} />
           <Kpi label="Mögliches Honorar / Jahr" value={formatEur(stats.openValue)} accent />
           <Kpi label="Nachfassen fällig" value={String(stats.due)} warn={stats.due > 0} />
-          <Kpi label="Gewonnen / verloren" value={`${stats.won} / ${stats.lost}`} />
+          <Kpi label="Gewonnen / abgelehnt" value={`${stats.won} / ${stats.lost}`} />
         </div>
       )}
 
@@ -155,7 +161,7 @@ export function OffersTab() {
                     {[o.object_address, o.object_city].filter(Boolean).join(", ") || "keine Anschrift"}
                     {o.units_apartment ? ` · ${o.units_apartment} Wohnungen` : ""}
                     {o.desired_start ? ` · ab ${formatDate(o.desired_start)}` : ""}
-                    {o.lost_reason ? ` · verloren: ${o.lost_reason}` : ""}
+                    {o.lost_reason ? ` · Grund: ${o.lost_reason}` : ""}
                   </div>
                 </div>
 
@@ -188,6 +194,16 @@ export function OffersTab() {
                   {o.status !== "won" && (
                     <Button variant="outline" size="sm" className="gap-1.5" onClick={() => startConvert(o)}>
                       Vertrag anlegen<ArrowRight className="w-3.5 h-3.5" />
+                    </Button>
+                  )}
+                  {["inquiry", "drafted", "sent"].includes(o.status) && (
+                    <Button variant="ghost" size="sm" title="Abgelehnt – ausblenden" aria-label="Als abgelehnt markieren" onClick={() => { setAblehnenFuer(o); setGrund(""); }}>
+                      <XCircle className="w-4 h-4" />
+                    </Button>
+                  )}
+                  {(o.status === "lost" || o.status === "withdrawn") && (
+                    <Button variant="ghost" size="sm" className="gap-1.5" title="Wieder öffnen" onClick={() => ablehnen.mutate({ offer: o, abgelehnt: false })}>
+                      <RotateCcw className="w-4 h-4" />Wieder öffnen
                     </Button>
                   )}
                   <Button variant="ghost" size="sm" onClick={() => openEdit(o)}><Pencil className="w-4 h-4" /></Button>
@@ -237,6 +253,28 @@ export function OffersTab() {
               }}
             >
               Vertrag anlegen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!ablehnenFuer} onOpenChange={(v) => !v && setAblehnenFuer(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Angebot abgelehnt?</AlertDialogTitle>
+            <AlertDialogDescription>
+              „{ablehnenFuer?.prospect_name}“ wird danach in der Liste ausgeblendet. Über den Filter
+              „Abgelehnt“ findest du es jederzeit wieder und kannst es wieder öffnen.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-1.5">
+            <label htmlFor="ablehn-grund" className="text-sm font-medium">Grund <span className="font-normal text-muted-foreground">(freiwillig)</span></label>
+            <Input id="ablehn-grund" value={grund} onChange={(e) => setGrund(e.target.value)} placeholder="z. B. zu teuer, andere Verwaltung gewählt" />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { if (ablehnenFuer) ablehnen.mutate({ offer: ablehnenFuer, abgelehnt: true, grund }); setAblehnenFuer(null); }}>
+              Als abgelehnt markieren
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

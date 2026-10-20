@@ -707,7 +707,7 @@ export function OfferWizard({ open, onOpenChange, offer, vorlage, onSaved }: Pro
               </div>
               {form.status === "lost" && (
                 <div>
-                  <Label className="text-sm">Warum verloren?</Label>
+                  <Label className="text-sm">Warum abgelehnt?</Label>
                   <Input className="mt-1.5" value={form.lost_reason ?? ""}
                     onChange={(e) => set("lost_reason", e.target.value)}
                     placeholder="Preis, Referenzen, kein Wechsel beschlossen…" />
