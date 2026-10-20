@@ -126,7 +126,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           setUser(null);
           setProfile(null);
           setLoading(false);
-        } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
+        } else if (
+          event === 'SIGNED_IN' ||
+          event === 'TOKEN_REFRESHED' ||
+          event === 'INITIAL_SESSION' ||
+          // Link „Neues Passwort festlegen“ meldet sich mit PASSWORD_RECOVERY an
+          event === 'PASSWORD_RECOVERY' ||
+          event === 'USER_UPDATED'
+        ) {
           setSession(session);
           setUser(session?.user ?? null);
           setProfile((current) => {
