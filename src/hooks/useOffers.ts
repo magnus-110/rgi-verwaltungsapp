@@ -319,6 +319,9 @@ export function useConvertOfferToContract() {
           contract_id: contract.id, fee_type: "base", label: b.label, unit_kind: b.kind,
           basis: "unit_month", amount: b.rate, quantity: b.count, is_gross: false,
           vat_rate: 19, debtor: "community", position: pos++, is_active: true,
+          // Bei einem Insert mit mehreren Zeilen setzt PostgREST fehlende
+          // Spalten auf NULL statt auf den Default — deshalb explizit setzen.
+          halved_if_supervised: false,
         });
       }
       for (const it of offer.items ?? []) {
@@ -334,8 +337,14 @@ export function useConvertOfferToContract() {
         });
       }
       if (feeRows.length) {
-        const { error: fErr } = await db.from("management_contract_fees").insert(feeRows);
-        if (fErr) throw fErr;
+        const { error: fErr } = await db
+          .from("management_contract_fees")
+          .insert(feeRows, { defaultToNull: false });
+        if (fErr) {
+          // Keinen halben Vertrag ohne Vergütung stehen lassen.
+          await db.from("management_contracts").delete().eq("id", contract.id);
+          throw fErr;
+        }
       }
 
       const { error: uErr } = await db
