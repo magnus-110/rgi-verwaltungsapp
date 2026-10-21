@@ -9,7 +9,6 @@ import {
   CreditCard,
   FolderKanban,
   Home,
-  Inbox,
   KeyRound,
   Landmark,
   ListChecks,
@@ -62,7 +61,6 @@ export const adminMenu: MenuItem[] = [
   { title: 'Kalender', url: '/calendar', icon: CalendarDays },
 
   { title: 'Pinnwand', url: '/pinnwand', icon: StickyNote, abschnitt: 'Büro' },
-  { title: 'Ablage', url: '/ablage', icon: Inbox, abschnitt: 'Büro' },
   { title: 'Vorgänge', url: '/vorgaenge', icon: FolderKanban, abschnitt: 'Büro' },
   { title: 'Jahreszyklus', url: '/jahreszyklus', icon: CalendarRange, abschnitt: 'Büro' },
   { title: 'Notizbuch', url: '/notizbuch', icon: NotebookPen, abschnitt: 'Büro' },
