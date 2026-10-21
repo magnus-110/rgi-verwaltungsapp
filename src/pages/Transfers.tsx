@@ -28,6 +28,7 @@ import { FreigabeAnsicht, useRechnungenInZahlung } from "@/components/zahlungen/
 import { NeuerAuftrag } from "@/components/zahlungen/NeuerAuftrag";
 import { AuftraegeListe, useLaufendeAuftraege } from "@/components/zahlungen/AuftraegeListe";
 import { HausgeldAnsicht } from "@/components/zahlungen/HausgeldAnsicht";
+import { gebaeudeMerken, gemerktesGebaeude } from "@/lib/gemerktesGebaeude";
 import { HausgeldAendern } from "@/components/zahlungen/HausgeldAendern";
 import { ErledigtLaeufe } from "@/components/zahlungen/ErledigtLaeufe";
 import type { AuftragVorlage } from "@/components/zahlungen/NeuerAuftrag";
@@ -73,7 +74,11 @@ export function Transfers() {
   const direction: Direction = reiter === "gutschriften" ? "incoming" : "outgoing";
   const showPaid = reiter === "bezahlt";
 
-  const [buildingFilter, setBuildingFilter] = useState<string>("all");
+  const [buildingFilter, setBuildingFilterRoh] = useState<string>(() => gemerktesGebaeude() ?? "all");
+  const setBuildingFilter = (v: string) => {
+    setBuildingFilterRoh(v);
+    gebaeudeMerken(v);
+  };
   const [periodPreset, setPeriodPreset] = useState<string>("all");
   const [periodFrom, setPeriodFrom] = useState<string>("");
   const [periodTo, setPeriodTo] = useState<string>("");
@@ -762,6 +767,7 @@ export function Transfers() {
       {haupt === "hausgeld" && (
         <HausgeldAnsicht
           buildingFilter={buildingFilter}
+          onGebaeude={setBuildingFilter}
           onAendern={(b) => { setHgBuilding(b); setAnsicht("hausgeld-aendern"); }}
           onBearbeiten={(id) => neuOeffnen({ auftragId: id, zurueck: "hausgeld" })}
           onDauerlastschriftNeu={(b) => neuOeffnen({ vorlage: { art: "dauerlastschrift", buildingId: b }, zurueck: "hausgeld" })}

@@ -40,7 +40,17 @@ function standardDatum(fiscalYear: number) {
   return n > jahresbeginn ? n : jahresbeginn;
 }
 
-export function HausgeldUebernehmen({ werte, fiscalYear }: { werte: HausgeldWert[]; fiscalYear: number }) {
+export function HausgeldUebernehmen({
+  werte,
+  fiscalYear,
+  knopfText = "Hausgeld übernehmen",
+  onFertig,
+}: {
+  werte: HausgeldWert[];
+  fiscalYear: number;
+  knopfText?: string;
+  onFertig?: () => void;
+}) {
   const qc = useQueryClient();
   const [offen, setOffen] = useState(false);
   const [ab, setAb] = useState(() => standardDatum(fiscalYear));
@@ -111,7 +121,9 @@ export function HausgeldUebernehmen({ werte, fiscalYear }: { werte: HausgeldWert
       }
       toast.success(`Hausgeld für ${aenderungen.length} Eigentümer ab ${ab.split("-").reverse().join(".")} übernommen`);
       qc.invalidateQueries({ queryKey: ["hausgeld-bestand"] });
+      qc.invalidateQueries({ queryKey: ["mandate"] });
       setOffen(false);
+      onFertig?.();
     } catch (e: any) {
       toast.error("Übernahme fehlgeschlagen: " + (e?.message ?? "Unbekannter Fehler"));
     } finally {
@@ -123,7 +135,7 @@ export function HausgeldUebernehmen({ werte, fiscalYear }: { werte: HausgeldWert
     <>
       <Button size="sm" variant="outline" onClick={() => setOffen(true)} disabled={!werte.length}>
         <ArrowRightLeft className="h-4 w-4 mr-1" />
-        Hausgeld übernehmen
+        {knopfText}
       </Button>
       <Dialog open={offen} onOpenChange={setOffen}>
         <DialogContent className="max-w-2xl">
@@ -137,6 +149,7 @@ export function HausgeldUebernehmen({ werte, fiscalYear }: { werte: HausgeldWert
           <label className="flex items-center gap-3 text-sm">
             <span className="text-muted-foreground">Gilt ab</span>
             <Input type="date" value={ab} onChange={(e) => e.target.value && setAb(e.target.value)} className="w-44" />
+            <span className="text-xs text-muted-foreground">Darf in der Zukunft liegen – bis dahin gilt der bisherige Betrag.</span>
           </label>
           <div className="max-h-[50vh] overflow-y-auto rounded-md border">
             {isLoading ? (

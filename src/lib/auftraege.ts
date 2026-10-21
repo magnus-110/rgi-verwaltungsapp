@@ -115,8 +115,28 @@ async function ladeVerplant(itemIds: string[]): Promise<Map<string, Set<string>>
       s.add(r.run?.faellig_am ?? r.run?.ausfuehrung_am ?? "*");
       m.set(r.order_item_id, s);
     });
+    // in der Freigabe ausgelassene Termine zählen wie erledigt
+    const { data: aus } = await (supabase as any)
+      .from("payment_order_skips")
+      .select("order_item_id, faellig_am")
+      .in("order_item_id", itemIds.slice(i, i + 100));
+    (aus ?? []).forEach((r: any) => {
+      const s = m.get(r.order_item_id) ?? new Set<string>();
+      // eigenes Kennzeichen: zählt nicht als „zuletzt verplant“ für die übrigen Eigentümer
+      s.add(`skip:${r.faellig_am}`);
+      m.set(r.order_item_id, s);
+    });
   }
   return m;
+}
+
+/** Einen Termin eines Auftragspostens auslassen (taucht in der Freigabe nicht mehr auf). */
+export async function postenAuslassen(schluessel: string) {
+  const [orderItemId, tag] = schluessel.split("|");
+  const { error } = await (supabase as any)
+    .from("payment_order_skips")
+    .upsert({ order_item_id: orderItemId, faellig_am: tag }, { onConflict: "order_item_id,faellig_am" });
+  if (error) throw error;
 }
 
 /**
@@ -154,7 +174,7 @@ export async function faelligeAuftragsposten(auftraege?: Auftrag[]): Promise<Fae
       // nach dem letzten schon verplanten Termin weitermachen
       const letzter = items
         .flatMap((i) => [...(verplant.get(i.id) ?? [])])
-        .filter((d) => d !== "*")
+        .filter((d) => d !== "*" && !d.startsWith("skip:"))
         .sort()
         .at(-1);
       let d = a.faellig_am;
@@ -173,7 +193,7 @@ export async function faelligeAuftragsposten(auftraege?: Auftrag[]): Promise<Fae
     for (const tag of tage) {
       for (const it of items) {
         const schonDa = verplant.get(it.id);
-        if (schonDa && (a.art !== "dauerlastschrift" || schonDa.has(tag) || schonDa.has("*"))) continue;
+        if (schonDa && (a.art !== "dauerlastschrift" || schonDa.has(tag) || schonDa.has(`skip:${tag}`) || schonDa.has("*"))) continue;
 
         const e = it.assignment_id ? (eigentuemer.get(a.building_id) ?? []).find((x) => x.assignmentId === it.assignment_id) : undefined;
         const mandat: Mandat | null = (mandateDirekt ?? []).find((m: any) => m.id === it.mandate_id) ?? e?.mandat ?? null;

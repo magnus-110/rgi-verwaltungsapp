@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { gebaeudeMerken, gemerktesGebaeude } from "@/lib/gemerktesGebaeude";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { Loader2, Pencil, Plus, Repeat } from "lucide-react";
@@ -36,8 +37,11 @@ export function HausgeldAnsicht({
   onAendern,
   onBearbeiten,
   onDauerlastschriftNeu,
+  onGebaeude,
 }: {
   buildingFilter: string;
+  /** gewähltes Gebäude an die Zahlungen-Seite melden (gilt dann auch für die anderen Reiter) */
+  onGebaeude?: (buildingId: string) => void;
   onAendern: (buildingId: string) => void;
   onBearbeiten: (orderId: string) => void;
   onDauerlastschriftNeu: (buildingId: string) => void;
@@ -52,10 +56,17 @@ export function HausgeldAnsicht({
     },
   });
   const liste = gebaeude.filter((g: any) => (g.management_mode ?? "weg") === managementMode);
-  const [buildingId, setBuildingId] = useState("");
+  const [buildingId, setBuildingIdRoh] = useState("");
+  const setBuildingId = (id: string) => {
+    setBuildingIdRoh(id);
+    gebaeudeMerken(id);
+    onGebaeude?.(id);
+  };
   useEffect(() => {
-    if (buildingFilter !== "all" && buildingFilter !== "company" && liste.some((g: any) => g.id === buildingFilter)) setBuildingId(buildingFilter);
-    else if (!buildingId && liste.length) setBuildingId(liste[0].id);
+    const gemerkt = gemerktesGebaeude();
+    if (buildingFilter !== "all" && buildingFilter !== "company" && liste.some((g: any) => g.id === buildingFilter)) setBuildingIdRoh(buildingFilter);
+    else if (!buildingId && gemerkt && liste.some((g: any) => g.id === gemerkt)) setBuildingIdRoh(gemerkt);
+    else if (!buildingId && liste.length) setBuildingIdRoh(liste[0].id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [buildingFilter, liste.length]);
 

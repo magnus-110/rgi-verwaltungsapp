@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { AlertTriangle, ArrowDown, ArrowUp, ChevronLeft, Download, Loader2, Lock, Pencil, ShieldCheck, Smartphone } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, ChevronLeft, Download, Loader2, Lock, Pencil, ShieldCheck, Smartphone, X } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -13,7 +14,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { cn } from "@/lib/utils";
 import { bankName, blzAusIban, cleanIban, euro, ibanFormatiert } from "@/lib/bankInfo";
 import { erzeugePain001, ibanGueltig, naechsterBankarbeitstag, sepaId, type SepaBlock } from "@/lib/sepa";
-import { faelligeAuftragsposten, fruehesterEinzug, type FaelligerPosten } from "@/lib/auftraege";
+import { faelligeAuftragsposten, fruehesterEinzug, postenAuslassen, type FaelligerPosten } from "@/lib/auftraege";
 import type { KontoZeile } from "@/components/konten/kontenTypes";
 import { TanSendenDialog } from "./TanSendenDialog";
 
@@ -84,6 +85,8 @@ export function FreigabeAnsicht({ onZurueck }: { onZurueck: () => void }) {
   const [pufferEdit, setPufferEdit] = useState<{ id: string; wert: string } | null>(null);
   const [laeuft, setLaeuft] = useState<string | null>(null);
   const [tanLaeufe, setTanLaeufe] = useState<string[] | null>(null);
+  const [rausnehmen, setRausnehmen] = useState<Zeile | null>(null);
+  const [nimmtRaus, setNimmtRaus] = useState(false);
   const istAdmin = profile?.role === "admin";
 
   const { data: inZahlung = new Map<string, string>() } = useRechnungenInZahlung();
@@ -297,6 +300,35 @@ export function FreigabeAnsicht({ onZurueck }: { onZurueck: () => void }) {
     ["zahllauf-offen", "freigabe-rechnungen", "freigabe-auftraege", "zahllauf-entscheidung", "auftraege"].forEach((k) => queryClient.invalidateQueries({ queryKey: [k] }));
   };
 
+  /** Zeile ganz aus der Freigabe nehmen: Rechnung zurück auf „offen“, Auftragstermin auslassen. */
+  const rausnehmenBestaetigt = async () => {
+    const z = rausnehmen;
+    if (!z) return;
+    setNimmtRaus(true);
+    try {
+      if (z.rechnung) {
+        const { error } = await (supabase as any).from("invoices").update({ review_status: "open" }).eq("id", z.rechnung.id);
+        if (error) throw error;
+        toast.success("Rechnung ist wieder offen (ungeprüft) und aus der Freigabe raus");
+        queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      } else if (z.auftrag) {
+        await postenAuslassen(z.auftrag.schluessel);
+        toast.success(z.richtung === "ein" ? "Einzug für diesen Termin gelöscht" : "Zahlung für diesen Termin gelöscht");
+      }
+      setAb((x) => {
+        const n = { ...x };
+        delete n[z.key];
+        return n;
+      });
+      neuLaden();
+      setRausnehmen(null);
+    } catch (e: any) {
+      toast.error(e?.message || "Konnte nicht herausgenommen werden");
+    } finally {
+      setNimmtRaus(false);
+    }
+  };
+
   /** Zahlläufe anlegen: je Konto einer für Überweisungen und je Einzugstag einer für Lastschriften. */
   const laeufeAnlegen = async (bank: (typeof banken)[number], weg: "datei" | "fints") => {
     const heute = naechsterBankarbeitstag();
@@ -423,7 +455,7 @@ export function FreigabeAnsicht({ onZurueck }: { onZurueck: () => void }) {
       </button>
       <header>
         <h1 className="text-2xl font-bold md:text-3xl">Freigabe</h1>
-        <p className="mt-2 text-muted-foreground">Bestätigte Rechnungen, eigene Aufträge und fällige Lastschriften. Haken raus bei allem, was warten soll – der Rest geht per TAN raus.</p>
+        <p className="mt-2 text-muted-foreground">Bestätigte Rechnungen, eigene Aufträge und fällige Lastschriften. Haken raus bei allem, was diesmal warten soll – mit dem Haken beim Gebäude das ganze Haus. Mit × nimmst du einen Punkt ganz heraus. Der Rest geht per TAN raus.</p>
       </header>
 
       {offeneEntscheidungen.length > 0 && (
@@ -450,7 +482,26 @@ export function FreigabeAnsicht({ onZurueck }: { onZurueck: () => void }) {
               <section key={g.key} className="overflow-hidden rounded-xl border bg-card">
                 <div className="flex flex-wrap justify-between gap-x-6 gap-y-3 px-4 pb-3 pt-4">
                   <div className="min-w-0">
-                    <div className="text-lg font-bold">{g.name}</div>
+                    {(() => {
+                      const waehlbar = g.zeilen.filter((z) => !z.hinweis);
+                      const alleAn = waehlbar.length > 0 && waehlbar.every((z) => !ab[z.key]);
+                      const keinesAn = waehlbar.every((z) => ab[z.key]);
+                      return (
+                        <label className="flex cursor-pointer items-center gap-3">
+                          <input
+                            type="checkbox"
+                            checked={alleAn}
+                            ref={(el) => el && (el.indeterminate = !alleAn && !keinesAn)}
+                            disabled={!waehlbar.length}
+                            onChange={(e) => setAb((x) => ({ ...x, ...Object.fromEntries(waehlbar.map((z) => [z.key, !e.target.checked])) }))}
+                            className="h-5 w-5 shrink-0 accent-primary"
+                            aria-label={`${g.name} komplett an- oder abwählen`}
+                          />
+                          <span className={cn("text-lg font-bold", keinesAn && "text-muted-foreground")}>{g.name}</span>
+                          {keinesAn && waehlbar.length > 0 && <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">diesmal nicht</span>}
+                        </label>
+                      );
+                    })()}
                     {g.hatRechnungen && g.kontenAuswahl.length > 1 ? (
                       <Select value={g.iban} onValueChange={(v) => setKontoWahl((k) => ({ ...k, [g.buildingId]: v }))}>
                         <SelectTrigger className="mt-1 h-8 w-72 text-xs">
@@ -528,8 +579,8 @@ export function FreigabeAnsicht({ onZurueck }: { onZurueck: () => void }) {
                     const an = !z.hinweis && !ab[z.key];
                     const ueberfaellig = z.richtung === "aus" && z.faellig && z.faellig < new Date().toISOString().slice(0, 10);
                     return (
-                      <li key={z.key}>
-                        <label className={cn("flex cursor-pointer items-center gap-3 px-4 py-2.5 text-sm", !an && "text-muted-foreground")}>
+                      <li key={z.key} className="flex items-center pr-2">
+                        <label className={cn("flex min-w-0 flex-1 cursor-pointer items-center gap-3 py-2.5 pl-4 pr-2 text-sm", !an && "text-muted-foreground")}>
                           <input
                             type="checkbox"
                             checked={an}
@@ -552,6 +603,16 @@ export function FreigabeAnsicht({ onZurueck }: { onZurueck: () => void }) {
                             {euro(z.betrag)}
                           </span>
                         </label>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive"
+                          title={z.rechnung ? "Aus der Freigabe nehmen (Rechnung wieder auf offen)" : "Diesen Termin löschen"}
+                          aria-label={`${z.name} aus der Freigabe nehmen`}
+                          onClick={() => setRausnehmen(z)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
                       </li>
                     );
                   })}
@@ -620,6 +681,32 @@ export function FreigabeAnsicht({ onZurueck }: { onZurueck: () => void }) {
           </div>
         </div>
       )}
+
+      <AlertDialog open={!!rausnehmen} onOpenChange={(o) => !o && !nimmtRaus && setRausnehmen(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{rausnehmen?.rechnung ? "Rechnung aus der Freigabe nehmen?" : rausnehmen?.richtung === "ein" ? "Diesen Einzug löschen?" : "Diese Zahlung löschen?"}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {rausnehmen?.rechnung
+                ? `Die Rechnung von „${rausnehmen.name}“ (${euro(rausnehmen.betrag)}) wird wieder auf „offen“ gesetzt. Sie erscheint erst wieder hier, wenn sie erneut geprüft wurde.`
+                : `${rausnehmen?.name} · ${rausnehmen ? euro(rausnehmen.betrag) : ""} · ${rausnehmen?.wann}. Nur dieser Termin wird gelöscht – der Auftrag selbst und spätere Termine bleiben.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={nimmtRaus}>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={nimmtRaus}
+              onClick={(e) => {
+                e.preventDefault();
+                rausnehmenBestaetigt();
+              }}
+            >
+              {nimmtRaus && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {rausnehmen?.rechnung ? "Auf offen setzen" : "Löschen"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <TanSendenDialog
         laufIds={tanLaeufe}

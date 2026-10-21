@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { gebaeudeMerken, gemerktesGebaeude } from "@/lib/gemerktesGebaeude";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, ArrowDownLeft, ArrowUpRight, Check, CheckCircle2, ChevronLeft, Info, Landmark, Loader2, Plus, Repeat, ShieldCheck, Trash2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
@@ -13,7 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 import { bankName, cleanIban, euro, ibanFormatiert } from "@/lib/bankInfo";
 import { ibanGueltig } from "@/lib/sepa";
-import { ladeEigentuemer, mandatBereit, mandatVerfallen, type Eigentuemer } from "@/lib/eigentuemer";
+import { hausgeldAm, ladeEigentuemer, mandatBereit, mandatVerfallen, type Eigentuemer } from "@/lib/eigentuemer";
+import { HausgeldUebernehmen, type HausgeldWert } from "@/components/finance/HausgeldUebernehmen";
 import { fruehesterEinzug, heuteIso, plusMonate, type AuftragsArt, type Betragsquelle, type Rhythmus } from "@/lib/auftraege";
 import type { KontoZeile } from "@/components/konten/kontenTypes";
 
@@ -98,7 +100,7 @@ export function NeuerAuftrag({
   const ersterLauf = useRef(!!vorlage || !!auftragId);
   const [art, setArt] = useState<AuftragsArt>(vorlage?.art ?? "ueberweisung");
   const [quelle, setQuelle] = useState<Betragsquelle>(vorlage?.quelle ?? (vorlage?.art === "dauerlastschrift" ? "wirtschaftsplan" : "fest"));
-  const [buildingId, setBuildingId] = useState<string>(vorlage?.buildingId ?? "");
+  const [buildingId, setBuildingId] = useState<string>(vorlage?.buildingId ?? (auftragId ? "" : gemerktesGebaeude() ?? ""));
   const [kontoIban, setKontoIban] = useState<string>(vorlage?.kontoIban ?? "");
   const [titel, setTitel] = useState(vorlage?.titel ?? (vorlage?.art === "dauerlastschrift" ? "Hausgeld" : ""));
   const [zweck, setZweck] = useState(vorlage?.zweck ?? (vorlage?.art === "dauerlastschrift" ? "Hausgeld {monat} - {einheit} {lage}" : ""));
@@ -137,6 +139,25 @@ export function NeuerAuftrag({
       return (data ?? []) as KontoZeile[];
     },
   });
+  // Wirtschaftspläne mit berechnetem Hausgeld (für „Hausgeld übernehmen“)
+  const [planWahl, setPlanWahl] = useState("");
+  const { data: plaene = [] } = useQuery({
+    queryKey: ["wp-hausgeld", buildingId],
+    enabled: !!buildingId && art === "dauerlastschrift",
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("economic_plans")
+        .select("id, fiscal_year, status, hausgeld_je_eigentuemer, hausgeld_berechnet_am")
+        .eq("building_id", buildingId)
+        .in("status", ["active", "draft"])
+        .not("hausgeld_je_eigentuemer", "is", null)
+        .order("fiscal_year", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as { id: string; fiscal_year: number; status: string; hausgeld_je_eigentuemer: HausgeldWert[] }[];
+    },
+  });
+  const plan = plaene.find((p) => p.id === planWahl) ?? plaene[0] ?? null;
+
   const { data: eigentuemer = [], isFetching: ladeEig } = useQuery({
     queryKey: ["mandate", buildingId],
     enabled: !!buildingId && art !== "ueberweisung" || (!!buildingId && quelle === "abrechnung"),
@@ -213,6 +234,8 @@ export function NeuerAuftrag({
     if (buildingId && !kontoIban && auswahlListe.length) {
       const k = auswahlListe.find((x) => x.building_id === buildingId);
       if (k) setKontoIban(k.iban);
+      // gemerktes Gebäude ohne Konto in dieser Ansicht (z. B. andere Verwaltungsart) → leer lassen
+      else if (!vorlage?.buildingId && !auftragId) setBuildingId("");
     }
   }, [buildingId, kontoIban, auswahlListe]);
 
@@ -621,6 +644,7 @@ export function NeuerAuftrag({
                 const [b, i] = v.split("|");
                 setBuildingId(b);
                 setKontoIban(i);
+                gebaeudeMerken(b);
               }}
             >
               <SelectTrigger className="h-auto min-h-[56px] w-full min-w-0 overflow-hidden py-2 text-left">
@@ -850,8 +874,46 @@ export function NeuerAuftrag({
                   ohneKonto={!buildingId}
                   auswahl={auswahl}
                   setAuswahl={setAuswahl}
-                  wert={(e) => (e.hausgeldMonat > 0 ? euro(e.hausgeldMonat * { monatlich: 1, quartal: 3, halbjahr: 6, jahr: 12 }[rhythmus]) : "kein Hausgeld")}
+                  wert={(e) => {
+                    // Betrag beim ersten Einzug – so sieht man ein beschlossenes neues Hausgeld schon vorher
+                    const m = hausgeldAm(e.hausgeldZeilen, erster);
+                    return m > 0 ? euro(m * { monatlich: 1, quartal: 3, halbjahr: 6, jahr: 12 }[rhythmus]) : "kein Hausgeld";
+                  }}
                 />
+                {buildingId && (
+                  <div className="flex flex-wrap items-center gap-3 rounded-xl border border-dashed px-4 py-3">
+                    <div className="min-w-0 flex-1 basis-64 text-sm">
+                      <div className="font-medium">Hausgeld aus dem Wirtschaftsplan</div>
+                      <div className="text-xs text-muted-foreground">
+                        {plan
+                          ? "Überträgt das Hausgeld je Eigentümer ab einem Datum, das du wählst – auch schon vorher, z. B. jetzt im Oktober für einen Beschluss ab November."
+                          : "Noch kein Wirtschaftsplan mit Hausgeld gefunden. Öffne den Wirtschaftsplan dieser Liegenschaft einmal (Finanzen › Wirtschaftsplan), dann erscheint er hier."}
+                      </div>
+                    </div>
+                    {plaene.length > 1 && (
+                      <Select value={plan?.id ?? ""} onValueChange={setPlanWahl}>
+                        <SelectTrigger className="h-10 w-48">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {plaene.map((p) => (
+                            <SelectItem key={p.id} value={p.id}>
+                              Plan {p.fiscal_year}{p.status === "active" ? "" : " (Entwurf)"}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    {plan && (
+                      <HausgeldUebernehmen
+                        werte={plan.hausgeld_je_eigentuemer.filter((w) => eigentuemer.some((e) => e.assignmentId === w.assignmentId))}
+                        fiscalYear={plan.fiscal_year}
+                        knopfText={`Aus Plan ${plan.fiscal_year} übernehmen`}
+                        onFertig={() => queryClient.invalidateQueries({ queryKey: ["mandate", buildingId] })}
+                      />
+                    )}
+                  </div>
+                )}
                 <p className="text-xs text-muted-foreground">
                   Der Betrag kommt zu jedem Einzug aus dem dann gültigen Hausgeld. Wird ein neuer Wirtschaftsplan übernommen, zieht der Auftrag automatisch die neuen Beträge ein. Eigentümer ohne vollständiges Mandat sind nicht wählbar.
                 </p>

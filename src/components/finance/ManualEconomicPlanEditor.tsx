@@ -1033,6 +1033,24 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
   });
   const periodLabel = `01.01.${fiscalYear} – 31.12.${fiscalYear}`;
 
+  // Hausgeld je Eigentümer mitspeichern – die Dauerlastschrift übernimmt es von dort
+  const hausgeldSchnappschuss = JSON.stringify(
+    hausgeldWerte.map((w) => ({ ...w, monatlich: Math.round(w.monatlich * 100) / 100, ruecklage: Math.round(w.ruecklage * 100) / 100 })),
+  );
+  const gespeicherterSchnappschuss = useRef<string | null>(null);
+  useEffect(() => {
+    if (!plan?.id || !accounts.length || !hausgeldWerte.length || !hausgeldWerte.some((w) => w.monatlich > 0)) return;
+    if (gespeicherterSchnappschuss.current === `${plan.id}|${hausgeldSchnappschuss}`) return;
+    const t = setTimeout(async () => {
+      const { error } = await supabase
+        .from("economic_plans" as any)
+        .update({ hausgeld_je_eigentuemer: JSON.parse(hausgeldSchnappschuss), hausgeld_berechnet_am: new Date().toISOString() } as any)
+        .eq("id", plan.id);
+      if (!error) gespeicherterSchnappschuss.current = `${plan.id}|${hausgeldSchnappschuss}`;
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [plan?.id, hausgeldSchnappschuss, accounts.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <TooltipProvider>
       <div className="space-y-4">
