@@ -375,9 +375,9 @@ export function NeuerAuftrag({
     }
     // Wirtschaftsplan
     const monate = { monatlich: 1, quartal: 3, halbjahr: 6, jahr: 12 }[rhythmus];
-    return ausgewaehlt.map((e) => ({ name: e.name, iban: e.mandat?.iban ?? e.iban, betrag: Math.round(e.hausgeldMonat * monate * 100) / 100, zweck: "", e, art: "einzug" as const }));
+    return ausgewaehlt.map((e) => ({ name: e.name, iban: e.mandat?.iban ?? e.iban, betrag: Math.round(hausgeldAm(e.hausgeldZeilen, erster) * monate * 100) / 100, zweck: "", e, art: "einzug" as const }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [quelle, art, empfaenger, ausgewaehlt, festBetrag, eigentuemer, ergebnis, guthabenAuszahlen, rhythmus, spitzenJahr, nzWerte, zweck, zweckMonat]);
+  }, [quelle, art, empfaenger, ausgewaehlt, festBetrag, eigentuemer, ergebnis, guthabenAuszahlen, rhythmus, spitzenJahr, nzWerte, zweck, zweckMonat, erster]);
 
   const summeEin = posten.filter((p) => p.art === "einzug").reduce((s, p) => s + (Number.isFinite(p.betrag) ? p.betrag : 0), 0);
   const summeAus = posten.filter((p) => p.art === "ueberweisung").reduce((s, p) => s + (Number.isFinite(p.betrag) ? p.betrag : 0), 0);
