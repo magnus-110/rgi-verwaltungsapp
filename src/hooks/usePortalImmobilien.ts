@@ -137,7 +137,7 @@ const STANDARD: OwnerEinstellungen = {
   mail_meldungen: true,
   mail_versammlungen: true,
   mail_umfragen: true,
-  mail_dokumente: true,
+  mail_dokumente: false,
   mail_aushaenge: true,
 };
 const SPALTEN = Object.keys(STANDARD).join(", ");
