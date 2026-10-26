@@ -60,6 +60,100 @@ import { logOutgoingCall } from "@/components/calls/callLogUtils";
 import { CallLogList as BuildingCallLogList } from "@/components/calls/CallLogList";
 import { SALUTATIONS } from "@/lib/salutations";
 import { useComposeEmail } from "@/contexts/ComposeEmailContext";
+import { Pencil as StiftIcon, Plus as PlusIcon, Loader2 as LadeIcon } from "lucide-react";
+import { bankName as bankNameAusIban, cleanIban, ibanFormatiert } from "@/lib/bankInfo";
+import { ibanGueltig } from "@/lib/sepa";
+
+/** Bankverbindung eines Kontakts direkt beim Gebäude bearbeiten oder neu anlegen. */
+function BankKontoBearbeiten({
+  bank,
+  contactId,
+  neu,
+  standard,
+  onFertig,
+  onAbbrechen,
+}: {
+  bank?: { id: string; iban: string | null; bic: string | null; bank_name: string | null; account_holder: string | null } | null;
+  contactId: string;
+  neu?: boolean;
+  /** als Standardkonto anlegen (wenn es noch keins gibt) */
+  standard?: boolean;
+  onFertig: () => void;
+  onAbbrechen: () => void;
+}) {
+  const [inhaber, setInhaber] = useState(bank?.account_holder ?? "");
+  const [iban, setIban] = useState(bank?.iban ? ibanFormatiert(bank.iban) : "");
+  const [bic, setBic] = useState(bank?.bic ?? "");
+  const [bankname, setBankname] = useState(bank?.bank_name ?? "");
+  const [speichert, setSpeichert] = useState(false);
+  const sauber = cleanIban(iban);
+  const ibanFehler = sauber && !ibanGueltig(sauber) ? "IBAN ist nicht gültig – bitte prüfen" : null;
+
+  // Bankname aus der IBAN vorschlagen, wenn noch leer
+  const ibanVerlassen = () => {
+    if (sauber && ibanGueltig(sauber)) {
+      setIban(ibanFormatiert(sauber));
+      if (!bankname.trim()) {
+        const n = bankNameAusIban(sauber, "");
+        if (n) setBankname(n);
+      }
+    }
+  };
+
+  const speichern = async () => {
+    if (ibanFehler) return;
+    setSpeichert(true);
+    const daten = {
+      account_holder: inhaber.trim() || null,
+      iban: sauber || null,
+      bic: bic.trim().toUpperCase().replace(/\s+/g, "") || null,
+      bank_name: bankname.trim() || null,
+    };
+    const { error } = neu || !bank?.id
+      ? await supabase.from("contact_bank_accounts").insert({ ...daten, contact_id: contactId, is_default: !!standard } as any)
+      : await supabase.from("contact_bank_accounts").update(daten as any).eq("id", bank.id);
+    setSpeichert(false);
+    if (error) {
+      sonnerToast.error("Speichern fehlgeschlagen: " + error.message);
+      return;
+    }
+    sonnerToast.success("Bankverbindung gespeichert");
+    onFertig();
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="grid gap-2 sm:grid-cols-2">
+        <label className="space-y-1 sm:col-span-2">
+          <span className="text-xs text-muted-foreground">Kontoinhaber</span>
+          <Input value={inhaber} onChange={(e) => setInhaber(e.target.value)} className="h-9" />
+        </label>
+        <label className="space-y-1 sm:col-span-2">
+          <span className="text-xs text-muted-foreground">IBAN</span>
+          <Input value={iban} onChange={(e) => setIban(e.target.value)} onBlur={ibanVerlassen} className={cn("h-9 font-mono", ibanFehler && "border-destructive")} placeholder="DE00 0000 0000 0000 0000 00" />
+          {ibanFehler && <span className="block text-xs text-destructive">{ibanFehler}</span>}
+        </label>
+        <label className="space-y-1">
+          <span className="text-xs text-muted-foreground">BIC</span>
+          <Input value={bic} onChange={(e) => setBic(e.target.value)} className="h-9 font-mono" />
+        </label>
+        <label className="space-y-1">
+          <span className="text-xs text-muted-foreground">Bank</span>
+          <Input value={bankname} onChange={(e) => setBankname(e.target.value)} className="h-9" />
+        </label>
+      </div>
+      <div className="flex justify-end gap-2">
+        <Button size="sm" variant="ghost" onClick={onAbbrechen} disabled={speichert}>
+          Abbrechen
+        </Button>
+        <Button size="sm" onClick={speichern} disabled={speichert || !!ibanFehler}>
+          {speichert && <LadeIcon className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+          Speichern
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 function BankSepaInlineEditor({
   bankId,
@@ -585,6 +679,8 @@ export function BuildingContactsList({ buildingId, managementMode = "weg" }: Pro
   } | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  /** welche Bankverbindung gerade bearbeitet wird (id oder „neu:<Zuordnung>“) */
+  const [bankEdit, setBankEdit] = useState<string | null>(null);
   const { openCompose } = useComposeEmail();
 
   const todayIso = new Date().toISOString().slice(0, 10);
@@ -2076,34 +2172,71 @@ export function BuildingContactsList({ buildingId, managementMode = "weg" }: Pro
 
                       {/* Tab: Bank */}
                       <TabsContent value="bank" className="mt-0">
-                        {a.bankAccounts.length === 0 ? (
-                          <p className="text-xs text-muted-foreground py-2">
-                            Keine Bankverbindung hinterlegt. Bitte im Kontakt-Manager pflegen.
-                          </p>
-                        ) : (
-                          <div className="space-y-3">
-                            {a.bankAccounts.map((bank, i) => (
-                              <div key={bank.id || i} className="bg-muted/40 rounded-lg p-3 space-y-1.5">
-                                {bank.account_holder && (
-                                  <CopyableField label="Kontoinhaber" value={bank.account_holder} />
-                                )}
-                                {bank.iban && <CopyableField label="IBAN" value={bank.iban} />}
-                                {bank.bic && <CopyableField label="BIC" value={bank.bic} />}
-                                {bank.bank_name && <CopyableField label="Bank" value={bank.bank_name} />}
-                                <BankSepaInlineEditor
-                                  bankId={bank.id}
-                                  sepaRef={bank.sepa_mandate_ref}
-                                  sepaDate={bank.sepa_mandate_date}
-                                  onSaved={() =>
-                                    queryClient.invalidateQueries({
-                                      queryKey: ["building-contact-assignments", buildingId, managementMode],
-                                    })
-                                  }
-                                />
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                        {(() => {
+                          const neuLaden = () =>
+                            queryClient.invalidateQueries({ queryKey: ["building-contact-assignments", buildingId, managementMode] });
+                          return (
+                            <div className="space-y-3">
+                              {a.bankAccounts.length === 0 && bankEdit !== `neu:${a.id}` && (
+                                <p className="text-xs text-muted-foreground py-2">Keine Bankverbindung hinterlegt.</p>
+                              )}
+                              {a.bankAccounts.map((bank, i) => (
+                                <div key={bank.id || i} className="bg-muted/40 rounded-lg p-3 space-y-1.5">
+                                  {bankEdit === bank.id ? (
+                                    <BankKontoBearbeiten
+                                      bank={bank}
+                                      contactId={a.contact_id}
+                                      onAbbrechen={() => setBankEdit(null)}
+                                      onFertig={() => {
+                                        setBankEdit(null);
+                                        neuLaden();
+                                      }}
+                                    />
+                                  ) : (
+                                    <>
+                                      <div className="flex justify-end">
+                                        <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs" onClick={() => setBankEdit(bank.id)}>
+                                          <StiftIcon className="h-3 w-3" /> Bearbeiten
+                                        </Button>
+                                      </div>
+                                      {bank.account_holder && <CopyableField label="Kontoinhaber" value={bank.account_holder} />}
+                                      {bank.iban && <CopyableField label="IBAN" value={bank.iban} />}
+                                      {bank.bic && <CopyableField label="BIC" value={bank.bic} />}
+                                      {bank.bank_name && <CopyableField label="Bank" value={bank.bank_name} />}
+                                      {!bank.iban && !bank.account_holder && <p className="text-xs text-muted-foreground">Noch keine Daten eingetragen.</p>}
+                                    </>
+                                  )}
+                                  <BankSepaInlineEditor
+                                    bankId={bank.id}
+                                    sepaRef={bank.sepa_mandate_ref}
+                                    sepaDate={bank.sepa_mandate_date}
+                                    onSaved={neuLaden}
+                                  />
+                                </div>
+                              ))}
+                              {bankEdit === `neu:${a.id}` ? (
+                                <div className="bg-muted/40 rounded-lg p-3">
+                                  <BankKontoBearbeiten
+                                    neu
+                                    standard={a.bankAccounts.length === 0}
+                                    contactId={a.contact_id}
+                                    onAbbrechen={() => setBankEdit(null)}
+                                    onFertig={() => {
+                                      setBankEdit(null);
+                                      neuLaden();
+                                    }}
+                                  />
+                                </div>
+                              ) : (
+                                a.contact_id && (
+                                  <Button size="sm" variant="outline" className="h-8 gap-1 text-xs" onClick={() => setBankEdit(`neu:${a.id}`)}>
+                                    <PlusIcon className="h-3 w-3" /> Bankverbindung hinzufügen
+                                  </Button>
+                                )
+                              )}
+                            </div>
+                          );
+                        })()}
                       </TabsContent>
                     </Tabs>
                   </div>
