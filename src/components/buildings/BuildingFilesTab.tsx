@@ -60,6 +60,7 @@ export const BuildingFilesTab = ({ buildingId, managementMode }: BuildingFilesTa
     if (Number.isFinite(n)) fyCtx.setFiscalYear(buildingId, n);
   };
   const [visibleToUsers, setVisibleToUsers] = useState(true);
+  const [benachrichtigen, setBenachrichtigen] = useState(true);
   const [description, setDescription] = useState("");
   const [showDescription, setShowDescription] = useState(false);
   const [categoryManagerOpen, setCategoryManagerOpen] = useState(false);
@@ -280,6 +281,10 @@ export const BuildingFilesTab = ({ buildingId, managementMode }: BuildingFilesTa
           <div className="flex items-center gap-2 ml-auto">
             <Label htmlFor="vis-toggle-building" className="text-sm text-muted-foreground">Sichtbar</Label>
             <Switch id="vis-toggle-building" checked={visibleToUsers} onCheckedChange={setVisibleToUsers} />
+            <Label htmlFor="vis-toggle-building-mail" className="ml-3 text-sm text-muted-foreground" title="Eigentümer bekommen eine E-Mail über neue Dokumente (einmal am Tag zusammengefasst, nur wer das in der App eingeschaltet hat)">
+              Benachrichtigen
+            </Label>
+            <Switch id="vis-toggle-building-mail" checked={visibleToUsers && benachrichtigen} disabled={!visibleToUsers} onCheckedChange={setBenachrichtigen} />
           </div>
 
           <Button variant="outline" size="sm" onClick={() => setCategoryManagerOpen(true)}>
@@ -315,6 +320,7 @@ export const BuildingFilesTab = ({ buildingId, managementMode }: BuildingFilesTa
           assignedUserId={null}
           categoryId={selectedCategory === "__none__" ? null : selectedCategory || null}
           visibleToUsers={visibleToUsers}
+          benachrichtigen={benachrichtigen}
           description={description}
           managementMode={managementMode}
           files={buildingFiles}
@@ -337,6 +343,7 @@ export const BuildingFilesTab = ({ buildingId, managementMode }: BuildingFilesTa
                 assignedUserId={person.contact_id}
                 categoryId={selectedCategory === "__none__" ? null : selectedCategory || null}
                 visibleToUsers={visibleToUsers}
+                benachrichtigen={benachrichtigen}
                 description={description}
                 managementMode={managementMode}
                 files={getPersonFiles(person.contact_id)}

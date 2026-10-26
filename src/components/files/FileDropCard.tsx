@@ -36,6 +36,8 @@ interface FileDropCardProps {
   assignedUserId: string | null;
   categoryId: string | null;
   visibleToUsers: boolean;
+  /** Eigentümer per E-Mail über das neue Dokument informieren (Standard: ja) */
+  benachrichtigen?: boolean;
   description: string;
   managementMode: "weg" | "rent";
   files: FileItem[];
@@ -60,6 +62,7 @@ export function FileDropCard({
   assignedUserId,
   categoryId,
   visibleToUsers,
+  benachrichtigen = true,
   description,
   managementMode,
   files,
@@ -142,7 +145,8 @@ export function FileDropCard({
           management_mode: managementMode,
           description: description || null,
           visible_to_users: visibleToUsers,
-        })
+          benachrichtigen: visibleToUsers && benachrichtigen,
+        } as any)
         .select("id")
         .single();
       if (insertError) throw insertError;
@@ -164,7 +168,7 @@ export function FileDropCard({
     } finally {
       setUploading(false);
     }
-  }, [buildingId, assignedUserId, categoryId, visibleToUsers, description, managementMode, onFileUploaded]);
+  }, [buildingId, assignedUserId, categoryId, visibleToUsers, benachrichtigen, description, managementMode, onFileUploaded]);
 
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault();

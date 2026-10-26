@@ -198,7 +198,7 @@ async function sammleDokumente(db: Db, jetzt: ReturnType<typeof berlin>) {
   if (von >= bis) return 0;
   const { data: dateien } = await db
     .from("building_files")
-    .select("id, display_name, building_id, visibility_role, assigned_user_id, is_current_version, archived_at, buildings(name)")
+    .select("id, display_name, building_id, visibility_role, assigned_user_id, is_current_version, archived_at, visible_to_users, benachrichtigen, buildings(name)")
     .is("deleted_at", null)
     .gte("created_at", von.toISOString())
     .lt("created_at", bis.toISOString());
@@ -210,6 +210,8 @@ async function sammleDokumente(db: Db, jetzt: ReturnType<typeof berlin>) {
   };
   for (const f of dateien ?? []) {
     if (f.is_current_version === false || f.archived_at) continue;
+    // beim Hochladen „nicht benachrichtigen“ gewählt oder für Nutzer unsichtbar
+    if (f.benachrichtigen === false || f.visible_to_users === false) continue;
     const eigentuemer = await eigentuemerVon(db, f.building_id);
     if (["alle", "eigentuemer"].includes(String(f.visibility_role))) eigentuemer.forEach((u) => add(u, "haus", f));
     if (f.assigned_user_id && eigentuemer.includes(f.assigned_user_id)) add(f.assigned_user_id, "persoenlich", f);

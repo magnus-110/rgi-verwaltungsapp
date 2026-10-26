@@ -45,6 +45,7 @@ export function Files() {
   const [selectedBuilding, setSelectedBuilding] = useState<string>("all");
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [visibleToUsers, setVisibleToUsers] = useState(true);
+  const [benachrichtigen, setBenachrichtigen] = useState(true);
   const [description, setDescription] = useState("");
   const [showDescription, setShowDescription] = useState(false);
 
@@ -290,6 +291,10 @@ export function Files() {
           <div className="flex items-center gap-2 ml-auto">
             <Label htmlFor="vis-toggle" className="text-sm text-muted-foreground">Sichtbar</Label>
             <Switch id="vis-toggle" checked={visibleToUsers} onCheckedChange={setVisibleToUsers} />
+            <Label htmlFor="vis-toggle-mail" className="ml-3 text-sm text-muted-foreground" title="Eigentümer bekommen eine E-Mail über neue Dokumente (einmal am Tag zusammengefasst, nur wer das in der App eingeschaltet hat)">
+              Benachrichtigen
+            </Label>
+            <Switch id="vis-toggle-mail" checked={visibleToUsers && benachrichtigen} disabled={!visibleToUsers} onCheckedChange={setBenachrichtigen} />
           </div>
 
           {/* Refresh */}
@@ -333,6 +338,7 @@ export function Files() {
             assignedUserId={null}
             categoryId={selectedCategory === "__none__" ? null : selectedCategory || null}
             visibleToUsers={visibleToUsers}
+            benachrichtigen={benachrichtigen}
             description={description}
             managementMode={managementMode}
             files={buildingFiles}
@@ -356,6 +362,7 @@ export function Files() {
                   assignedUserId={person.user_id}
                   categoryId={selectedCategory === "__none__" ? null : selectedCategory || null}
                   visibleToUsers={visibleToUsers}
+                  benachrichtigen={benachrichtigen}
                   description={description}
                   managementMode={managementMode}
                   files={getPersonFiles(person.user_id)}
