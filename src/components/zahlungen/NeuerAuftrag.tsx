@@ -115,6 +115,7 @@ export function NeuerAuftrag({
   const [tag, setTag] = useState("1");
   const [erster, setErster] = useState(() => plusMonate(heuteIso().slice(0, 8) + "01", 1));
   const [speichert, setSpeichert] = useState(false);
+  const [benachrichtigen, setBenachrichtigen] = useState(true);
   // Sammelauftrag: einmalig, Betrag je Eigentümer frei eingetragen
   const [nzWerte, setNzWerte] = useState<Record<string, string>>(vorlage?.nzWerte ?? {});
   // Monat/Jahr für die Platzhalter {monat} und {jahr}
@@ -280,6 +281,7 @@ export function NeuerAuftrag({
       artSetzen("dauerlastschrift");
       setQuelle("wirtschaftsplan");
       setRhythmus(a.rhythmus ?? "monatlich");
+      setBenachrichtigen(a.benachrichtigen !== false);
       if (a.faellig_am) {
         setTag(String(Number(a.faellig_am.slice(8, 10))));
         setErster(a.faellig_am);
@@ -421,6 +423,7 @@ export function NeuerAuftrag({
         titel: titel.trim() || a.titel,
         verwendungszweck: quelleNeu === "abrechnung" ? null : zweck.trim() || (art === "dauerlastschrift" ? "Hausgeld {monat} - {einheit} {lage}" : null),
         rhythmus: art === "dauerlastschrift" ? rhythmus : null,
+        benachrichtigen,
         faellig_am: ersterTag,
         updated_at: new Date().toISOString(),
       })
@@ -520,6 +523,7 @@ export function NeuerAuftrag({
                   ? zweck.trim() || NZ_STANDARD
                   : zweck.trim() || (art === "dauerlastschrift" ? "Hausgeld {monat} - {einheit} {lage}" : null),
             rhythmus: art === "dauerlastschrift" ? rhythmus : null,
+            benachrichtigen,
             faellig_am: ersterTag,
             status: "aktiv",
             created_by: profile?.user_id ?? null,
@@ -1078,6 +1082,19 @@ export function NeuerAuftrag({
                   <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                   {offenerFehler}
                 </div>
+              )}
+              {istEinzug && (
+                <label className="flex cursor-pointer items-start justify-between gap-3 rounded-lg border px-3 py-2.5 text-sm">
+                  <span>
+                    <span className="block font-medium">Eigentümer per E-Mail informieren</span>
+                    <span className="block text-xs text-muted-foreground">
+                      {art === "dauerlastschrift"
+                        ? "Mail, wenn sich der Betrag ändert. Aus, z. B. beim Umzug aus der Bank-App."
+                        : "Mail mit Betrag und Einzugstag, sobald der Einzug zur Bank geht."}
+                    </span>
+                  </span>
+                  <Switch checked={benachrichtigen} onCheckedChange={setBenachrichtigen} aria-label="Eigentümer per E-Mail informieren" />
+                </label>
               )}
               <Button onClick={anlegen} disabled={speichert || !!offenerFehler} className="h-12 w-full text-base">
                 {speichert ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}

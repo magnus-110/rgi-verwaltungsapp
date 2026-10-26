@@ -229,7 +229,7 @@ async function sammleLastschriften(db: Db) {
   const felder =
     "id, betrag, iban, mandatsreferenz, verwendungszweck, created_at, order_item_id, einzel_status, einzel_gesendet_am, " +
     "run:payment_runs!inner(id, art, status, gesendet_am, faellig_am, glaeubiger_id, konto_inhaber), " +
-    "item:payment_order_items(assignment_id, order:payment_orders(art))";
+    "item:payment_order_items(assignment_id, order:payment_orders(art, benachrichtigen))";
   const [{ data: a }, { data: b }] = await Promise.all([
     db.from("payment_run_items").select(felder).eq("run.art", "lastschrift").eq("run.status", "gesendet").gte("run.gesendet_am", ab(72)),
     db.from("payment_run_items").select(felder).eq("run.art", "lastschrift").eq("einzel_status", "gesendet").gte("einzel_gesendet_am", ab(72)),
@@ -239,6 +239,8 @@ async function sammleLastschriften(db: Db) {
   for (const p of posten) {
     const assignment = p.item?.assignment_id;
     if (!assignment) continue;
+    // beim Auftrag „Eigentümer nicht informieren“ gewählt
+    if (p.item?.order?.benachrichtigen === false) continue;
     const { data: z } = await db.from("contact_building_assignments").select("unit_number, floor_location, contacts(user_id)").eq("id", assignment).maybeSingle();
     const user = z?.contacts?.user_id;
     if (!user) continue;
