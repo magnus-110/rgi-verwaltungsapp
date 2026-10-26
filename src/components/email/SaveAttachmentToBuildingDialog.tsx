@@ -46,6 +46,7 @@ export function SaveAttachmentToBuildingDialog({
   const [buildingId, setBuildingId] = useState<string>(defaultBuildingId || "");
   const [categoryId, setCategoryId] = useState<string>("");
   const [visibility, setVisibility] = useState<VisibilityRole>('intern');
+  const [benachrichtigen, setBenachrichtigen] = useState(true);
   // Bewusst keine Vorauswahl – wenn der User aktiv ein Jahr wählt, teilen wir es.
   const [fiscalYear, setFiscalYear] = useState<string>("general");
   const handleFiscalYearChange = (v: string) => {
@@ -70,6 +71,7 @@ export function SaveAttachmentToBuildingDialog({
       setBuildingId(defaultBuildingId || "");
       setCategoryId("");
       setVisibility('intern');
+      setBenachrichtigen(true);
       setFiscalYear("general");
       setRemoveAfter(true);
     }
@@ -187,6 +189,7 @@ export function SaveAttachmentToBuildingDialog({
             management_mode: building.management_mode,
             visibility_role: visibility,
             visible_to_users: visibility !== 'intern',
+            benachrichtigen: visibility !== 'intern' && benachrichtigen,
             fiscal_year: fiscalYear === "general" ? null : parseInt(fiscalYear, 10),
             rag_enabled: autoRag,
             source: ausMail ? 'email' : 'manual',
@@ -301,6 +304,16 @@ export function SaveAttachmentToBuildingDialog({
               </SelectContent>
             </Select>
           </div>
+
+          {visibility !== 'intern' && (
+            <label className="flex cursor-pointer items-start gap-2 rounded-md border px-3 py-2.5 text-sm">
+              <Checkbox checked={benachrichtigen} onCheckedChange={(v) => setBenachrichtigen(v === true)} className="mt-0.5" />
+              <span>
+                <span className="font-medium">Eigentümer per E-Mail benachrichtigen</span>
+                <span className="block text-xs text-muted-foreground">Einmal am Tag zusammengefasst – nur an Eigentümer, die „Neue Dokumente“ in der App eingeschaltet haben.</span>
+              </span>
+            </label>
+          )}
           <div>
             <Label>Zuordnung</Label>
             <Select value={fiscalYear} onValueChange={handleFiscalYearChange}>

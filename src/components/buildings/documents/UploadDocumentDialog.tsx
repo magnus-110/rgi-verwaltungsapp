@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, FileText, X } from "lucide-react";
 import { toast } from "sonner";
@@ -29,6 +30,7 @@ export function UploadDocumentDialog({
   const [files, setFiles] = useState<File[]>([]);
   const [categoryId, setCategoryId] = useState<string>("");
   const [visibility, setVisibility] = useState<VisibilityRole>('intern');
+  const [benachrichtigen, setBenachrichtigen] = useState(true);
   const [validUntil, setValidUntil] = useState<string>("");
   // Bewusst KEINE Vorauswahl – user pickt aktiv, dann wird der Wert geteilt.
   const [fiscalYear, setFiscalYear] = useState<string>("general");
@@ -49,6 +51,7 @@ export function UploadDocumentDialog({
       setFiles(initialFiles || []);
       setCategoryId(initialCategoryId || "");
       setVisibility('intern');
+      setBenachrichtigen(true);
       setValidUntil("");
       setFiscalYear("general");
       setSelectedContactIds([]);
@@ -140,6 +143,7 @@ export function UploadDocumentDialog({
             management_mode: managementMode,
             visibility_role: visibility,
             visible_to_users: visibility !== 'intern',
+            benachrichtigen: visibility !== 'intern' && benachrichtigen,
             valid_until: validUntil || null,
             fiscal_year: fiscalYear === "general" ? null : parseInt(fiscalYear, 10),
             rag_enabled: autoRag,
@@ -232,6 +236,16 @@ export function UploadDocumentDialog({
               </SelectContent>
             </Select>
           </div>
+
+          {visibility !== 'intern' && (
+            <label className="flex cursor-pointer items-start gap-2 rounded-md border px-3 py-2.5 text-sm">
+              <Checkbox checked={benachrichtigen} onCheckedChange={(v) => setBenachrichtigen(v === true)} className="mt-0.5" />
+              <span>
+                <span className="font-medium">Eigentümer per E-Mail benachrichtigen</span>
+                <span className="block text-xs text-muted-foreground">Einmal am Tag zusammengefasst – nur an Eigentümer, die „Neue Dokumente“ in der App eingeschaltet haben.</span>
+              </span>
+            </label>
+          )}
 
           {visibility === 'personen' && (
             <div>
