@@ -42,16 +42,36 @@ function formatMeetingTime(d: Date): string {
   return `${parts.hour}:${parts.minute}`;
 }
 
-async function loadMeetingVars(admin: any, meetingId: string): Promise<Record<string,string>> {
+/** Erläuterung eines TOPs für die Einladung: eigenes Feld, sonst (alt) die Beschreibung mit Haken. */
+function einladungsText(t: any): string {
+  const eigen = String(t.einladung_text ?? "").trim();
+  if (eigen) return eigen;
+  return t.include_description_in_invitation && t.description ? String(t.description).trim() : "";
+}
+
+async function loadMeetingVars(admin: any, meetingId: string): Promise<Record<string, any>> {
   const { data: meeting } = await admin.from("etv_meetings").select("*").eq("id", meetingId).maybeSingle();
   if (!meeting) return {};
   const { data: tops } = await admin.from("etv_agenda_items")
-    .select("title, description, sort_order, include_description_in_invitation").eq("meeting_id", meetingId).order("sort_order");
+    .select("title, description, einladung_text, sort_order, include_description_in_invitation, requires_resolution").eq("meeting_id", meetingId).order("sort_order");
   const items = (tops || []) as any[];
   const agendaList = items.map((t, i) => {
-    const desc = t.include_description_in_invitation && t.description ? `\n  ${String(t.description).trim().replace(/\n/g, "\n  ")}` : "";
+    const text = einladungsText(t);
+    const desc = text ? `\n  ${text.replace(/\n/g, "\n  ")}` : "";
     return `- TOP ${i + 1}: ${t.title || ""}${desc}`;
   }).join("\n");
+  // Für Vorlagen mit Schleife: {{#tops}} {{nummer}} {{titel}} {{#hat_erlaeuterung}}{{erlaeuterung}}{{/hat_erlaeuterung}} {{/tops}}
+  const topListe = items.map((t, i) => {
+    const text = einladungsText(t);
+    return {
+      nummer: String(i + 1),
+      titel: t.title || "",
+      erlaeuterung: text,
+      hat_erlaeuterung: !!text,
+      beschluss: t.requires_resolution !== false,
+      art: t.requires_resolution !== false ? "Beschlussfassung" : "Information",
+    };
+  });
   const agendaTitles = items.map((t, i) => `- TOP ${i + 1}: ${t.title || ""}`).join("\n");
   const md = meeting.meeting_date ? new Date(meeting.meeting_date) : null;
   return {
@@ -66,7 +86,56 @@ async function loadMeetingVars(admin: any, meetingId: string): Promise<Record<st
     agenda_list: agendaList,
     agenda_titles: agendaTitles,
     top_count: String(items.length),
+    tops: topListe,
   };
+}
+
+/** Textinhalt eines Word-Absatzes (ohne XML). */
+function absatzText(p: string): string {
+  return (p.match(/<w:t(?:\s[^>]*)?>[^<]*<\/w:t>/g) ?? []).map((t) => t.replace(/<[^>]+>/g, "")).join("");
+}
+function xmlEsc(s: string) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/**
+ * Alte Einladungsvorlagen haben nur {{agenda_list}} als einen Textblock.
+ * Steht der Platzhalter allein in einem Absatz, ersetzen wir ihn beim Erzeugen
+ * durch eine Schleife: TOP-Titel fett, darunter die Erläuterung in normaler
+ * Schrift – ohne dass die Word-Vorlage angepasst werden muss.
+ */
+function agendaAlsSchleife(tpl: Uint8Array): Uint8Array {
+  try {
+    const zip = new PizZip(tpl);
+    const datei = zip.file("word/document.xml");
+    if (!datei) return tpl;
+    const xml = datei.asText();
+    if (xml.includes("#tops")) return tpl; // Vorlage hat schon eine eigene Schleife
+    const absaetze = xml.match(/<w:p[ >][\s\S]*?<\/w:p>/g) ?? [];
+    const p = absaetze.find((a) => absatzText(a).trim() === "{{agenda_list}}");
+    if (!p) return tpl;
+    const pPr = p.match(/<w:pPr>[\s\S]*?<\/w:pPr>/)?.[0] ?? "";
+    const rPr = (p.match(/<w:r>\s*(<w:rPr>[\s\S]*?<\/w:rPr>)/)?.[1] ?? p.match(/<w:r [^>]*>\s*(<w:rPr>[\s\S]*?<\/w:rPr>)/)?.[1] ?? "<w:rPr></w:rPr>")
+      .replace(/<w:b(?:Cs)?\b[^>]*\/>/g, "");
+    const fett = rPr.replace("</w:rPr>", "<w:b/><w:bCs/></w:rPr>");
+    // Abstand vor jedem TOP-Titel (6 pt), Erläuterung leicht eingerückt
+    const pPrTitel = pPr ? pPr.replace(/<w:spacing\b[^>]*\/>/, "").replace("<w:pPr>", '<w:pPr><w:keepNext/><w:spacing w:before="160" w:after="40"/>') : '<w:pPr><w:keepNext/><w:spacing w:before="160" w:after="40"/></w:pPr>';
+    const pPrText = pPr ? pPr.replace(/<w:ind\b[^>]*\/>/, "").replace("<w:pPr>", '<w:pPr><w:ind w:left="567"/>') : '<w:pPr><w:ind w:left="567"/></w:pPr>';
+    const absatz = (pp: string, rp: string, text: string) =>
+      `<w:p>${pp}<w:r>${rp}<w:t xml:space="preserve">${xmlEsc(text)}</w:t></w:r></w:p>`;
+    const ersatz =
+      absatz(pPr, rPr, "{{#tops}}") +
+      absatz(pPrTitel, fett, "TOP {{nummer}}: {{titel}}") +
+      absatz(pPr, rPr, "{{#hat_erlaeuterung}}") +
+      absatz(pPrText, rPr, "{{erlaeuterung}}") +
+      absatz(pPr, rPr, "{{/hat_erlaeuterung}}") +
+      absatz(pPr, rPr, "{{/tops}}");
+    zip.file("word/document.xml", xml.replace(p, ersatz));
+    return zip.generate({ type: "uint8array" });
+  } catch (e) {
+    console.error("agendaAlsSchleife", e);
+    return tpl;
+  }
 }
 
 const corsHeaders = {
@@ -193,7 +262,9 @@ Deno.serve(async (req) => {
       await admin.from("comm_campaigns").update({ status: "failed", error_message: dlErr?.message || "Template download failed" }).eq("id", campaign_id);
       return json({ error: dlErr?.message || "Template download failed" }, 500);
     }
-    const tplBuf = new Uint8Array(await tplFile.arrayBuffer());
+    let tplBuf = new Uint8Array(await tplFile.arrayBuffer());
+    // Einladung: TOPs mit fetten Titeln und Erläuterungen statt einem Textblock
+    if (meeting_id && (meetingVars as any).tops) tplBuf = agendaAlsSchleife(tplBuf);
 
     // Load recipients
     const filter = (campaign.recipient_filter || {}) as RecipientFilter;

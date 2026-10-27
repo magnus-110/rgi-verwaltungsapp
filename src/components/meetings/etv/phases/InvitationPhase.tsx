@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, CheckCircle2, Globe } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -22,6 +22,18 @@ export const InvitationPhase = ({ meeting }: Props) => {
   const sum = summarize(attendees);
   const [sentAt, setSentAt] = useState<string>(meeting.invitation_sent_at || "");
   const [publishing, setPublishing] = useState(false);
+
+  // TOPs für die Prüfung vor dem Erzeugen
+  const { data: tops = [] } = useQuery({
+    queryKey: ["etv-agenda-items", meeting.id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("etv_agenda_items").select("*").eq("meeting_id", meeting.id).order("sort_order");
+      if (error) throw error;
+      return (data ?? []) as any[];
+    },
+  });
+  const ohneText = tops.filter((t) => !String(t.einladung_text ?? "").trim() && !(t.include_description_in_invitation && String(t.description ?? "").trim()));
+  const zuPruefen = tops.filter((t) => /\[BITTE PR[ÜU]FEN/i.test(`${t.title ?? ""} ${t.einladung_text ?? ""}`));
 
   const date = meeting.meeting_date ? new Date(meeting.meeting_date) : null;
   const deadline = date ? invitationDeadline(date) : null;
@@ -70,6 +82,24 @@ export const InvitationPhase = ({ meeting }: Props) => {
       <div className="space-y-5">
         <EtvCard className="space-y-4 p-5">
           <EtvSectionTitle title="Einladung erstellen" sub="Aus einer Word-Vorlage – pro Eigentümer befüllt. Einladung und Vollmacht aus Claude kannst du wie gewohnt selbst versenden." />
+          {tops.length > 0 && (
+            <div className="space-y-2 rounded-lg border bg-muted/30 p-3 text-sm">
+              <div className="flex items-center gap-2 font-medium">
+                {ohneText.length === 0 && zuPruefen.length === 0 ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertTriangle className="h-4 w-4 text-amber-600" />}
+                Erläuterungen: {tops.length - ohneText.length} von {tops.length} TOPs
+              </div>
+              {ohneText.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Nur mit Titel (ohne Erläuterung): {ohneText.map((t) => `TOP ${tops.indexOf(t) + 1}`).join(", ")}. Das ist z. B. bei „Eröffnung“ in Ordnung.
+                </p>
+              )}
+              {zuPruefen.length > 0 && (
+                <p className="text-xs font-medium text-red-700 dark:text-red-400">
+                  Noch offene „[BITTE PRÜFEN …]“-Stellen in: {zuPruefen.map((t) => `TOP ${tops.indexOf(t) + 1}`).join(", ")} – bitte vor dem Versand ausfüllen.
+                </p>
+              )}
+            </div>
+          )}
           <MeetingInvitationPdf meetingId={meeting.id} buildingId={meeting.building_id} hideContext />
           <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
             <span className="min-w-0">

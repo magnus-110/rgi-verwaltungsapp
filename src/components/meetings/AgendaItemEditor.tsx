@@ -47,6 +47,30 @@ interface AgendaItem {
   requires_resolution: boolean;
   is_actionable: boolean;
   include_description_in_invitation?: boolean;
+  einladung_text?: string | null;
+}
+
+/** Erläuterung für die Einladung – das lesen die Eigentümer unter dem TOP-Titel. */
+function EinladungsFeld({ wert, onChange, beschreibung }: { wert: string; onChange: (v: string) => void; beschreibung: string }) {
+  return (
+    <div className="mt-3 space-y-1.5 rounded-md border border-dashed p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Label className="text-xs font-medium">Erläuterung für die Einladung</Label>
+        {!wert.trim() && beschreibung.trim() && (
+          <button type="button" className="text-xs text-primary hover:underline" onClick={() => onChange(beschreibung.trim())}>
+            Beschreibung übernehmen
+          </button>
+        )}
+      </div>
+      <Textarea
+        value={wert}
+        onChange={(e) => onChange(e.target.value)}
+        rows={4}
+        placeholder="Kurz und verständlich für die Eigentümer: worum geht es, warum, was kostet es? Leer lassen = nur der Titel steht in der Einladung."
+      />
+      <p className="text-[11px] text-muted-foreground">Erscheint in der Einladung unter dem TOP-Titel. Die Beschreibung oben bleibt intern bzw. fürs Protokoll.</p>
+    </div>
+  );
 }
 
 const votingPrinciples = [
@@ -83,6 +107,8 @@ export const AgendaItemEditor = ({ meetingId, buildingId, defaultPrinciple = "he
   const [editRequiresResolution, setEditRequiresResolution] = useState(true);
   const [editIsActionable, setEditIsActionable] = useState(false);
   const [editIncludeDescriptionInInvitation, setEditIncludeDescriptionInInvitation] = useState(false);
+  const [editEinladung, setEditEinladung] = useState("");
+  const [newEinladung, setNewEinladung] = useState("");
   const [editIsReport, setEditIsReport] = useState(false);
   const [editReportSections, setEditReportSections] = useState<ReportSections>(emptyReportSections());
 
@@ -173,6 +199,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId, defaultPrinciple = "he
         is_actionable: newRequiresResolution ? newIsActionable : false,
         case_id: newRequiresResolution && newIsActionable ? newCaseId : null,
         include_description_in_invitation: newIncludeDescriptionInInvitation,
+        einladung_text: newEinladung.trim() || null,
       } as any);
 
       if (error) throw error;
@@ -194,6 +221,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId, defaultPrinciple = "he
       setNewIsActionable(false);
       setNewCaseId(null);
       setNewIncludeDescriptionInInvitation(false);
+      setNewEinladung("");
 
       toast({ title: "TOP hinzugefügt" });
     },
@@ -288,6 +316,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId, defaultPrinciple = "he
     setEditIsActionable((item as any).is_actionable || false);
     setEditCaseId((item as any).case_id ?? null);
     setEditIncludeDescriptionInInvitation(!!(item as any).include_description_in_invitation);
+    setEditEinladung((item as any).einladung_text ?? "");
     setEditIsReport(!!(item as any).is_management_report);
     setEditReportSections({ ...emptyReportSections(), ...(((item as any).report_sections ?? {}) as ReportSections) });
   };
@@ -317,6 +346,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId, defaultPrinciple = "he
       is_actionable: editRequiresResolution ? editIsActionable : false,
       case_id: editRequiresResolution && editIsActionable ? editCaseId : null,
       include_description_in_invitation: editIncludeDescriptionInInvitation,
+      einladung_text: editEinladung.trim() || null,
       is_management_report: editIsReport,
       report_sections: editIsReport ? editReportSections : {},
     } as any);
@@ -587,16 +617,9 @@ export const AgendaItemEditor = ({ meetingId, buildingId, defaultPrinciple = "he
                                     ) : (
                                       <>
                                         <Textarea value={editItemDescription} onChange={(e) => setEditItemDescription(e.target.value)} rows={6} placeholder="Ausführliche Beschreibung des Tagesordnungspunkts..." />
-                                        <label className="flex items-start gap-2 text-xs text-muted-foreground pt-1 cursor-pointer">
-                                          <Checkbox
-                                            checked={editIncludeDescriptionInInvitation}
-                                            onCheckedChange={(v) => setEditIncludeDescriptionInInvitation(!!v)}
-                                            className="mt-0.5"
-                                          />
-                                          <span>Beschreibung in Einladung übernehmen</span>
-                                        </label>
                                       </>
                                     )}
+                                    <EinladungsFeld wert={editEinladung} onChange={setEditEinladung} beschreibung={editItemDescription} />
                                   </div>
 
                                   <div className="flex items-center justify-between rounded-md border p-3 bg-muted/20">
@@ -779,14 +802,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId, defaultPrinciple = "he
               onChange={(e) => setNewDescription(e.target.value)}
               rows={6}
             />
-            <label className="flex items-start gap-2 text-xs text-muted-foreground pt-1 cursor-pointer">
-              <Checkbox
-                checked={newIncludeDescriptionInInvitation}
-                onCheckedChange={(v) => setNewIncludeDescriptionInInvitation(!!v)}
-                className="mt-0.5"
-              />
-              <span>Beschreibung in Einladung übernehmen</span>
-            </label>
+            <EinladungsFeld wert={newEinladung} onChange={setNewEinladung} beschreibung={newDescription} />
           </div>
           <div className="flex items-center justify-between rounded-md border p-3 bg-muted/20">
             <div className="space-y-0.5">
