@@ -196,3 +196,6 @@ verify_jwt = false
 
 [functions.benachrichtigungen]
 verify_jwt = false
+
+[functions.email-anhaenge-lesen]
+verify_jwt = false
