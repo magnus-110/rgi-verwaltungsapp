@@ -546,10 +546,21 @@ async function abrufen(
       }
     }
     // Kontostand auch in der Kontenliste des Zugangs merken (zum Zuordnen)
-    const kontenNeu = (zugang.konten ?? []).map((k: any) => {
+    let kontenNeu = (zugang.konten ?? []).map((k: any) => {
       const e = saldoJe.get(cleanIban(k.iban));
       return e ? { ...k, saldo: e.saldo, saldoAm: e.datum } : k;
     });
+    // Neue Konten, die die Bank inzwischen für diesen Zugang meldet (z. B. von
+    // einer anderen Bank umgezogen), in die Kontenliste aufnehmen
+    const bekannt = new Set(kontenNeu.map((k: any) => cleanIban(k.iban)));
+    const neu = kontenAusUpd(config).filter((k: any) => k.iban && !bekannt.has(k.iban));
+    if (neu.length) {
+      const zugeordnet = await kontenZuordnen(admin, id, neu, !zugang.persoenlich_fuer);
+      kontenNeu = [...kontenNeu, ...zugeordnet.map((k: any) => {
+        const e = saldoJe.get(k.iban);
+        return e ? { ...k, saldo: e.saldo, saldoAm: e.datum } : k;
+      })];
+    }
 
     const jetzt = new Date().toISOString();
     const update: any = {
