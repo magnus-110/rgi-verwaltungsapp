@@ -97,7 +97,7 @@ export function TanSendenDialog({ laufIds, onClose }: { laufIds: string[] | null
     (async () => {
       const { data, error } = await (supabase as any)
         .from("payment_runs")
-        .select("id, art, faellig_am, konto_iban, summe, anzahl, status, fehler, empfaengerpruefung, buildings(name), payment_run_items(end_to_end_id, empfaenger, iban, betrag, invoice_id, einzel_status)")
+        .select("id, building_id, art, faellig_am, konto_iban, summe, anzahl, status, fehler, empfaengerpruefung, buildings(name), payment_run_items(end_to_end_id, empfaenger, iban, betrag, invoice_id, einzel_status)")
         .in("id", laufIds);
       if (error) {
         toast.error("Zahlläufe konnten nicht geladen werden");
@@ -107,7 +107,7 @@ export function TanSendenDialog({ laufIds, onClose }: { laufIds: string[] | null
         id: r.id,
         art: r.art ?? "ueberweisung",
         faellig_am: r.faellig_am,
-        name: r.buildings?.name ?? "Liegenschaft",
+        name: r.buildings?.name ?? (r.building_id ? "Liegenschaft" : "RGI Immobilien GmbH & Co. KG"),
         konto_iban: r.konto_iban,
         summe: Number(r.summe),
         anzahl: r.anzahl,

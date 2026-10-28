@@ -9,6 +9,7 @@ import {
   Plus, ChevronRight, Inbox,
 } from "lucide-react";
 import { useAblageHinlegen } from "@/hooks/useAblage";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -118,12 +119,15 @@ export function Transfers() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [exporting, setExporting] = useState(false);
   const { data: inZahlung = new Map<string, string>() } = useRechnungenInZahlung();
+  const { profile: meinProfil } = useAuth();
+  const istAdmin = meinProfil?.role === "admin";
 
   // Was in welchen Reiter gehört:
   //  offen       – noch zu prüfen (Freigegebene liegen in der Freigabe, nicht mehr hier)
   //  lastschrift – wird vom Empfänger eingezogen, nichts zu überweisen
   //  bezahlt     – bezahlt oder schon überwiesen (Bank bestätigt noch)
-  const inFreigabe = (i: any) => i.review_status === "verified" && !!i.building_id && !i.is_company_invoice;
+  // RGI-Rechnungen liegen nur für Admins in der Freigabe (Zahlung vom Firmenkonto)
+  const inFreigabe = (i: any) => i.review_status === "verified" && (i.is_company_invoice ? istAdmin : !!i.building_id);
   const gehoertZu = (i: any): Reiter => {
     if (i.status === "paid" || inZahlung.has(i.id)) return "bezahlt";
     if (i.lastschrift) return "lastschrift";
@@ -409,7 +413,7 @@ export function Transfers() {
   const unpaidInvoices = useMemo(
     () => outgoingInvoices.filter((i: any) => gehoertZu(i) === "offen" && !inFreigabe(i)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [outgoingInvoices, inZahlung]
+    [outgoingInvoices, inZahlung, istAdmin]
   );
   const lastschriftInvoices = useMemo(
     () => outgoingInvoices.filter((i: any) => gehoertZu(i) === "lastschrift"),
@@ -423,7 +427,7 @@ export function Transfers() {
   // Freigabe: bestätigte, offene Rechnungen einer Liegenschaft, die noch in keinem Zahllauf stecken
   const freigabeAnzahl = useMemo(
     () => outgoingInvoices.filter((i: any) =>
-      i.status === "open" && i.review_status === "verified" && i.building_id &&
+      i.status === "open" && i.review_status === "verified" && (i.is_company_invoice ? istAdmin : !!i.building_id) &&
       i.invoice_type !== "credit_note" && Number(i.gross_amount) > 0 && !inZahlung.has(i.id) && !i.lastschrift
     ).length,
     [outgoingInvoices, inZahlung]
@@ -517,7 +521,7 @@ export function Transfers() {
     const { error } = await supabase.from("invoices").update({ review_status: "verified" } as any).eq("id", inv.id);
     if (error) toast.error("Fehler beim Freigeben");
     else {
-      toast.success(inv.is_company_invoice ? "Freigegeben – RGI-Rechnungen werden nicht über die Freigabe bezahlt" : "Freigegeben – liegt jetzt in der Freigabe");
+      toast.success(inv.is_company_invoice && !istAdmin ? "Freigegeben – RGI-Rechnungen zahlen nur Admins über die Freigabe" : "Freigegeben – liegt jetzt in der Freigabe");
       refetch();
     }
   };

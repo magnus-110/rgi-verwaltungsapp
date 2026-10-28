@@ -70,7 +70,7 @@ export function ErledigtLaeufe({
       (r: any): Zeile => ({
         id: r.id,
         datum: r.gesendet_am,
-        titel: `${namen[r.building_id] ?? "Liegenschaft"} · ${r.art === "lastschrift" ? "Lastschrift" : "Überweisung"}`,
+        titel: `${r.building_id ? namen[r.building_id] ?? "Liegenschaft" : "RGI Immobilien"} · ${r.art === "lastschrift" ? "Lastschrift" : "Überweisung"}`,
         info: `${r.anzahl} ${r.art === "lastschrift" ? (r.anzahl === 1 ? "Einzug" : "Einzüge") : r.anzahl === 1 ? "Überweisung" : "Überweisungen"}${
           r.faellig_am || r.ausfuehrung_am ? ` · ${r.art === "lastschrift" ? "Einzug" : "Ausführung"} ${format(new Date(r.faellig_am ?? r.ausfuehrung_am), "dd.MM.yyyy")}` : ""
         } · per TAN gesendet ${format(new Date(r.gesendet_am), "HH:mm")} Uhr`,

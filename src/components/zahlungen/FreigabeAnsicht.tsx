@@ -18,9 +18,14 @@ import { faelligeAuftragsposten, fruehesterEinzug, postenAuslassen, type Faellig
 import type { KontoZeile } from "@/components/konten/kontenTypes";
 import { TanSendenDialog } from "./TanSendenDialog";
 
+/** Gruppe für Rechnungen der RGI selbst (Firmenkonto, nur Admins). */
+const RGI = "rgi";
+const RGI_NAME = "RGI Immobilien GmbH & Co. KG";
+
 interface Rechnung {
   id: string;
   building_id: string;
+  is_company_invoice?: boolean;
   vendor_name: string | null;
   vendor_iban: string | null;
   gross_amount: number;
@@ -91,19 +96,21 @@ export function FreigabeAnsicht({ onZurueck }: { onZurueck: () => void }) {
 
   const { data: inZahlung = new Map<string, string>() } = useRechnungenInZahlung();
   const { data: rechnungen = [], isLoading } = useQuery({
-    queryKey: ["freigabe-rechnungen"],
+    queryKey: ["freigabe-rechnungen", istAdmin],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("invoices")
-        .select("id, building_id, vendor_name, vendor_iban, gross_amount, due_date, invoice_number, payment_purpose, invoice_type")
+        .select("id, building_id, is_company_invoice, vendor_name, vendor_iban, gross_amount, due_date, invoice_number, payment_purpose, invoice_type")
         .eq("status", "open")
         .eq("review_status", "verified")
         .eq("lastschrift", false)
-        .not("building_id", "is", null)
         .gt("gross_amount", 0)
         .order("due_date", { ascending: true, nullsFirst: false });
       if (error) throw error;
-      return (data ?? []).filter((r: any) => r.invoice_type !== "credit_note") as Rechnung[];
+      // Liegenschafts-Rechnungen für alle, RGI-Rechnungen nur für Admins
+      return (data ?? []).filter(
+        (r: any) => r.invoice_type !== "credit_note" && (r.is_company_invoice ? istAdmin : !!r.building_id),
+      ) as Rechnung[];
     },
   });
   const { data: auftragsPosten = [], isLoading: laedtAuftraege } = useQuery({
@@ -124,6 +131,31 @@ export function FreigabeAnsicht({ onZurueck }: { onZurueck: () => void }) {
       const { data, error } = await (supabase as any).from("v_konten_uebersicht").select("*");
       if (error) throw error;
       return (data ?? []) as KontoZeile[];
+    },
+  });
+  // Firmenkonten der RGI (im Büro-Bankzugang als „RGI intern“ markiert)
+  const { data: rgiKonten = [] } = useQuery({
+    queryKey: ["rgi-firmenkonten"],
+    enabled: istAdmin,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).from("bank_connections").select("konten").is("persoenlich_fuer", null);
+      if (error) throw error;
+      const m = new Map<string, KontoZeile>();
+      (data ?? []).forEach((z: any) =>
+        (z.konten ?? [])
+          .filter((k: any) => k.rgi && k.iban && !k.ausgeblendet)
+          .forEach((k: any) =>
+            m.set(cleanIban(k.iban), {
+              building_id: RGI,
+              iban: cleanIban(k.iban),
+              display_name: k.name ? `${k.name} (RGI)` : "Firmenkonto RGI",
+              bank_name: RGI_NAME,
+              saldo: k.saldo ?? null,
+              saldo_stand: k.saldoAm ?? null,
+            } as any),
+          ),
+      );
+      return [...m.values()];
     },
   });
   const { data: puffer = [] } = useQuery({
@@ -160,7 +192,7 @@ export function FreigabeAnsicht({ onZurueck }: { onZurueck: () => void }) {
     },
   });
 
-  const imModus = (id: string) => (gebaeude.find((g: any) => g.id === id)?.management_mode ?? "weg") === managementMode;
+  const imModus = (id: string) => id === RGI || (gebaeude.find((g: any) => g.id === id)?.management_mode ?? "weg") === managementMode;
 
   /** Gruppen je Konto: Rechnungen aufs gewählte Konto, Auftragsposten auf ihr eigenes. */
   const gruppen = useMemo(() => {
@@ -171,14 +203,15 @@ export function FreigabeAnsicht({ onZurueck }: { onZurueck: () => void }) {
       return m.get(k)!;
     };
     const kontenVon = (b: string) =>
-      konten.filter((k) => k.building_id === b).sort((x, y) => Number(/r[üu]cklage/i.test(x.display_name ?? "")) - Number(/r[üu]cklage/i.test(y.display_name ?? "")));
+      b === RGI ? rgiKonten : konten.filter((k) => k.building_id === b).sort((x, y) => Number(/r[üu]cklage/i.test(x.display_name ?? "")) - Number(/r[üu]cklage/i.test(y.display_name ?? "")));
 
     for (const r of rechnungen) {
-      if (inZahlung.has(r.id) || !imModus(r.building_id)) continue;
-      const ks = kontenVon(r.building_id);
-      const konto = ks.find((k) => k.iban === kontoWahl[r.building_id]) ?? ks[0];
+      const b = r.is_company_invoice ? RGI : r.building_id;
+      if (inZahlung.has(r.id) || !imModus(b)) continue;
+      const ks = kontenVon(b);
+      const konto = ks.find((k) => k.iban === kontoWahl[b]) ?? ks[0];
       if (!konto) continue;
-      gruppe(r.building_id, konto.iban).zeilen.push({
+      gruppe(b, konto.iban).zeilen.push({
         key: `r:${r.id}`,
         richtung: "aus",
         name: r.vendor_name || "Empfänger fehlt",
@@ -212,7 +245,7 @@ export function FreigabeAnsicht({ onZurueck }: { onZurueck: () => void }) {
     return [...m.values()]
       .map((g) => {
         const haus = gebaeude.find((x: any) => x.id === g.buildingId);
-        const konto = konten.find((k) => k.building_id === g.buildingId && k.iban === g.iban) ?? null;
+        const konto = kontenVon(g.buildingId).find((k) => k.iban === g.iban) ?? null;
         const p = puffer.find((x: any) => x.building_id === g.buildingId);
         const an = g.zeilen.filter((z) => !ab[z.key] && !z.hinweis);
         const aus = an.filter((z) => z.richtung === "aus");
@@ -225,7 +258,7 @@ export function FreigabeAnsicht({ onZurueck }: { onZurueck: () => void }) {
         return {
           key: `${g.buildingId}|${g.iban}`,
           buildingId: g.buildingId,
-          name: haus?.name ?? "Liegenschaft",
+          name: g.buildingId === RGI ? RGI_NAME : haus?.name ?? "Liegenschaft",
           glaeubigerId: haus?.creditor_id ?? null,
           iban: g.iban,
           konto,
@@ -245,7 +278,7 @@ export function FreigabeAnsicht({ onZurueck }: { onZurueck: () => void }) {
         };
       })
       .sort((a, b) => a.name.localeCompare(b.name, "de"));
-  }, [rechnungen, auftragsPosten, inZahlung, gebaeude, konten, puffer, kontoWahl, ab, fintsKonten, managementMode]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [rechnungen, auftragsPosten, inZahlung, gebaeude, konten, rgiKonten, puffer, kontoWahl, ab, fintsKonten, managementMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Vorschlag: Ausgänge mit der spätesten Fälligkeit zurückstellen, bis der Puffer reicht. */
   const vorschlag = (g: (typeof gruppen)[number]) => {
@@ -334,7 +367,7 @@ export function FreigabeAnsicht({ onZurueck }: { onZurueck: () => void }) {
     const heute = naechsterBankarbeitstag();
     const angelegt: { laufId: string; block?: SepaBlock }[] = [];
     const lauf = async (g: (typeof gruppen)[number], art: "ueberweisung" | "lastschrift", zeilen: Zeile[], faellig: string) => {
-      const inhaber = g.konto?.bank_name && !/sparkasse|bank/i.test(g.konto.bank_name) ? g.konto.bank_name : `WEG ${g.name}`;
+      const inhaber = g.buildingId === RGI ? RGI_NAME : g.konto?.bank_name && !/sparkasse|bank/i.test(g.konto.bank_name) ? g.konto.bank_name : `WEG ${g.name}`;
       const posten = zeilen.map((z) => ({
         empfaenger: z.name,
         iban: cleanIban(z.iban),
@@ -349,7 +382,7 @@ export function FreigabeAnsicht({ onZurueck }: { onZurueck: () => void }) {
       const { data: l, error } = await (supabase as any)
         .from("payment_runs")
         .insert({
-          building_id: g.buildingId,
+          building_id: g.buildingId === RGI ? null : g.buildingId,
           konto_iban: g.iban,
           konto_inhaber: inhaber,
           status: weg === "fints" ? "pruefung" : "datei",
@@ -548,7 +581,7 @@ export function FreigabeAnsicht({ onZurueck }: { onZurueck: () => void }) {
                       ) : (
                         <button
                           type="button"
-                          disabled={!istAdmin}
+                          disabled={!istAdmin || g.buildingId === RGI}
                           onClick={() => setPufferEdit({ id: g.buildingId, wert: g.pufferEigen ? String(g.puffer).replace(".", ",") : "" })}
                           className="inline-flex items-center gap-1 tabular-nums hover:underline disabled:no-underline"
                           title={g.pufferEigen ? "Fester Betrag" : "Ein Monats-Hausgeld (Standard)"}
