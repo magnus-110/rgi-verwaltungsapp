@@ -173,12 +173,16 @@ export function FreigabeAnsicht({ onZurueck }: { onZurueck: () => void }) {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("bank_connections")
-        .select("konten, status")
+        .select("konten, status, upd:banking_information->upd->bankAccounts")
         .eq("persoenlich_fuer", user!.id)
         .in("status", ["aktiv", "tan_noetig"]);
       if (error) throw error;
       const m = new Set<string>();
-      (data ?? []).forEach((z: any) => (z.konten ?? []).forEach((k: any) => k.iban && m.add(cleanIban(k.iban))));
+      // Konten aus der Kontenliste UND aus den aktuellen Bankdaten (neu hinzugekommene Konten)
+      (data ?? []).forEach((z: any) => {
+        (z.konten ?? []).forEach((k: any) => k.iban && m.add(cleanIban(k.iban)));
+        (Array.isArray(z.upd) ? z.upd : []).forEach((k: any) => k?.iban && m.add(cleanIban(k.iban)));
+      });
       return { anzahl: (data ?? []).length, konten: m };
     },
   });
