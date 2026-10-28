@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { euro, ibanFormatiert } from "@/lib/bankInfo";
 import { hausgeldAm, ladeEigentuemer, mandatBereit, type Eigentuemer } from "@/lib/eigentuemer";
 import { heuteIso } from "@/lib/auftraege";
+import { EigentuemerBearbeiten } from "./EigentuemerBearbeiten";
 import { naechsterTermin, useLaufendeAuftraege } from "./AuftraegeListe";
 
 const RHYTHMUS: Record<string, string> = { monatlich: "Monatlich", quartal: "Vierteljährlich", halbjahr: "Halbjährlich", jahr: "Jährlich" };
@@ -57,6 +58,7 @@ export function HausgeldAnsicht({
   });
   const liste = gebaeude.filter((g: any) => (g.management_mode ?? "weg") === managementMode);
   const [buildingId, setBuildingIdRoh] = useState("");
+  const [bearbeiten, setBearbeiten] = useState<Eigentuemer | null>(null);
   const setBuildingId = (id: string) => {
     setBuildingIdRoh(id);
     gebaeudeMerken(id);
@@ -203,7 +205,12 @@ export function HausgeldAnsicht({
                           <div className="font-semibold tabular-nums">{e.einheit || "–"}</div>
                           {e.lage && <div className="text-xs text-muted-foreground">{e.lage}</div>}
                         </td>
-                        <td className="px-3 py-3 font-medium">{e.name}</td>
+                        <td className="px-3 py-3 font-medium">
+                          <button type="button" onClick={() => setBearbeiten(e)} className="group inline-flex items-center gap-1.5 text-left hover:text-primary" title="Name und Konto bearbeiten">
+                            {e.name}
+                            <Pencil className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-60 group-hover:opacity-100" />
+                          </button>
+                        </td>
                         <td className="px-3 py-3">
                           {mandatBereit(e.mandat) ? (
                             <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800 dark:bg-green-950 dark:text-green-300">✓ Mandat</span>
@@ -239,6 +246,7 @@ export function HausgeldAnsicht({
         </section>
       )}
       {dauer[0] && <p className="text-sm text-muted-foreground">Konto der Dauerlastschrift: {ibanFormatiert(dauer[0].konto_iban)}</p>}
+      <EigentuemerBearbeiten eigentuemer={bearbeiten} onClose={() => setBearbeiten(null)} />
     </div>
   );
 }

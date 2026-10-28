@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, Check, ChevronLeft, Info, Loader2 } from "lucide-react";
+import { AlertCircle, Check, ChevronLeft, Info, Loader2, Pencil } from "lucide-react";
+import { EigentuemerBearbeiten } from "./EigentuemerBearbeiten";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -8,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { euro } from "@/lib/bankInfo";
-import { hausgeldAm, ladeEigentuemer } from "@/lib/eigentuemer";
+import { hausgeldAm, ladeEigentuemer, type Eigentuemer } from "@/lib/eigentuemer";
 import { heuteIso, plusMonate } from "@/lib/auftraege";
 import { naechsterTermin, useLaufendeAuftraege } from "./AuftraegeListe";
 
@@ -82,6 +83,7 @@ export function HausgeldAendern({
   const [prozent, setProzent] = useState("");
   const [rueckwirkend, setRueckwirkend] = useState(true);
   const [speichert, setSpeichert] = useState(false);
+  const [bearbeiten, setBearbeiten] = useState<Eigentuemer | null>(null);
   useEffect(() => {
     if (!eigenerMonat) setAb(naechsterMonat);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -181,7 +183,7 @@ export function HausgeldAendern({
           amount: r2(z.neu),
           interval: "monatlich",
           valid_from: abTag,
-          reserve_share_monthly: gelten[0]?.reserve_share_monthly ?? null,
+          reserve_share_monthly: gelten[0]?.reserve_share_monthly ?? 0,
         } as any);
         if (error) throw error;
       }
@@ -318,7 +320,12 @@ export function HausgeldAendern({
                           <div className="font-semibold tabular-nums">{z.e.einheit || "–"}</div>
                           {z.e.lage && <div className="text-xs text-muted-foreground">{z.e.lage}</div>}
                         </td>
-                        <td className="px-3 py-2.5 font-medium">{z.e.name}</td>
+                        <td className="px-3 py-2.5 font-medium">
+                          <button type="button" onClick={() => setBearbeiten(z.e)} className="group inline-flex items-center gap-1.5 text-left hover:text-primary" title="Name und Konto bearbeiten">
+                            {z.e.name}
+                            <Pencil className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-60 group-hover:opacity-100" />
+                          </button>
+                        </td>
                         <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">{euro(z.bisher)}</td>
                         <td className="px-3 py-2.5 text-right">
                           <div className="relative ml-auto w-32">
@@ -429,6 +436,7 @@ export function HausgeldAendern({
           </div>
         </aside>
       </div>
+      <EigentuemerBearbeiten eigentuemer={bearbeiten} onClose={() => setBearbeiten(null)} />
     </div>
   );
 }
