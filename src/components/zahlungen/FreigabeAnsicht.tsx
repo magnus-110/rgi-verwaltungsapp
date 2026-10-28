@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { AlertTriangle, ArrowDown, ArrowUp, ChevronLeft, Download, Loader2, Lock, Pencil, ShieldCheck, Smartphone, X } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, Check, ChevronLeft, Download, Loader2, Lock, Pencil, ShieldCheck, Smartphone, X } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -92,6 +92,8 @@ export function FreigabeAnsicht({ onZurueck }: { onZurueck: () => void }) {
   const [tanLaeufe, setTanLaeufe] = useState<string[] | null>(null);
   const [rausnehmen, setRausnehmen] = useState<Zeile | null>(null);
   const [nimmtRaus, setNimmtRaus] = useState(false);
+  const [bezahlt, setBezahlt] = useState<Zeile | null>(null);
+  const [bezahltAm, setBezahltAm] = useState(() => new Date().toISOString().slice(0, 10));
   const istAdmin = profile?.role === "admin";
 
   const { data: inZahlung = new Map<string, string>() } = useRechnungenInZahlung();
@@ -361,6 +363,34 @@ export function FreigabeAnsicht({ onZurueck }: { onZurueck: () => void }) {
       setRausnehmen(null);
     } catch (e: any) {
       toast.error(e?.message || "Konnte nicht herausgenommen werden");
+    } finally {
+      setNimmtRaus(false);
+    }
+  };
+
+  /** Rechnung anderweitig bezahlt (z. B. über ein Konto ohne Bankzugang): als bezahlt markieren. */
+  const alsBezahltMarkieren = async () => {
+    const z = bezahlt;
+    if (!z?.rechnung) return;
+    setNimmtRaus(true);
+    try {
+      const { error } = await (supabase as any)
+        .from("invoices")
+        .update({ status: "paid", paid_at: new Date(`${bezahltAm}T12:00:00`).toISOString() })
+        .eq("id", z.rechnung.id);
+      if (error) throw error;
+      toast.success(`${z.name} als bezahlt markiert`);
+      setAb((x) => {
+        const n = { ...x };
+        delete n[z.key];
+        return n;
+      });
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["transfer-invoices-outgoing"] });
+      neuLaden();
+      setBezahlt(null);
+    } catch (e: any) {
+      toast.error(e?.message || "Konnte nicht als bezahlt markiert werden");
     } finally {
       setNimmtRaus(false);
     }
@@ -640,6 +670,21 @@ export function FreigabeAnsicht({ onZurueck }: { onZurueck: () => void }) {
                             {euro(z.betrag)}
                           </span>
                         </label>
+                        {z.rechnung && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-9 w-9 shrink-0 text-muted-foreground hover:text-green-700"
+                            title="Schon bezahlt (z. B. im Online-Banking) – als bezahlt markieren"
+                            aria-label={`${z.name} als bezahlt markieren`}
+                            onClick={() => {
+                              setBezahltAm(new Date().toISOString().slice(0, 10));
+                              setBezahlt(z);
+                            }}
+                          >
+                            <Check className="h-4 w-4" />
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="icon"
@@ -740,6 +785,35 @@ export function FreigabeAnsicht({ onZurueck }: { onZurueck: () => void }) {
             >
               {nimmtRaus && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {rausnehmen?.rechnung ? "Auf offen setzen" : "Löschen"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!bezahlt} onOpenChange={(o) => !o && !nimmtRaus && setBezahlt(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Als bezahlt markieren?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {bezahlt ? `Rechnung von „${bezahlt.name}“ über ${euro(bezahlt.betrag)}. ` : ""}
+              Für Rechnungen, die schon anders bezahlt wurden – z. B. im Online-Banking eines Kontos ohne Bankzugang in der App. Es geht dabei kein Geld raus.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <label className="flex items-center gap-3 text-sm">
+            <span className="text-muted-foreground">Bezahlt am</span>
+            <Input type="date" value={bezahltAm} onChange={(e) => e.target.value && setBezahltAm(e.target.value)} className="h-9 w-44" />
+          </label>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={nimmtRaus}>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={nimmtRaus}
+              onClick={(e) => {
+                e.preventDefault();
+                alsBezahltMarkieren();
+              }}
+            >
+              {nimmtRaus && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Als bezahlt markieren
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
