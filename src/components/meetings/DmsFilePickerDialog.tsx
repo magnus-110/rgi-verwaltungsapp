@@ -307,10 +307,43 @@ export const DmsFilePickerDialog = ({
         }
       }
 
+      // Rechnungen dieser Liegenschaft (liegen nicht in der Dateiablage, sondern bei den Zahlungen)
+      const { data: rech } = await (supabase as any)
+        .from("invoices")
+        .select("id, invoice_number, invoice_date, vendor_display_name, vendor_name, file_path, file_name, created_at")
+        .eq("building_id", selectedBuildingId!)
+        .not("file_path", "is", null)
+        .order("invoice_date", { ascending: false, nullsFirst: false })
+        .limit(500);
+      const rechnungen: FileRow[] = ((rech || []) as any[]).map((r) => {
+        const endung = (String(r.file_name || r.file_path).split(".").pop() || "pdf").toLowerCase();
+        const lieferant = r.vendor_display_name || r.vendor_name || "Lieferant";
+        return {
+          id: `inv-in:${r.id}`,
+          display_name: [
+            `Rechnung ${lieferant}`,
+            r.invoice_number ? `Nr. ${r.invoice_number}` : null,
+            r.invoice_date ? new Date(r.invoice_date).toLocaleDateString("de-DE") : null,
+          ].filter(Boolean).join(" · ") + `.${endung}`,
+          file_path: String(r.file_path).replace(/^\/+/, "").replace(/^invoices\//, ""),
+          file_size: null,
+          mime_type: endung === "pdf" ? "application/pdf" : null,
+          category_id: VIRTUAL_INVOICES_IN,
+          created_at: r.invoice_date ?? r.created_at ?? "",
+          fiscal_year: r.invoice_date ? Number(String(r.invoice_date).slice(0, 4)) : null,
+          assigned_user_id: null,
+          source: "invoice",
+          storage_bucket: "invoices",
+        } as FileRow;
+      });
+
       return {
         // Die generierte types.ts kennt `storage_bucket` noch nicht.
-        files: (filesRes.data || []) as unknown as FileRow[],
-        categories: (catRes.data || []) as CategoryRow[],
+        files: [...((filesRes.data || []) as unknown as FileRow[]), ...rechnungen],
+        categories: [
+          ...((catRes.data || []) as CategoryRow[]),
+          ...(rechnungen.length ? [{ id: VIRTUAL_INVOICES_IN, name: "Rechnungen", parent_id: null, sort_order: 910 } as CategoryRow] : []),
+        ],
         persons,
       };
     },

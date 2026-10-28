@@ -6,8 +6,9 @@ import { format, isPast, isToday } from "date-fns";
 import {
   StickyNote, Check, X, FileCode, Loader2,
   RefreshCw, Sparkles, ArrowDownToLine, ArrowUpFromLine, Link2, Clock, ArrowUpDown, Download,
-  Plus, ChevronRight,
+  Plus, ChevronRight, Inbox,
 } from "lucide-react";
+import { useAblageHinlegen } from "@/hooks/useAblage";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -220,6 +221,52 @@ export function Transfers() {
   };
 
   const [editingNote, setEditingNote] = useState<string | null>(null);
+  const ablage = useAblageHinlegen();
+  const [dateiLaeuft, setDateiLaeuft] = useState<string | null>(null);
+
+  /** PDF der Rechnung laden – mit sprechendem Dateinamen. */
+  const rechnungDatei = async (inv: any): Promise<File> => {
+    if (!inv.file_path) throw new Error("Zu dieser Rechnung ist keine Datei hinterlegt");
+    const pfad = String(inv.file_path).replace(/^\/+/, "").replace(/^invoices\//, "");
+    const { data, error } = await supabase.storage.from("invoices").download(pfad);
+    if (error || !data) throw new Error("Datei konnte nicht geladen werden");
+    const endung = (String(inv.file_name || pfad).split(".").pop() || "pdf").toLowerCase();
+    const teile = ["Rechnung", inv.vendor_name, inv.invoice_number ? `Nr ${inv.invoice_number}` : null, inv.buildings?.name]
+      .filter(Boolean)
+      .join(" ")
+      .replace(/[\\/:*?"<>|]+/g, "-")
+      .slice(0, 120);
+    return new File([data], `${teile}.${endung}`, { type: data.type || (endung === "pdf" ? "application/pdf" : "") });
+  };
+  const rechnungHerunterladen = async (inv: any) => {
+    setDateiLaeuft(`dl:${inv.id}`);
+    try {
+      const f = await rechnungDatei(inv);
+      const url = URL.createObjectURL(f);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = f.name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+    } catch (e: any) {
+      toast.error(e?.message || "Download fehlgeschlagen");
+    } finally {
+      setDateiLaeuft(null);
+    }
+  };
+  const rechnungInAblage = async (inv: any) => {
+    setDateiLaeuft(`ab:${inv.id}`);
+    try {
+      const f = await rechnungDatei(inv);
+      await ablage.dateien.mutateAsync({ files: [f], recipientIds: [] });
+    } catch (e: any) {
+      toast.error(e?.message || "Konnte nicht in die Ablage gelegt werden");
+    } finally {
+      setDateiLaeuft(null);
+    }
+  };
   const [noteText, setNoteText] = useState("");
   const [retryingOcr, setRetryingOcr] = useState<string | null>(null);
 
@@ -913,6 +960,16 @@ export function Transfers() {
                       <Check className="mr-1 h-3.5 w-3.5" /> Freigeben
                     </Button>
                   ) : null}
+                  {inv.file_path && (
+                    <>
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" title="Rechnung herunterladen" aria-label="Rechnung herunterladen" disabled={!!dateiLaeuft} onClick={() => rechnungHerunterladen(inv)}>
+                        {dateiLaeuft === `dl:${inv.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5 text-muted-foreground" />}
+                      </Button>
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" title="In die Ablage legen" aria-label="Rechnung in die Ablage legen" disabled={!!dateiLaeuft} onClick={() => rechnungInAblage(inv)}>
+                        {dateiLaeuft === `ab:${inv.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Inbox className="h-3.5 w-3.5 text-muted-foreground" />}
+                      </Button>
+                    </>
+                  )}
                   <Popover
                     open={editingNote === inv.id}
                     onOpenChange={(open) => {
