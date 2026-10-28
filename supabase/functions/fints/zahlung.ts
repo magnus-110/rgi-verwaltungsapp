@@ -568,6 +568,14 @@ function kontenErgaenzen(config: any, vorher: any[]) {
     if (!k.bic && alt.bic) k.bic = alt.bic;
     if (k.isSepaAccount === undefined && alt.isSepaAccount !== undefined) k.isSepaAccount = alt.isSepaAccount;
   }
+  // Neue Konten (z. B. gerade umgezogen) haben noch keine BIC: dieselbe Bank
+  // (gleiche Bankleitzahl in der IBAN) hat dieselbe BIC wie die übrigen Konten.
+  const blz = (iban?: string) => (norm(iban).startsWith("DE") ? norm(iban).slice(4, 12) : "");
+  const bicJeBlz = new Map<string, string>();
+  [...vorher, ...konten].forEach((k) => k?.bic && blz(k.iban) && bicJeBlz.set(blz(k.iban), k.bic));
+  for (const k of konten) {
+    if (!k.bic && bicJeBlz.has(blz(k.iban))) k.bic = bicJeBlz.get(blz(k.iban));
+  }
 }
 
 /** Auftragskonto im internationalen Format – ohne BIC gibt es keinen Auftrag. */
