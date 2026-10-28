@@ -1,5 +1,6 @@
 import { requireAdmin } from "../_shared/require-admin.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.52.1";
+import { ocrMitCache } from "../_shared/ocr-cache.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -53,20 +54,11 @@ async function computeHash(input: string): Promise<string> {
 // Mistral OCR + Structured extraction
 // ----------------------------------------------------------------------------
 
-async function mistralOcr(base64Pdf: string, apiKey: string): Promise<string> {
-  const resp = await fetch("https://api.mistral.ai/v1/ocr", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "mistral-ocr-latest",
-      document: { type: "document_url", document_url: `data:application/pdf;base64,${base64Pdf}` },
-      include_image_base64: false,
-    }),
-  });
-  if (!resp.ok) throw new Error(`OCR failed: ${resp.status} ${await resp.text()}`);
-  const data = await resp.json();
-  const pages: any[] = data?.pages || [];
-  return pages.map((p) => p.markdown || "").join("\n\n---PAGE---\n\n");
+async function mistralOcr(db: any, base64Pdf: string, apiKey: string): Promise<string> {
+  // gemeinsamer Textspeicher: derselbe Auszug wird nur einmal gelesen
+  const bytes = Uint8Array.from(atob(base64Pdf), (c) => c.charCodeAt(0));
+  const r = await ocrMitCache(db, { bytes, mime: "application/pdf", quelle: "kontoauszug", apiKey });
+  return r.seiten.join("\n\n---PAGE---\n\n");
 }
 
 const MAX_MARKDOWN_CHARS = 60000;
@@ -387,7 +379,7 @@ Deno.serve(async (req) => {
 
     // 1) OCR
     console.log(`[pdf-import] OCR ${fileName}`);
-    const markdown = await mistralOcr(pdfBase64, apiKey);
+    const markdown = await mistralOcr(supabase, pdfBase64, apiKey);
 
     // 2) Structured extraction (Hint wird in der Funktion nach dem Kuerzen angehaengt)
     console.log(`[pdf-import] Structured extraction (md length: ${markdown.length})`);

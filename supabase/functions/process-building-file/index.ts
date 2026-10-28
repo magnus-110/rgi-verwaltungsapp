@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { ocrMitCache, seitenAlsText } from "../_shared/ocr-cache.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -27,38 +28,11 @@ async function withRetry<T>(fn: () => Promise<T>, label: string, attempts = 3): 
 }
 
 // ================== OCR ==================
-async function extractTextWithMistralOCR(signedUrl: string): Promise<string> {
-  console.log('Starting Mistral OCR extraction...');
-  const response = await fetch('https://api.mistral.ai/v1/ocr', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${MISTRAL_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'mistral-ocr-latest',
-      document: { type: 'document_url', document_url: signedUrl },
-      include_image_base64: false,
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Mistral OCR error:', errorText);
-    throw new Error(`Mistral OCR failed (${response.status}): ${errorText.slice(0, 500)}`);
-  }
-
-  const data = await response.json();
-  let fullText = '';
-  if (data.pages) {
-    for (const page of data.pages) {
-      fullText += `\n\n--- Seite ${page.index + 1} ---\n\n`;
-      fullText += page.markdown || '';
-    }
-  } else if (data.text) {
-    fullText = data.text;
-  }
-  return fullText.trim();
+async function extractTextWithMistralOCR(db: any, signedUrl: string, mime?: string | null): Promise<string> {
+  // gemeinsamer Textspeicher: dieselbe Datei (z. B. aus einer Mail) wird nicht nochmal gelesen
+  const r = await ocrMitCache(db, { url: signedUrl, bild: !!mime && mime.startsWith("image/"), mime: mime ?? undefined, quelle: "dms", apiKey: MISTRAL_API_KEY! });
+  if (r.ausCache) console.log("OCR aus Speicher");
+  return seitenAlsText(r.seiten);
 }
 
 // ================== Plain text from text-based files ==================
@@ -294,7 +268,7 @@ async function processFile(supabase: any, fileId: string, force: boolean) {
         if (signedErr || !signed?.signedUrl) throw new Error('Could not create signed URL for OCR');
 
         console.log(`[${fileId}] OCR for ${file.display_name}`);
-        extractedText = await withRetry(() => extractTextWithMistralOCR(signed.signedUrl), 'ocr');
+        extractedText = await withRetry(() => extractTextWithMistralOCR(supabase, signed.signedUrl, file.mime_type), 'ocr');
       } else if (file.mime_type && textTypes.includes(file.mime_type)) {
         extractedText = await downloadAsText(supabase, file.file_path);
       } else {

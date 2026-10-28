@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.52.1";
+import { ocrMitCache, seitenAlsText } from "../_shared/ocr-cache.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -103,37 +104,17 @@ serve(async (req) => {
         continue;
       }
 
-      const ocrResponse = await fetch("https://api.mistral.ai/v1/ocr", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${mistralApiKey}`,
-        },
-        body: JSON.stringify({
-          model: "mistral-ocr-latest",
-          document: {
-            type: "document_url",
-            document_url: signedUrlData.signedUrl,
-          },
-          include_image_base64: false,
-        }),
-      });
-
       let extractedText = "";
-      if (!ocrResponse.ok) {
-        const errorText = await ocrResponse.text();
-        console.error(`OCR error for ${file.fileName}:`, ocrResponse.status, errorText);
-      } else {
-        const ocrData = await ocrResponse.json();
-        if (ocrData.pages) {
-          for (const page of ocrData.pages) {
-            extractedText += `\n\n--- Seite ${page.index + 1} ---\n\n`;
-            extractedText += page.markdown || "";
-          }
-        } else if (ocrData.text) {
-          extractedText = ocrData.text;
-        }
-        extractedText = extractedText.trim();
+      try {
+        const r = await ocrMitCache(supabase, {
+          url: signedUrlData.signedUrl,
+          bild: /\.(jpe?g|png|webp)$/i.test(file.fileName ?? file.filePath ?? ""),
+          quelle: "analyse",
+          apiKey: mistralApiKey,
+        });
+        extractedText = seitenAlsText(r.seiten);
+      } catch (ocrErr: any) {
+        console.error(`OCR error for ${file.fileName}:`, ocrErr?.message);
       }
 
       console.log(`OCR for "${file.fileName}": ${extractedText.length} chars`);

@@ -5,6 +5,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.1";
 import PizZip from "https://esm.sh/pizzip@3.1.7";
 import { requireStaffOrCron } from "../_shared/require-cron.ts";
+import { ocrMitCache, seitenAlsText, sha256Hex } from "../_shared/ocr-cache.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -31,22 +32,6 @@ function art(name: string, mime: string | null): "ocr" | "docx" | "text" | null 
   return null;
 }
 
-async function ocr(url: string, bild: boolean): Promise<string> {
-  const r = await fetch("https://api.mistral.ai/v1/ocr", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${MISTRAL}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "mistral-ocr-latest",
-      document: bild ? { type: "image_url", image_url: url } : { type: "document_url", document_url: url },
-      include_image_base64: false,
-    }),
-  });
-  if (!r.ok) throw new Error(`OCR ${r.status}: ${(await r.text()).slice(0, 300)}`);
-  const d = await r.json();
-  if (Array.isArray(d.pages)) return d.pages.map((p: any, i: number) => (d.pages.length > 1 ? `--- Seite ${i + 1} ---\n` : "") + (p.markdown ?? "")).join("\n\n").trim();
-  return String(d.text ?? "").trim();
-}
-
 function docxText(buf: Uint8Array): string {
   const xml = new PizZip(buf).file("word/document.xml")?.asText() ?? "";
   return xml
@@ -58,7 +43,7 @@ function docxText(buf: Uint8Array): string {
     .trim();
 }
 
-async function lesen(db: any, a: any): Promise<{ text: string | null; status: string }> {
+async function lesen(db: any, a: any): Promise<{ text: string | null; status: string; sha?: string | null }> {
   const typ = art(a.file_name ?? "", a.mime_type);
   if (!typ) return { text: null, status: "nicht_lesbar" };
   if (a.file_size && a.file_size > MAX_BYTES) return { text: null, status: "zu_gross" };
@@ -68,8 +53,8 @@ async function lesen(db: any, a: any): Promise<{ text: string | null; status: st
     if (istBild && (a.file_size ?? 0) < MIN_BILD_BYTES) return { text: null, status: "nicht_lesbar" };
     const { data, error } = await db.storage.from(BUCKET).createSignedUrl(a.file_path, 900);
     if (error || !data?.signedUrl) throw new Error(error?.message ?? "Kein Link");
-    const bild = !/pdf/i.test(a.mime_type ?? "") && !/\.pdf$/i.test(a.file_name ?? "");
-    return { text: await ocr(data.signedUrl, bild), status: "ok" };
+    const r = await ocrMitCache(db, { url: data.signedUrl, bild: istBild, mime: a.mime_type ?? undefined, quelle: "mail", apiKey: MISTRAL });
+    return { text: seitenAlsText(r.seiten, false), status: "ok", sha: r.sha };
   }
   const { data, error } = await db.storage.from(BUCKET).download(a.file_path);
   if (error || !data) throw new Error(error?.message ?? "Download fehlgeschlagen");
@@ -85,6 +70,7 @@ Deno.serve(async (req) => {
   if (!auth.ok) return auth.response;
   const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   const body = await req.json().catch(() => ({}));
+  if (body?.altbestand) return json(await altbestandUebernehmen(db, Number(body.anzahl) || 40));
 
   let q = db
     .from("email_attachments")
@@ -102,7 +88,7 @@ Deno.serve(async (req) => {
   for (const a of liste ?? []) {
     try {
       const r = await lesen(db, a);
-      await db.from("email_attachments").update({ extracted_text: r.text, text_status: r.status, text_extrahiert_am: new Date().toISOString() }).eq("id", a.id);
+      await db.from("email_attachments").update({ extracted_text: r.text, text_status: r.status, sha256: r.sha ?? null, text_extrahiert_am: new Date().toISOString() }).eq("id", a.id);
       ergebnis.push({ id: a.id, name: a.file_name, status: r.status, zeichen: r.text?.length ?? 0 });
     } catch (e: any) {
       console.error("Anhang", a.id, e?.message);
@@ -112,3 +98,40 @@ Deno.serve(async (req) => {
   }
   return json({ ok: true, gelesen: ergebnis.length, ergebnis });
 });
+
+/**
+ * Schon gelesene Anhänge in den gemeinsamen Textspeicher übernehmen: Datei
+ * einmal laden, Fingerabdruck bilden, vorhandenen Text speichern – ohne OCR.
+ */
+async function altbestandUebernehmen(db: any, anzahl: number) {
+  const { data: liste } = await db
+    .from("email_attachments")
+    .select("id, file_name, file_path, mime_type, extracted_text")
+    .eq("text_status", "ok")
+    .is("sha256", null)
+    .not("extracted_text", "is", null)
+    .limit(anzahl);
+  let ok = 0, fehler = 0;
+  for (const a of liste ?? []) {
+    try {
+      if (art(a.file_name ?? "", a.mime_type) !== "ocr") {
+        await db.from("email_attachments").update({ sha256: "-" }).eq("id", a.id);
+        continue;
+      }
+      const { data, error } = await db.storage.from(BUCKET).download(a.file_path);
+      if (error || !data) throw new Error(error?.message ?? "Download");
+      const sha = await sha256Hex(new Uint8Array(await data.arrayBuffer()));
+      const text = String(a.extracted_text);
+      const seiten = /^--- Seite 1 ---/.test(text) ? text.split(/\n*--- Seite \d+ ---\n/).slice(1) : [text];
+      await db.from("ocr_cache").upsert({ sha256: sha, seiten, seitenzahl: seiten.length, quelle: "mail-altbestand" }, { onConflict: "sha256", ignoreDuplicates: true });
+      await db.from("email_attachments").update({ sha256: sha }).eq("id", a.id);
+      ok++;
+    } catch (e) {
+      console.error("altbestand", a.id, (e as any)?.message);
+      await db.from("email_attachments").update({ sha256: "-" }).eq("id", a.id);
+      fehler++;
+    }
+  }
+  const { count } = await db.from("email_attachments").select("id", { count: "exact", head: true }).eq("text_status", "ok").is("sha256", null);
+  return { ok: true, uebernommen: ok, fehler, rest: count ?? null };
+}

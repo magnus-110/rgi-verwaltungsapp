@@ -3,6 +3,7 @@ import { erkenneLastschrift } from "../_shared/lastschrift.ts";
 import { empfaengerBestimmen, istFloskel, kurzInhalt, verwendungszweck, zweckIstGut } from "../_shared/zahlungsdaten.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.52.1";
 import { detectAndParseEInvoice, isEInvoiceComplete, type ParsedEInvoice } from "../_shared/einvoice.ts";
+import { ocrMitCache } from "../_shared/ocr-cache.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -379,47 +380,27 @@ serve(async (req) => {
       }
     }
 
-    // Step 1: Mistral OCR to extract text
-    // For images: use image_url type. For PDFs: use document_url type.
-    const ocrDocument = isImageFile
-      ? { type: "image_url", image_url: signedUrlData.signedUrl }
-      : { type: "document_url", document_url: signedUrlData.signedUrl };
-
-    const ocrResponse = await fetch("https://api.mistral.ai/v1/ocr", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${mistralApiKey}`,
-      },
-      body: JSON.stringify({
-        model: "mistral-ocr-latest",
-        document: ocrDocument,
-        include_image_base64: false,
-      }),
-    });
-
-    if (!ocrResponse.ok) {
-      const errorText = await ocrResponse.text();
-      console.error("OCR error:", ocrResponse.status, errorText);
+    // Step 1: Texterkennung – über den gemeinsamen Textspeicher (jede Datei nur einmal lesen)
+    let extractedText = "";
+    try {
+      const ocr = await ocrMitCache(supabase, {
+        url: signedUrlData.signedUrl,
+        bild: isImageFile,
+        quelle: "rechnung",
+        apiKey: mistralApiKey,
+      });
+      if (ocr.ausCache) console.log(`OCR aus Speicher für Rechnung ${invoiceId}`);
+      extractedText = ocr.seiten.map((t, i) => `\n--- Seite ${i + 1} ---\n${t}`).join("");
+    } catch (ocrErr: any) {
+      console.error("OCR error:", ocrErr?.message);
       await supabase.from("invoices").update({ 
         ocr_status: "error", 
-        ocr_error: `OCR fehlgeschlagen: ${ocrResponse.status}` 
+        ocr_error: String(ocrErr?.message ?? "OCR fehlgeschlagen").slice(0, 200) 
       }).eq("id", invoiceId);
       return new Response(JSON.stringify({ error: "OCR fehlgeschlagen" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
-    }
-
-    const ocrData = await ocrResponse.json();
-    let extractedText = "";
-    if (ocrData.pages) {
-      for (const page of ocrData.pages) {
-        extractedText += `\n--- Seite ${page.index + 1} ---\n`;
-        extractedText += page.markdown || "";
-      }
-    } else if (ocrData.text) {
-      extractedText = ocrData.text;
     }
     extractedText = extractedText.trim();
 
