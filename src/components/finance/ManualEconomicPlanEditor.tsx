@@ -1010,18 +1010,6 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
 
 
 
-  // ── Render ────────────────────────────────────────────────────────
-  if (loadingPlan || !plan) {
-    return (
-      <Card>
-        <CardContent className="py-12 flex items-center justify-center text-muted-foreground">
-          <Loader2 className="h-5 w-5 animate-spin mr-2" /> Lade Wirtschaftsplan…
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const isActive = plan.status === "active";
   // Monatliche Vorschüsse je Eigentümer – dieselbe Rechnung wie im Einzelplan
   const hausgeldWerte: HausgeldWert[] = ownerData.map((o) => {
     const unitRows = buildUnitRows(o.id);
@@ -1031,7 +1019,6 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
     const ruecklage = Math.abs(sumAbs(unitRows.filter((r) => r.isReserve)) / 12);
     return { assignmentId: o.id, name: o.name, einheit: unitNo(o), monatlich, ruecklage };
   });
-  const periodLabel = `01.01.${fiscalYear} – 31.12.${fiscalYear}`;
 
   // Hausgeld je Eigentümer mitspeichern – die Dauerlastschrift übernimmt es von dort
   const hausgeldSchnappschuss = JSON.stringify(
@@ -1050,6 +1037,21 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
     }, 1500);
     return () => clearTimeout(t);
   }, [plan?.id, hausgeldSchnappschuss, accounts.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+
+  // ── Render ────────────────────────────────────────────────────────
+  if (loadingPlan || !plan) {
+    return (
+      <Card>
+        <CardContent className="py-12 flex items-center justify-center text-muted-foreground">
+          <Loader2 className="h-5 w-5 animate-spin mr-2" /> Lade Wirtschaftsplan…
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const isActive = plan.status === "active";
+  const periodLabel = `01.01.${fiscalYear} – 31.12.${fiscalYear}`;
 
   return (
     <TooltipProvider>
