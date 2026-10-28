@@ -5,7 +5,7 @@ alter table public.email_attachments
   add column if not exists text_fehler text,
   add column if not exists text_extrahiert_am timestamptz;
 create index if not exists email_attachments_text_offen on public.email_attachments (created_at desc) where text_status is null;
--- Zeitplan: alle 5 Minuten neue Anhänge lesen
+-- Zeitplan: alle 5 Minuten neue Anhänge lesen (nur der letzten 48 Stunden; Altbestand wird nicht gelesen)
 select cron.schedule('email-anhaenge-lesen', '*/5 * * * *', $$
   select net.http_post(
     url := 'https://eebphowrbarzawwixqcc.supabase.co/functions/v1/email-anhaenge-lesen',

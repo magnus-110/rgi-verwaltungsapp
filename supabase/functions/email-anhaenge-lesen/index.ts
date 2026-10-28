@@ -14,6 +14,10 @@ const MISTRAL = Deno.env.get("MISTRAL_API_KEY") ?? "";
 const BUCKET = "email-attachments";
 const JE_LAUF = 8;
 const MAX_BYTES = 25 * 1024 * 1024;
+// Kleine Bilder sind fast immer Logos/Signaturen – nicht per OCR lesen (kostet Geld)
+const MIN_BILD_BYTES = 40 * 1024;
+// Zeitplan liest nur neue Anhänge (kein Altbestand – OCR kostet je Seite)
+const NUR_NEUER_ALS_STUNDEN = 48;
 
 const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { ...cors, "Content-Type": "application/json" } });
 
@@ -60,6 +64,8 @@ async function lesen(db: any, a: any): Promise<{ text: string | null; status: st
   if (a.file_size && a.file_size > MAX_BYTES) return { text: null, status: "zu_gross" };
   if (typ === "ocr") {
     if (!MISTRAL) throw new Error("MISTRAL_API_KEY fehlt");
+    const istBild = !/pdf/i.test(a.mime_type ?? "") && !/\.pdf$/i.test(a.file_name ?? "");
+    if (istBild && (a.file_size ?? 0) < MIN_BILD_BYTES) return { text: null, status: "nicht_lesbar" };
     const { data, error } = await db.storage.from(BUCKET).createSignedUrl(a.file_path, 900);
     if (error || !data?.signedUrl) throw new Error(error?.message ?? "Kein Link");
     const bild = !/pdf/i.test(a.mime_type ?? "") && !/\.pdf$/i.test(a.file_name ?? "");
@@ -88,7 +94,7 @@ Deno.serve(async (req) => {
     .order("created_at", { ascending: false })
     .limit(body?.email_id ? 50 : JE_LAUF);
   if (body?.email_id) q = q.eq("email_id", body.email_id);
-  else q = q.gte("created_at", new Date(Date.now() - 90 * 86400000).toISOString());
+  else q = q.gte("created_at", new Date(Date.now() - NUR_NEUER_ALS_STUNDEN * 3600000).toISOString());
   const { data: liste, error } = await q;
   if (error) return json({ error: error.message }, 500);
 
