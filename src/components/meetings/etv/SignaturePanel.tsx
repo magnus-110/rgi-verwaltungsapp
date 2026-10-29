@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Loader2, Mail, PenLine, Send } from "lucide-react";
+import { Check, ChevronDown, Loader2, Mail, PenLine, Send } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useComposeEmail } from "@/contexts/ComposeEmailContext";
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { SignaturePad } from "@/components/buildings/keys/SignaturePad";
 import { contactEmail, contactName, useAttendees } from "./useAttendees";
@@ -37,6 +38,18 @@ export const SignaturePanel = ({ meeting, onFiled }: Props) => {
   const { openCompose } = useComposeEmail();
   const { data: mySignature } = useMySignature();
   const { data: attendees = [] } = useAttendees(meetingId);
+  // Hinterlegte Unterschriften: für Admins die des ganzen Teams, sonst nur die eigene
+  const { data: hinterlegt = [] } = useQuery({
+    queryKey: ["team-unterschriften", !!mySignature],
+    queryFn: async (): Promise<{ user_id: string; name: string; signature_png: string }[]> => {
+      const { data } = await db.rpc("team_unterschriften");
+      if (data?.length) return data;
+      if (!mySignature) return [];
+      const me = await currentSigner();
+      return [{ user_id: me.id, name: me.name, signature_png: mySignature }];
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
   const { data: signatures = [], isFetched: sigsFetched } = useQuery({
     queryKey: ["etv-protocol-signatures", meetingId],
@@ -81,13 +94,12 @@ export const SignaturePanel = ({ meeting, onFiled }: Props) => {
     await db.from("etv_protocol_sign_requests").update({ status: "zurueckgezogen" }).eq("meeting_id", meetingId).eq("role", role).eq("status", "offen");
   };
 
-  const signWithMine = async (role: Role) => {
-    if (!mySignature) return;
+  /** Hinterlegte Unterschrift einer Person einfügen – unter deren Namen. */
+  const signWith = async (role: Role, person: { name: string; signature_png: string }) => {
     setBusy(role);
     try {
-      const me = await currentSigner();
-      await store(role, defaultName(role) || me.name, mySignature);
-      toast({ title: "Unterschrieben" });
+      await store(role, person.name, person.signature_png);
+      toast({ title: "Unterschrieben", description: person.name });
       refresh();
     } catch (e: any) {
       toast({ title: "Fehler", description: e?.message, variant: "destructive" });
@@ -242,10 +254,31 @@ export const SignaturePanel = ({ meeting, onFiled }: Props) => {
               </div>
             ) : (
               <div className="flex flex-wrap gap-2">
-                {r.key !== "eigentuemer" && mySignature && (
-                  <Button size="sm" className="h-8 gap-1.5" disabled={busy === r.key} onClick={() => signWithMine(r.key)}>
-                    {busy === r.key ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Mit meiner Unterschrift
+                {hinterlegt.length === 1 && (
+                  <Button size="sm" className="h-8 gap-1.5" disabled={busy === r.key} onClick={() => signWith(r.key, hinterlegt[0])}>
+                    {busy === r.key ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Unterschrift {hinterlegt[0].name}
                   </Button>
+                )}
+                {hinterlegt.length > 1 && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button size="sm" className="h-8 gap-1.5" disabled={busy === r.key}>
+                        {busy === r.key ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Hinterlegte Unterschrift
+                        <ChevronDown className="h-3.5 w-3.5" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-64">
+                      <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Unterschrift einfügen von …</DropdownMenuLabel>
+                      {[...hinterlegt]
+                        .sort((a, b) => Number(b.name === defaultName(r.key)) - Number(a.name === defaultName(r.key)))
+                        .map((p) => (
+                          <DropdownMenuItem key={p.user_id} className="flex items-center justify-between gap-3" onClick={() => signWith(r.key, p)}>
+                            <span className="font-medium">{p.name}</span>
+                            <img src={p.signature_png} alt="" className="h-6 max-w-[90px] object-contain opacity-80 dark:invert" />
+                          </DropdownMenuItem>
+                        ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 )}
                 <Button size="sm" variant="outline" className="h-8 gap-1.5" onClick={() => { setPadRole(r.key); setPadName(defaultName(r.key)); setPadPng(null); }}>
                   <PenLine className="h-3.5 w-3.5" /> Hier unterschreiben
