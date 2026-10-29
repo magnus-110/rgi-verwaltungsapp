@@ -206,7 +206,7 @@ export function HausgeldAnsicht({
                           {e.lage && <div className="text-xs text-muted-foreground">{e.lage}</div>}
                         </td>
                         <td className="px-3 py-3 font-medium">
-                          <button type="button" onClick={() => setBearbeiten(e)} className="group inline-flex items-center gap-1.5 text-left hover:text-primary" title="Name und Konto bearbeiten">
+                          <button type="button" onClick={() => setBearbeiten(e)} className="group inline-flex items-center gap-1.5 text-left hover:text-primary" title="Zahler bearbeiten (Name, Konto, Mandat)">
                             {e.name}
                             <Pencil className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-60 group-hover:opacity-100" />
                           </button>

@@ -196,7 +196,9 @@ export async function faelligeAuftragsposten(auftraege?: Auftrag[]): Promise<Fae
         if (schonDa && (a.art !== "dauerlastschrift" || schonDa.has(tag) || schonDa.has(`skip:${tag}`) || schonDa.has("*"))) continue;
 
         const e = it.assignment_id ? (eigentuemer.get(a.building_id) ?? []).find((x) => x.assignmentId === it.assignment_id) : undefined;
-        const mandat: Mandat | null = (mandateDirekt ?? []).find((m: any) => m.id === it.mandate_id) ?? e?.mandat ?? null;
+        // fest hinterlegtes Mandat – außer es wurde inzwischen ersetzt, dann das aktuelle der Einheit
+        const direkt = (mandateDirekt ?? []).find((m: any) => m.id === it.mandate_id && m.status === "aktiv");
+        const mandat: Mandat | null = direkt ?? e?.mandat ?? null;
         let betrag = Number(it.betrag) || 0;
         // Hausgeld, das am Einzugstag gilt (eine Änderung „ab 11/2026“ greift so von selbst)
         if (a.betragsquelle === "wirtschaftsplan") betrag = Math.round((e ? hausgeldAm(e.hausgeldZeilen, tag) : 0) * (a.rhythmus ? MONATE[a.rhythmus] : 1) * 100) / 100;
