@@ -1,11 +1,11 @@
 import { requireAdmin } from "../_shared/require-admin.ts";
+import { ortAus, unterschriftenSeiteAnhaengen } from "../_shared/protokoll-unterschriften.ts";
 // etv-finalize-signed-protocol
 // Lädt ein bestehendes Protokoll-PDF (oder rendert es neu), stempelt die
 // gesammelten Unterschriften (Leiter, Protokollant, Eigentümer) auf eine
 // finale Unterschriftenseite und legt das Ergebnis im DMS ab
 // (building-files, Kategorie versammlung-protokolle).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.1";
-import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -19,13 +19,6 @@ function json(b: unknown, status = 200) {
   });
 }
 
-function dataUrlToBytes(dataUrl: string): Uint8Array {
-  const b64 = dataUrl.includes(",") ? dataUrl.split(",")[1] : dataUrl;
-  const bin = atob(b64);
-  const out = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-  return out;
-}
 
 Deno.serve(async (req) => {
   if (req.method !== "OPTIONS") {
@@ -98,70 +91,21 @@ Deno.serve(async (req) => {
     // Daten
     const { data: meeting } = await admin
       .from("etv_meetings")
-      .select("*, buildings(id, name, address, management_mode)")
+      .select("*, buildings(id, name, address, city, management_mode)")
       .eq("id", meeting_id).single();
     const building = meeting?.buildings as any;
 
     const { data: signatures = [] } = await admin
       .from("etv_protocol_signatures").select("*").eq("meeting_id", meeting_id).order("role");
 
-    // PDF mit Signaturseite versehen
-    const pdfDoc = await PDFDocument.load(await pdfFile.arrayBuffer());
-    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-    const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-    const page = pdfDoc.addPage([595.28, 841.89]); // A4
-    const { width, height } = page.getSize();
-    const margin = 50;
-    let y = height - margin;
-
-    page.drawText("Unterschriften", { x: margin, y, size: 18, font: fontBold, color: rgb(0.941, 0.549, 0.122) });
-    y -= 12;
-    page.drawLine({ start: { x: margin, y }, end: { x: width - margin, y }, thickness: 1, color: rgb(0.941, 0.549, 0.122) });
-    y -= 30;
-    page.drawText(`Protokoll: ${meeting?.title || ""}`, { x: margin, y, size: 11, font });
-    y -= 16;
-    page.drawText(`Liegenschaft: ${building?.name || ""}`, { x: margin, y, size: 11, font });
-    y -= 16;
-    page.drawText(`Datum der Versammlung: ${meeting?.meeting_date ? new Date(meeting.meeting_date).toLocaleDateString("de-DE") : ""}`, { x: margin, y, size: 11, font });
-    y -= 40;
-
-    const roleLabels: Record<string, string> = {
-      leiter: "Versammlungsleiter",
-      protokollant: "Protokollführer",
-      eigentuemer: "Eigentümer",
-    };
-
-    for (const role of ["leiter", "protokollant", "eigentuemer"] as const) {
-      const sig = signatures.find((s: any) => s.role === role);
-      page.drawText(roleLabels[role], { x: margin, y, size: 12, font: fontBold });
-      y -= 18;
-      if (sig) {
-        try {
-          const pngBytes = dataUrlToBytes(sig.signature_png);
-          const pngImage = await pdfDoc.embedPng(pngBytes);
-          const sigW = 200;
-          const ratio = pngImage.height / pngImage.width;
-          const sigH = Math.min(80, sigW * ratio);
-          page.drawImage(pngImage, { x: margin, y: y - sigH, width: sigW, height: sigH });
-          y -= sigH + 6;
-        } catch (e) {
-          console.error("Signatur-PNG konnte nicht eingebettet werden", e);
-        }
-        page.drawLine({ start: { x: margin, y }, end: { x: margin + 260, y }, thickness: 0.7, color: rgb(0.3, 0.3, 0.3) });
-        y -= 14;
-        page.drawText(`${sig.signer_name} — ${new Date(sig.signed_at).toLocaleString("de-DE")}`, {
-          x: margin, y, size: 9, font, color: rgb(0.3, 0.3, 0.3),
-        });
-      } else {
-        y -= 50;
-        page.drawLine({ start: { x: margin, y }, end: { x: margin + 260, y }, thickness: 0.7, color: rgb(0.6, 0.6, 0.6) });
-        y -= 14;
-        page.drawText("(noch nicht unterschrieben)", { x: margin, y, size: 9, font, color: rgb(0.6, 0.6, 0.6) });
-      }
-      y -= 50;
-    }
-
-    const finalBytes = await pdfDoc.save();
+    // PDF mit Unterschriftenseite versehen
+    const finalBytes = await unterschriftenSeiteAnhaengen(await pdfFile.arrayBuffer(), {
+      signatures: signatures ?? [],
+      titel: meeting?.title || "",
+      liegenschaft: building?.name || "",
+      datum: meeting?.meeting_date ? new Date(meeting.meeting_date).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" }) : "",
+      ort: ortAus(meeting?.location, building?.city || "Pfronten"),
+    });
     const finalName = `Protokoll_signiert_${(meeting?.title || "ETV").replace(/[\\/:*?"<>|]+/g, "_").slice(0, 60)}_${new Date().toISOString().slice(0, 10)}.pdf`;
     const finalPath = `_etv-protocol-renders/${meeting_id}/${finalName}`;
 

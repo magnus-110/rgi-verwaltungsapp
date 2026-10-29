@@ -17,11 +17,12 @@ import { contactEmail, contactName, useAttendees } from "./useAttendees";
 
 const db = supabase as any;
 
-type Role = "leiter" | "protokollant" | "eigentuemer";
+type Role = "leiter" | "protokollant" | "eigentuemer" | "beirat";
 const ROLES: { key: Role; label: string; hint: string }[] = [
   { key: "leiter", label: "Versammlungsleitung", hint: "meist die Verwaltung" },
   { key: "protokollant", label: "Protokollführung", hint: "wer das Protokoll geführt hat" },
   { key: "eigentuemer", label: "Wohnungseigentümer/in", hint: "ein in der Versammlung anwesender Eigentümer" },
+  { key: "beirat", label: "Verwaltungsbeirat", hint: "Vorsitz oder Vertretung – nur nötig, wenn es einen Beirat gibt" },
 ];
 
 interface Props { meeting: any; onFiled?: () => void }
@@ -74,7 +75,22 @@ export const SignaturePanel = ({ meeting, onFiled }: Props) => {
 
   const sigOf = (r: Role) => signatures.find((s: any) => s.role === r);
   const reqOf = (r: Role) => requests.find((x: any) => x.role === r && x.status === "offen");
-  const allSigned = ROLES.every((r) => sigOf(r.key));
+  // Beirat-Unterschrift nur Pflicht, wenn die Liegenschaft einen Beirat hat (§ 24 Abs. 6 WEG)
+  const { data: hatBeirat = false } = useQuery({
+    queryKey: ["hat-beirat", meeting.building_id],
+    enabled: !!meeting.building_id,
+    queryFn: async () => {
+      const { count } = await db
+        .from("contact_building_assignments")
+        .select("id", { count: "exact", head: true })
+        .eq("building_id", meeting.building_id)
+        .eq("is_beirat", true)
+        .eq("is_active", true);
+      return (count ?? 0) > 0;
+    },
+  });
+  const pflicht = ROLES.filter((r) => r.key !== "beirat" || hatBeirat);
+  const allSigned = pflicht.every((r) => sigOf(r.key));
   const filed = !!meeting.protocol_filed_at;
 
   const refresh = () => {
@@ -322,7 +338,7 @@ export const SignaturePanel = ({ meeting, onFiled }: Props) => {
             <DialogDescription>Die Person bekommt einen Link, sieht das Protokoll und unterschreibt ohne Anmeldung. Der Link gilt 30 Tage.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3.5">
-            {linkRole === "eigentuemer" && (
+            {(linkRole === "eigentuemer" || linkRole === "beirat") && (
               <div className="space-y-1.5">
                 <Label>Eigentümer</Label>
                 <Select

@@ -22,6 +22,7 @@ const ROLE_LABEL: Record<string, string> = {
   leiter: "Versammlungsleitung",
   protokollant: "Protokollführung",
   eigentuemer: "Wohnungseigentümer/in",
+  beirat: "Verwaltungsbeirat",
 };
 
 Deno.serve(async (req) => {
@@ -126,7 +127,13 @@ Deno.serve(async (req) => {
       const { data: sigs } = await admin.from("etv_protocol_signatures").select("role").eq("meeting_id", request.meeting_id);
       const roles = new Set((sigs || []).map((s: any) => s.role));
       let filed = false;
-      if (["leiter", "protokollant", "eigentuemer"].every((r) => roles.has(r))) {
+      // Beirat nur nötig, wenn die Liegenschaft einen hat (§ 24 Abs. 6 WEG)
+      const { data: mt } = await admin.from("etv_meetings").select("building_id").eq("id", request.meeting_id).maybeSingle();
+      const { count: beiratZahl } = mt?.building_id
+        ? await admin.from("contact_building_assignments").select("id", { count: "exact", head: true }).eq("building_id", mt.building_id).eq("is_beirat", true).eq("is_active", true)
+        : { count: 0 };
+      const noetig = ["leiter", "protokollant", "eigentuemer", ...((beiratZahl ?? 0) > 0 ? ["beirat"] : [])];
+      if (noetig.every((r) => roles.has(r))) {
         try {
           const r = await fetch(`${url}/functions/v1/etv-finalize-signed-protocol`, {
             method: "POST",
