@@ -18,6 +18,8 @@ import { contactEmail, contactName, useAttendees } from "./useAttendees";
 const db = supabase as any;
 
 type Role = "leiter" | "protokollant" | "eigentuemer" | "beirat";
+/** Eigentümer und Beirat unterschreiben selbst – keine hinterlegte Unterschrift. */
+const selbst = (r: Role) => r === "eigentuemer" || r === "beirat";
 const ROLES: { key: Role; label: string; hint: string }[] = [
   { key: "leiter", label: "Versammlungsleitung", hint: "meist die Verwaltung" },
   { key: "protokollant", label: "Protokollführung", hint: "wer das Protokoll geführt hat" },
@@ -270,12 +272,12 @@ export const SignaturePanel = ({ meeting, onFiled }: Props) => {
               </div>
             ) : (
               <div className="flex flex-wrap gap-2">
-                {hinterlegt.length === 1 && (
+                {!selbst(r.key) && hinterlegt.length === 1 && (
                   <Button size="sm" className="h-8 gap-1.5" disabled={busy === r.key} onClick={() => signWith(r.key, hinterlegt[0])}>
                     {busy === r.key ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Unterschrift {hinterlegt[0].name}
                   </Button>
                 )}
-                {hinterlegt.length > 1 && (
+                {!selbst(r.key) && hinterlegt.length > 1 && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button size="sm" className="h-8 gap-1.5" disabled={busy === r.key}>
