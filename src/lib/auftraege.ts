@@ -54,7 +54,7 @@ export interface FaelligerPosten {
   hinderung: string | null;
 }
 
-/** Wie weit im Voraus Einzüge in der Freigabe erscheinen. */
+/** Wie weit im Voraus Einzüge und Überweisungen aus Aufträgen in der Freigabe erscheinen. */
 export const VORLAUF_TAGE = 14;
 
 const MONATE: Record<Rhythmus, number> = { monatlich: 1, quartal: 3, halbjahr: 6, jahr: 12 };
@@ -183,10 +183,10 @@ export async function faelligeAuftragsposten(auftraege?: Auftrag[]): Promise<Fae
         d = plusMonate(a.faellig_am, schritt * (n + 1));
       }
     } else {
-      // Einmal-Aufträge: Überweisungen ab drei Tage vor dem Termin, Einzüge ab
-      // {VORLAUF_TAGE} Tage vorher (dann gehen sie terminiert zur Bank).
+      // Einmal-Aufträge: ab {VORLAUF_TAGE} Tage vor dem Termin – Einzüge und
+      // Überweisungen gehen dann terminiert zur Bank.
       const termin = a.faellig_am ?? heute;
-      const vorlauf = new Date(Date.now() + (a.art === "einzug" ? VORLAUF_TAGE : 3) * 86400000).toISOString().slice(0, 10);
+      const vorlauf = new Date(Date.now() + VORLAUF_TAGE * 86400000).toISOString().slice(0, 10);
       tage = termin <= vorlauf ? [termin] : [];
     }
 

@@ -67,6 +67,21 @@ class HKCCM extends SegmentDefinition {
   ];
 }
 
+/** Terminierte SEPA-Sammelüberweisung – gleicher Aufbau wie HKCCM, Termin steht im pain.001 */
+class HKCME extends SegmentDefinition {
+  version = 1;
+  constructor() {
+    super("HKCME");
+  }
+  elements = [
+    new InternationalAccountGroup("account", 1, 1),
+    new MoneyGroup("sum", 0, 1),
+    new YesNo("singleBooking", 0, 1),
+    new AlphaNumeric("sepaDescriptor", 1, 1, 256),
+    new Binary("painMessage", 1, 1),
+  ];
+}
+
 /** SEPA-Sammellastschrift (terminiert) – gleicher Aufbau wie HKCCM */
 class HKDME extends SegmentDefinition {
   version = 2;
@@ -167,7 +182,7 @@ function segmenteEintragen() {
     Map.prototype.get = original;
   }
   if (!liste) throw new Error("Segmentliste von lib-fints nicht gefunden");
-  for (const d of [new HKCCM(), new HKDME(), new HKDSE(), new HKVPP(), new HIVPP(), new HKVPA()]) (liste as Map<string, unknown>).set((d as any).id, d);
+  for (const d of [new HKCCM(), new HKCME(), new HKDME(), new HKDSE(), new HKVPP(), new HIVPP(), new HKVPA()]) (liste as Map<string, unknown>).set((d as any).id, d);
   registriert = true;
 }
 
@@ -274,6 +289,8 @@ interface Optionen {
   config: any;
   /** Überweisung (HKCCM, mit Empfängerüberprüfung) oder Lastschrift (HKDME) */
   art?: "ueberweisung" | "lastschrift";
+  /** Überweisung mit Termin (HKCME) – der Termin steht im pain.001 */
+  terminiert?: boolean;
   konto: any; // Eintrag aus upd.bankAccounts
   pain: string;
   summe: number;
@@ -290,7 +307,7 @@ export async function sammelueberweisung(o: Optionen): Promise<ZahlungErgebnis> 
   segmenteEintragen();
   const config = o.config;
   const lastschrift = o.art === "lastschrift";
-  const AUFTRAG = lastschrift ? "HKDME" : "HKCCM";
+  const AUFTRAG = lastschrift ? "HKDME" : o.terminiert ? "HKCME" : "HKCCM";
   const tm = config.selectedTanMethod;
   if (!tm?.isDecoupled) throw new Error("Für Zahlungen wird ein TAN-Verfahren mit Freigabe in der App benötigt.");
 

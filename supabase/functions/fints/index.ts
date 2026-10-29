@@ -793,6 +793,12 @@ async function zahlungSenden(admin: any, runId: string, akzeptiert: Record<strin
     const konto = (config.bankingInformation?.upd?.bankAccounts ?? []).find((a: any) => cleanIban(a.iban) === iban);
     if (!konto) throw new Error("Die Bank kennt dieses Konto unter diesem Zugang nicht.");
     const lastschrift = lauf.art === "lastschrift";
+    // Überweisung mit späterem Termin → terminierte Sammelüberweisung (HKCME)
+    const heuteBerlin = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+    const terminAm: string | null = !lastschrift && lauf.faellig_am && lauf.faellig_am > heuteBerlin ? lauf.faellig_am : null;
+    if (terminAm && !config.isAccountTransactionSupported(konto, "HKCME")) {
+      throw new Error("Für dieses Konto sind Terminüberweisungen über FinTS nicht freigeschaltet. Bitte am Termin erneut freigeben oder als SEPA-Datei hochladen.");
+    }
     // Umweg: Bank erlaubt für dieses Konto nur einzelne Lastschriften (keine Sammellastschrift)
     const einzeln = lastschrift && !config.isAccountTransactionSupported(konto, "HKDME") && config.isAccountTransactionSupported(konto, "HKDSE");
     if (!einzeln && !config.isAccountTransactionSupported(konto, lastschrift ? "HKDME" : "HKCCM")) {
@@ -857,12 +863,13 @@ async function zahlungSenden(admin: any, runId: string, akzeptiert: Record<strin
         endToEndId: p.end_to_end_id,
       }));
       summe = summeVon(zahlungen);
-      pain = pain001({ absender: "RGI Immobilien GmbH & Co. KG", kontoInhaber: inhaber, kontoIban: iban, zahlungen, msgId: sepaId("RGI") });
+      pain = pain001({ absender: "RGI Immobilien GmbH & Co. KG", kontoInhaber: inhaber, kontoIban: iban, zahlungen, msgId: sepaId("RGI"), ausfuehrungAm: terminAm });
     }
 
     const r = await sammelueberweisung({
       config,
       art: lastschrift ? "lastschrift" : "ueberweisung",
+      terminiert: !!terminAm,
       konto,
       pain,
       summe,

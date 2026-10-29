@@ -41,7 +41,7 @@ export function sepaId(prefix: string): string {
  * jede Zahlung als eigene Kontobewegung erscheint und ihrer Rechnung
  * zugeordnet werden kann.
  */
-export function pain001(opts: { absender: string; kontoInhaber: string; kontoIban: string; zahlungen: SepaZahlung[]; msgId: string }) {
+export function pain001(opts: { absender: string; kontoInhaber: string; kontoIban: string; zahlungen: SepaZahlung[]; msgId: string; ausfuehrungAm?: string | null }) {
   const summe = summeVon(opts.zahlungen);
   const jetzt = new Date().toISOString().slice(0, 19);
   const tx = opts.zahlungen
@@ -63,7 +63,7 @@ export function pain001(opts: { absender: string; kontoInhaber: string; kontoIba
     `<InitgPty><Nm>${xml(sepaText(opts.absender, 70))}</Nm></InitgPty></GrpHdr>` +
     `<PmtInf><PmtInfId>${xml(sepaText(`${opts.msgId}-1`, 35))}</PmtInfId><PmtMtd>TRF</PmtMtd><BtchBookg>false</BtchBookg>` +
     `<NbOfTxs>${opts.zahlungen.length}</NbOfTxs><CtrlSum>${betragText(summe)}</CtrlSum>` +
-    `<PmtTpInf><SvcLvl><Cd>SEPA</Cd></SvcLvl></PmtTpInf><ReqdExctnDt><Dt>1999-01-01</Dt></ReqdExctnDt>` +
+    `<PmtTpInf><SvcLvl><Cd>SEPA</Cd></SvcLvl></PmtTpInf><ReqdExctnDt><Dt>${opts.ausfuehrungAm || "1999-01-01"}</Dt></ReqdExctnDt>` +
     `<Dbtr><Nm>${xml(sepaText(opts.kontoInhaber, 70))}</Nm></Dbtr>` +
     `<DbtrAcct><Id><IBAN>${xml(opts.kontoIban.replace(/\s/g, "").toUpperCase())}</IBAN></Id></DbtrAcct>` +
     `<DbtrAgt><FinInstnId><Othr><Id>NOTPROVIDED</Id></Othr></FinInstnId></DbtrAgt><ChrgBr>SLEV</ChrgBr>` +

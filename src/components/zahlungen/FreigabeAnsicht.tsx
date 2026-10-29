@@ -422,7 +422,7 @@ export function FreigabeAnsicht({ onZurueck }: { onZurueck: () => void }) {
           status: weg === "fints" ? "pruefung" : "datei",
           weg,
           art,
-          ausfuehrung_am: art === "lastschrift" ? faellig : heute,
+          ausfuehrung_am: faellig,
           faellig_am: faellig,
           glaeubiger_id: art === "lastschrift" ? g.glaeubigerId : null,
           summe,
@@ -453,15 +453,19 @@ export function FreigabeAnsicht({ onZurueck }: { onZurueck: () => void }) {
       }
       angelegt.push({
         laufId: l.id,
-        block: art === "ueberweisung" ? { kontoInhaber: inhaber, kontoIban: g.iban, ausfuehrungAm: heute, zahlungen: posten } : undefined,
+        block: art === "ueberweisung" ? { kontoInhaber: inhaber, kontoIban: g.iban, ausfuehrungAm: faellig, zahlungen: posten } : undefined,
       });
     };
 
     for (const g of bank.gruppen) {
       if (g.aus.length) {
-        // Ausführung je Auftrag: der späteste gewünschte Termin, mindestens heute
-        const termin = g.aus.map((z) => (z.auftrag ? z.faellig : null)).filter(Boolean).sort().at(-1) as string | undefined;
-        await lauf(g, "ueberweisung", g.aus, termin && termin > heute ? termin : heute);
+        // Rechnungen sofort; Überweisungen aus Aufträgen zum Termin (terminiert bei der Bank)
+        const jeTag = new Map<string, Zeile[]>();
+        for (const z of g.aus) {
+          const tag = z.auftrag && z.faellig && z.faellig > heute ? z.faellig : heute;
+          jeTag.set(tag, [...(jeTag.get(tag) ?? []), z]);
+        }
+        for (const [tag, zs] of [...jeTag].sort(([a], [b]) => a.localeCompare(b))) await lauf(g, "ueberweisung", zs, tag);
       }
       if (g.ein.length && weg === "fints") {
         const jeTag = new Map<string, Zeile[]>();

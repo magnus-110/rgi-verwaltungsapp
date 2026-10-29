@@ -182,7 +182,7 @@ export function TanSendenDialog({ laufIds, onClose }: { laufIds: string[] | null
                 <span className="tabular-nums text-muted-foreground">
                   {l.art === "lastschrift"
                     ? `${l.anzahl} Einzüge · ${euro(l.summe)}${l.faellig_am ? ` · am ${l.faellig_am.split("-").reverse().join(".")}` : ""}`
-                    : `${l.anzahl} Überweisungen · ${euro(l.summe)}`}
+                    : `${l.anzahl} Überweisungen · ${euro(l.summe)}${l.faellig_am && l.faellig_am > new Date().toLocaleDateString("sv-SE") ? ` · Termin ${l.faellig_am.split("-").reverse().join(".")}` : ""}`}
                 </span>
                 <StatusText zustand={l.zustand} />
               </div>
