@@ -671,6 +671,8 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
           body_html: combinedHtml,
           attachments: mergedAttachments,
           scheduled_at: new Date(compose.scheduledAt).toISOString(),
+          // Antwort-Verknüpfung für den zeitgesteuerten Versand (dispatch-scheduled-emails setzt In-Reply-To)
+          reply_to_message_id: compose.replyTo?.id || null,
         };
         if (compose.editingScheduledId) {
           const { error } = await supabase
@@ -947,7 +949,7 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
     // Strip trailing closing/name lines from voice body so signature isn't duplicated.
     let cleanedBody = body.trimEnd();
     if (signaturePart) {
-      // Remove "Mit freundlichen Grüßen ... <Name>" tail if AI included it despite instructions.
+      // Remove "Mit freundlichen Grüßen ... <n>" tail if AI included it despite instructions.
       const greetRe = /\n+\s*(Mit freundlichen Grüßen|Freundliche Grüße|Beste Grüße|Viele Grüße|Herzliche Grüße|Mit besten Grüßen|Hochachtungsvoll)[\s\S]*$/i;
       const beforeStrip = cleanedBody;
       cleanedBody = cleanedBody.replace(greetRe, "").trimEnd();
