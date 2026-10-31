@@ -82,6 +82,23 @@ Deno.serve(async (req) => {
       if (item.cc_addresses?.length) mailOptions.cc = item.cc_addresses.join(", ");
       if (item.bcc_addresses?.length) mailOptions.bcc = item.bcc_addresses.join(", ");
 
+      // Antwort-Verknüpfung: reply_to_message_id verweist auf emails.id der Original-Mail.
+      // Deren Message-ID steht bei eingehenden Mails in message_id (teils zusätzlich in message_id_header).
+      let inReplyTo: string | null = null;
+      if (item.reply_to_message_id) {
+        const { data: orig } = await admin
+          .from("emails")
+          .select("message_id_header, message_id")
+          .eq("id", item.reply_to_message_id)
+          .maybeSingle();
+        const mid = (orig?.message_id_header || orig?.message_id || "").trim();
+        if (mid.startsWith("<")) inReplyTo = mid;
+      }
+      if (inReplyTo) {
+        mailOptions.inReplyTo = inReplyTo;
+        mailOptions.references = inReplyTo;
+      }
+
       const atts = Array.isArray(item.attachments) ? item.attachments : [];
       const resolved: Array<{ filename: string; content: Uint8Array; contentType: string; storage_path?: string }> = [];
       for (const att of atts) {
@@ -143,6 +160,7 @@ Deno.serve(async (req) => {
         is_read: true,
         has_attachments: atts.length > 0,
         message_id: `scheduled-${item.id}-${Date.now()}`,
+        in_reply_to: inReplyTo,
       });
 
       // Clean up storage-backed attachments after successful send

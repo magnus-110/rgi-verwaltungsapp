@@ -199,3 +199,6 @@ verify_jwt = false
 
 [functions.email-anhaenge-lesen]
 verify_jwt = false
+
+[functions.rgi-connector]
+verify_jwt = false

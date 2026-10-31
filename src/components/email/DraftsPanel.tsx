@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { FileText, Mail, Trash2, Loader2, Pencil } from "lucide-react";
 import { toast } from "sonner";
-import { useComposeEmail } from "@/contexts/ComposeEmailContext";
+import { useComposeEmail, type ComposeState } from "@/contexts/ComposeEmailContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useMailboxAbos } from "@/hooks/useNotifications";
 
@@ -21,6 +21,7 @@ export interface DraftRow {
   body_text: string;
   attachments: any;
   updated_at: string;
+  reply_to_email_id?: string | null;
 }
 
 interface Props {
@@ -50,7 +51,7 @@ export function DraftsPanel({ items: vorab, accounts, onChanged }: Props) {
       let query = supabase
         .from("email_drafts")
         .select(
-          "id, user_id, account_id, to_addresses, cc_addresses, bcc_addresses, subject, body_text, attachments, updated_at",
+          "id, user_id, account_id, to_addresses, cc_addresses, bcc_addresses, subject, body_text, attachments, updated_at, reply_to_email_id",
         )
         .order("updated_at", { ascending: false });
       if (gewaehlt.length > 0) {
@@ -91,7 +92,32 @@ export function DraftsPanel({ items: vorab, accounts, onChanged }: Props) {
     return a?.display_name || a?.email_address || "—";
   };
 
-  const editDraft = (d: DraftRow) => {
+  const editDraft = async (d: DraftRow) => {
+    // War der Entwurf eine Antwort, die Original-Mail wieder verknüpfen –
+    // sonst geht die Mail ohne In-Reply-To raus und landet nicht im Gesprächsverlauf.
+    let replyTo: ComposeState["replyTo"] = null;
+    if (d.reply_to_email_id) {
+      const { data: orig } = await supabase
+        .from("emails")
+        .select("id, message_id, message_id_header, subject, from_address, from_name, body_text, date, account_id, to_addresses, cc_addresses")
+        .eq("id", d.reply_to_email_id)
+        .maybeSingle();
+      if (orig) {
+        const o = orig as any;
+        replyTo = {
+          id: o.id,
+          message_id: o.message_id_header || o.message_id || null,
+          subject: o.subject || "",
+          from_address: o.from_address || "",
+          from_name: o.from_name || "",
+          body_text: o.body_text || "",
+          date: o.date || "",
+          account_id: o.account_id || d.account_id || "",
+          to_addresses: o.to_addresses,
+          cc_addresses: o.cc_addresses,
+        };
+      }
+    }
     openCompose({
       editDraft: {
         id: d.id,
@@ -102,6 +128,7 @@ export function DraftsPanel({ items: vorab, accounts, onChanged }: Props) {
         subject: d.subject || "",
         bodyText: d.body_text || "",
         attachments: Array.isArray(d.attachments) ? (d.attachments as any[]) : [],
+        replyTo,
       },
     });
   };

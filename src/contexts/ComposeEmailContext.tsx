@@ -73,6 +73,8 @@ interface OpenOpts {
     subject: string;
     bodyText: string;
     attachments?: any[];
+    /** War der Entwurf eine Antwort: Original-Mail für In-Reply-To und "Antworten"-Titel. */
+    replyTo?: ComposeState["replyTo"];
   };
 }
 
@@ -154,7 +156,7 @@ const buildInitial = (id: string, opts?: OpenOpts): ComposeState => {
       editingScheduledId: null,
       editingDraftId: draft.id,
       existingAttachments: draft.attachments || [],
-      replyTo: null,
+      replyTo: draft.replyTo || null,
       forward: null,
     };
   }
