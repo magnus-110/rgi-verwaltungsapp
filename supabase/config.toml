@@ -199,3 +199,6 @@ verify_jwt = false
 
 [functions.email-anhaenge-lesen]
 verify_jwt = false
+
+[functions.etv-einladungen-rundmail]
+verify_jwt = false
