@@ -2,6 +2,8 @@ import { useState, useRef, useMemo, useEffect, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { textToHtmlWithLinks } from "@/lib/emailHtml";
+import { insertTextSignature, splitAtQuote, stripTextSignatures } from "@/lib/emailSignature";
+import { ComposeSignatureBlock } from "./SignaturePreview";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -28,6 +30,15 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { AttachmentPreviewDialog } from "./AttachmentPreviewDialog";
+
+interface ComposeAccount {
+  id: string;
+  display_name: string;
+  email_address: string;
+  signature_html: string | null;
+  signature_text: string | null;
+  signature_rich_html: string | null;
+}
 
 const fileToBase64 = (file: File): Promise<string> =>
   new Promise((resolve, reject) => {
@@ -237,14 +248,16 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
 
   const { data: accounts = [] } = useQuery({
     queryKey: ["email-accounts-compose"],
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: async (): Promise<ComposeAccount[]> => {
+      // signature_text / signature_rich_html sind neue Spalten (Typen folgen mit `npm run db:types`)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
         .from("email_accounts")
-        .select("id, display_name, email_address, signature_html")
+        .select("id, display_name, email_address, signature_html, signature_text, signature_rich_html")
         .eq("is_active", true)
         .order("display_name");
       if (error) throw error;
-      return data;
+      return (data || []) as ComposeAccount[];
     },
   });
 
@@ -403,40 +416,33 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
     })();
   }, [compose.forward?.email_id, compose.existingAttachments?.length, update]);
 
-  // Insert signature on account change (preserving quoted text after signature)
+  // Signatur standardmäßig anhängen; pro Mail abwählbar.
+  const [includeSignature, setIncludeSignature] = useState(true);
+
+  // Die Signatur steht nicht mehr im Textfeld, sondern wird darunter als
+  // Vorschau gezeigt und erst beim Versand eingesetzt. Früher als Text
+  // eingefügte Signaturen (alte Entwürfe, geplante Mails, Vorbelegungen)
+  // werden einmalig aus dem eigenen Text entfernt, damit nichts doppelt steht.
   const prevAccountRef = useRef<string>("");
   useEffect(() => {
-    if (!compose.accountId || compose.accountId === prevAccountRef.current) return;
-    const account = accounts.find((a) => a.id === compose.accountId);
-    if (!account) return;
-    if (!account.signature_html) {
-      prevAccountRef.current = compose.accountId;
-      return;
-    }
-    const sig = `\n\n${account.signature_html}`;
-    const oldAccount = accounts.find((a) => a.id === prevAccountRef.current);
-    const oldSig = oldAccount?.signature_html ? `\n\n${oldAccount.signature_html}` : null;
-    const QUOTE_RE = /\n*---\s*(?:Ursprüngliche|Weitergeleitete)\s+Nachricht\s*---/;
-    const body = compose.bodyText;
-    const m = body.match(QUOTE_RE);
-    let head: string;
-    let tail: string;
-    if (m && m.index !== undefined) {
-      head = body.slice(0, m.index);
-      tail = body.slice(m.index);
-    } else {
-      head = body;
-      tail = "";
-    }
-    if (oldSig && head.endsWith(oldSig)) head = head.slice(0, -oldSig.length);
-    if (head.endsWith(sig)) {
-      prevAccountRef.current = compose.accountId;
-      return;
-    }
-    const newBody = head + sig + tail;
-    if (newBody !== body) update({ bodyText: newBody });
+    if (!compose.accountId || accounts.length === 0) return;
+    if (compose.accountId === prevAccountRef.current) return;
     prevAccountRef.current = compose.accountId;
+    const knownSignatures = accounts.flatMap((a) => [a.signature_html, a.signature_text]);
+    const cleaned = stripTextSignatures(compose.bodyText || "", knownSignatures);
+    if (cleaned !== compose.bodyText) update({ bodyText: cleaned });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [compose.accountId, accounts]);
+
+  /** Signatur des gewählten Absenders (Text + HTML), sofern angehängt werden soll. */
+  const signatureFor = (accountId: string) => {
+    if (!includeSignature) return { text: "", html: "" };
+    const acc = accounts.find((a) => a.id === accountId);
+    return {
+      text: (acc?.signature_text || acc?.signature_html || "").trim(),
+      html: (acc?.signature_rich_html || "").trim(),
+    };
+  };
 
   const filteredContacts = useMemo(() => {
     if (!contactSearch) return contactsWithEmails;
@@ -632,11 +638,24 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
         }),
       );
 
+      // Signatur einsetzen: unter den eigenen Text, über eine zitierte Nachricht.
+      const sig = signatureFor(compose.accountId);
+      const finalBodyText = sig.text ? insertTextSignature(compose.bodyText || "", sig.text) : compose.bodyText;
+
       // HTML-Version des Textes mit klickbaren Links (immer mitsenden,
-      // damit eingefügte URLs beim Empfänger anklickbar sind)
-      const userTextHtml = compose.bodyText
-        ? textToHtmlWithLinks(compose.bodyText)
-        : "";
+      // damit eingefügte URLs beim Empfänger anklickbar sind). Gibt es eine
+      // HTML-Signatur, ersetzt sie dort die Textsignatur.
+      let userTextHtml = "";
+      if (sig.html) {
+        const { head, tail } = splitAtQuote(compose.bodyText || "");
+        const ownText = head.replace(/\s+$/, "");
+        userTextHtml =
+          (ownText ? textToHtmlWithLinks(ownText + "\n\n") : "") +
+          sig.html +
+          (tail ? textToHtmlWithLinks(tail) : "");
+      } else if (finalBodyText) {
+        userTextHtml = textToHtmlWithLinks(finalBodyText);
+      }
       // Strip wrapper tags (<!DOCTYPE>, <html>, <head>...</head>, <body>) from forwarded HTML.
       // Otherwise mail clients render only the embedded <html> document and drop the user's prepended text.
       const sanitizeForwardHtml = (html: string): string => {
@@ -667,7 +686,7 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
           cc_addresses: ccAddresses.length ? ccAddresses : null,
           bcc_addresses: bccAddresses.length ? bccAddresses : null,
           subject: compose.subject,
-          body_text: compose.bodyText,
+          body_text: finalBodyText,
           body_html: combinedHtml,
           attachments: mergedAttachments,
           scheduled_at: new Date(compose.scheduledAt).toISOString(),
@@ -712,7 +731,7 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
           cc: ccAddresses.length ? ccAddresses : undefined,
           bcc: bccAddresses.length ? bccAddresses : undefined,
           subject: compose.subject,
-          body_text: compose.bodyText,
+          body_text: finalBodyText,
           body_html: combinedHtml || undefined,
           attachments: mergedSendAttachments.length ? mergedSendAttachments : undefined,
           in_reply_to: compose.replyTo?.message_id || compose.forward?.message_id || undefined,
@@ -946,7 +965,7 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
 
     // Strip trailing closing/name lines from voice body so signature isn't duplicated.
     let cleanedBody = body.trimEnd();
-    if (signaturePart) {
+    if (signaturePart || signatureFor(compose.accountId).text) {
       // Remove "Mit freundlichen Grüßen ... <Name>" tail if AI included it despite instructions.
       const greetRe = /\n+\s*(Mit freundlichen Grüßen|Freundliche Grüße|Beste Grüße|Viele Grüße|Herzliche Grüße|Mit besten Grüßen|Hochachtungsvoll)[\s\S]*$/i;
       const beforeStrip = cleanedBody;
@@ -1151,6 +1170,13 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
             onChange={(e) => update({ bodyText: e.target.value })}
             placeholder="E-Mail verfassen"
             className="flex-1 min-h-[60vh] w-full border-0 rounded-none px-4 py-3 shadow-none focus-visible:ring-0 text-base resize-none"
+          />
+          <ComposeSignatureBlock
+            className="px-4 pb-3"
+            account={senderAccount}
+            include={includeSignature}
+            onIncludeChange={setIncludeSignature}
+            hasQuote={!!splitAtQuote(compose.bodyText || "").tail}
           />
         </div>
 
@@ -1437,6 +1463,12 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
               onChange={(e) => update({ bodyText: e.target.value })}
               placeholder="Ihre Nachricht..."
               className={cn("resize-y text-sm", isFullscreen ? "min-h-[65vh]" : "min-h-[340px]")}
+            />
+            <ComposeSignatureBlock
+              account={senderAccount}
+              include={includeSignature}
+              onIncludeChange={setIncludeSignature}
+              hasQuote={!!splitAtQuote(compose.bodyText || "").tail}
             />
             {aiSuggestion !== null && (
               <div ref={aiSuggestionRef} className="border border-primary/30 bg-primary/5 rounded-md p-2 space-y-1.5">

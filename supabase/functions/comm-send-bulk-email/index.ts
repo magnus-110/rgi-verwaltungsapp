@@ -33,6 +33,7 @@ import { Buffer } from "node:buffer";
 import { loadRecipients, renderString, RecipientFilter } from "../_shared/comm-vars.ts";
 import { requireAdmin } from "../_shared/require-admin.ts";
 import { looksLikeHtml, textToHtmlWithLinks } from "../_shared/text-to-html.ts";
+import { applyRichSignature } from "../_shared/email-signature.ts";
 
 // ---------------------------------------------------------------------------
 // Stellschrauben
@@ -589,7 +590,12 @@ type Context = {
   subject: string;
   bodyHtml: string;
   bodyFormat: "html" | "plain";
+  /** Textsignatur des Postfachs */
   signature: string;
+  /** Alle bekannten Textfassungen der Signatur (zum Ersetzen durch die HTML-Signatur) */
+  signatureVariants: string[];
+  /** HTML-Signatur im RGI-Design (optional) */
+  richSignature: string;
 };
 
 async function loadContext(admin: Admin, campaignId: string): Promise<Context | { error: string; status: number }> {
@@ -614,8 +620,12 @@ async function loadContext(admin: Admin, campaignId: string): Promise<Context | 
   }
   if (!subject || !bodyHtml) return { error: "Betreff oder Inhalt fehlt", status: 400 };
 
-  const signature = ((account.signature_html as string | null) || "").trim();
-  return { campaign, account, subject, bodyHtml, bodyFormat, signature };
+  const signatureText = ((account.signature_text as string | null) || "").trim();
+  const legacySignature = ((account.signature_html as string | null) || "").trim();
+  const signature = signatureText || legacySignature;
+  const signatureVariants = [signatureText, legacySignature].filter(Boolean);
+  const richSignature = ((account.signature_rich_html as string | null) || "").trim();
+  return { campaign, account, subject, bodyHtml, bodyFormat, signature, signatureVariants, richSignature };
 }
 
 /**
@@ -632,7 +642,10 @@ function composeBody(ctx: Context, rendered: string) {
     return `${rendered}\n\n${signature}`;
   }
   let html = looksLikeHtml(rendered) ? rendered : textToHtmlWithLinks(rendered);
-  if (signature && !hasSignature && !html.includes(signature)) {
+  if (ctx.richSignature) {
+    // HTML-Signatur ersetzt die Textsignatur (bzw. wird angehängt)
+    html = applyRichSignature(html, ctx.signatureVariants, ctx.richSignature);
+  } else if (signature && !hasSignature && !html.includes(signature)) {
     html = `${html}<br /><br />${signature}`;
   }
   return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.4">${html}</div>`;
