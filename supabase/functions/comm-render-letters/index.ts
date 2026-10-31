@@ -42,6 +42,19 @@ function formatMeetingTime(d: Date): string {
   return `${parts.hour}:${parts.minute}`;
 }
 
+/**
+ * Versammlungstitel nach "zur"/"der": "Ordentliche Eigentümerversammlung 2026"
+ * -> "ordentlichen Eigentümerversammlung 2026". Nur ein vorangestelltes Adjektiv
+ * wird angepasst; Titel, die mit einem Nomen beginnen, bleiben unverändert.
+ */
+function titelImDativ(titel: string): string {
+  const m = titel.trim().match(/^(\S+)(\s+[\s\S]*)?$/);
+  if (!m) return titel;
+  const [, erstes, rest = ""] = m;
+  if (!/^[A-Za-zÄÖÜäöüß]+(liche|ische|ige|ste|te)$/i.test(erstes)) return titel.trim();
+  return erstes.charAt(0).toLowerCase() + erstes.slice(1) + "n" + rest;
+}
+
 /** Erläuterung eines TOPs für die Einladung: eigenes Feld, sonst (alt) die Beschreibung mit Haken. */
 function einladungsText(t: any): string {
   const eigen = String(t.einladung_text ?? "").trim();
@@ -76,6 +89,9 @@ async function loadMeetingVars(admin: any, meetingId: string): Promise<Record<st
   const md = meeting.meeting_date ? new Date(meeting.meeting_date) : null;
   return {
     meeting_title: meeting.title || "",
+    meeting_title_dativ: titelImDativ(meeting.title || ""),
+    // Briefdatum = Erstellungstag (deutsche Zeit), nicht der Versammlungstag
+    datum_heute: formatMeetingDateLong(new Date()),
     meeting_date: md ? formatMeetingDateLong(md) : "",
     meeting_date_short: md ? formatMeetingDateShort(md) : "",
     meeting_weekday: md ? meetingDateParts(md).weekday || "" : "",
@@ -134,6 +150,67 @@ function agendaAlsSchleife(tpl: Uint8Array): Uint8Array {
     return zip.generate({ type: "uint8array" });
   } catch (e) {
     console.error("agendaAlsSchleife", e);
+    return tpl;
+  }
+}
+
+/**
+ * Korrigiert bestehende Einladungsvorlagen beim Erzeugen, ohne dass die
+ * Word-Datei neu hochgeladen werden muss:
+ * - Briefkopf-Zeile "Ort, {{meeting_date}}" -> "Ort, {{datum_heute}}"
+ *   (das Schreiben trug sonst das Datum der Versammlung).
+ * - "zur/der {{meeting_title}}" -> "{{meeting_title_dativ}}"
+ *   (sonst "zur Ordentliche Eigentümerversammlung").
+ * Geändert wird nur der Platzhaltername in den Textknoten des Absatzes,
+ * Formatierung und Tabstopps bleiben erhalten.
+ */
+const WOCHENTAGE = /^(montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)$/i;
+
+function platzhalterUmbenennen(absatz: string, von: string, nach: string): string {
+  const re = new RegExp(`\\b${von}\\b`, "g");
+  return absatz.replace(/(<w:t(?:\s[^>]*)?>)([^<]*)(<\/w:t>)/g, (_, a, t, e) => a + t.replace(re, nach) + e);
+}
+
+function vorlageKorrigieren(tpl: Uint8Array): Uint8Array {
+  try {
+    const zip = new PizZip(tpl);
+    // Haupttext sowie Kopf- und Fußzeilen (Briefdatum steht je nach Vorlage auch dort)
+    const dateien = Object.keys(zip.files).filter((n) => /^word\/(document|header\d*|footer\d*)\.xml$/.test(n));
+    let geaendert = false;
+    for (const name of dateien) {
+      let xml = zip.file(name)!.asText();
+      // nur innerste Absätze (Textfelder enthalten verschachtelte <w:p>)
+      const absaetze = xml.match(/<w:p[ >](?:(?!<w:p[ >])[\s\S])*?<\/w:p>/g) ?? [];
+      let dateiGeaendert = false;
+      for (const p of absaetze) {
+        const text = absatzText(p).replace(/\s+/g, " ").trim();
+        let neu = p;
+
+        const datum = text.match(/^([A-Za-zÄÖÜäöüß .\-]+),\s*(?:den\s+)?\{\{\s*meeting_date\s*\}\}$/);
+        if (datum && !WOCHENTAGE.test(datum[1].trim())) {
+          neu = platzhalterUmbenennen(neu, "meeting_date", "datum_heute");
+        }
+
+        const alle = (text.match(/\{\{\s*meeting_title\s*\}\}/g) ?? []).length;
+        const dativ = (text.match(/\b(zur|der|einer)\s+\{\{\s*meeting_title\s*\}\}/gi) ?? []).length;
+        if (alle > 0 && alle === dativ) {
+          neu = platzhalterUmbenennen(neu, "meeting_title", "meeting_title_dativ");
+        }
+
+        if (neu !== p) {
+          xml = xml.replace(p, neu);
+          dateiGeaendert = true;
+        }
+      }
+      if (dateiGeaendert) {
+        zip.file(name, xml);
+        geaendert = true;
+      }
+    }
+    if (!geaendert) return tpl;
+    return zip.generate({ type: "uint8array" });
+  } catch (e) {
+    console.error("vorlageKorrigieren", e);
     return tpl;
   }
 }
@@ -265,6 +342,8 @@ Deno.serve(async (req) => {
     let tplBuf = new Uint8Array(await tplFile.arrayBuffer());
     // Einladung: TOPs mit fetten Titeln und Erläuterungen statt einem Textblock
     if (meeting_id && (meetingVars as any).tops) tplBuf = agendaAlsSchleife(tplBuf);
+    // Einladung: Briefdatum und "zur ordentlichen …" richtigstellen
+    if (meeting_id) tplBuf = vorlageKorrigieren(tplBuf);
 
     // Load recipients
     const filter = (campaign.recipient_filter || {}) as RecipientFilter;
