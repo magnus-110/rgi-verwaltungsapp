@@ -1290,8 +1290,9 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
   const containerStyle: React.CSSProperties = isFullscreen
     ? {}
     : dragPos
-      ? { left: dragPos.left, top: dragPos.top, width: WIN_W, height: WIN_H }
-      : { right: 16, bottom: 0, width: WIN_W, height: WIN_H };
+      // Nie höher als der Bildschirm – sonst ist die Titelleiste (Minimieren/Schließen) auf dem Laptop nicht zu sehen
+      ? { left: dragPos.left, top: dragPos.top, width: WIN_W, height: `min(${WIN_H}px, calc(100vh - ${Math.round(dragPos.top)}px))` }
+      : { right: 16, bottom: 0, width: WIN_W, height: `min(${WIN_H}px, calc(100vh - 12px))` };
 
   return (
     <>
@@ -1474,7 +1475,7 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
               value={compose.bodyText}
               onChange={(e) => update({ bodyText: e.target.value })}
               placeholder="Ihre Nachricht..."
-              className={cn("resize-y text-sm", isFullscreen ? "min-h-[65vh]" : "min-h-[340px]")}
+              className={cn("resize-y text-sm", isFullscreen ? "min-h-[65vh]" : "min-h-[min(340px,32vh)]")}
             />
             <ComposeSignatureBlock
               account={senderAccount}
