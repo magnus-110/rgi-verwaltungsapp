@@ -138,7 +138,7 @@ const TOOL = {
 };
 
 // Was nie „sicher“ sein darf, auch wenn die KI es so einschätzt.
-const HEIKEL = /(anbei|im anhang|angehängt|beigefügt|weiterleit|leite[^.]{0,40}weiter|abgelegt|eingetragen|teilnahme|bestätigen[^.]{0,40}termin|\b(ich|wir) (bin|sind|komme|kommen|werde|werden|kümmere|kümmern|melde|melden)\b|vor ort|\[[^\]]{2,}\]|\b\d{1,3}(\.\d{3})*,\d{2}\s?(€|eur)|überwies|überweisen|freigabe|freigeben|beauftrag|auftrag erteil|rechtlich|anwalt|kündig|mahnung|mahnbescheid)/i;
+const HEIKEL = /(\b(melde|kümmere|bespreche|kläre|prüfe|schicke|sende|bereite|organisiere|rufe|komme|frage)\b[^.]{0,40}|anbei|im anhang|angehängt|beigefügt|weiterleit|leite[^.]{0,40}weiter|abgelegt|eingetragen|teilnahme|bestätigen[^.]{0,40}termin|\b(ich|wir) (bin|sind|komme|kommen|werde|werden|kümmere|kümmern|melde|melden)\b|vor ort|\[[^\]]{2,}\]|\b\d{1,3}(\.\d{3})*,\d{2}\s?(€|eur)|überwies|überweisen|freigabe|freigeben|beauftrag|auftrag erteil|rechtlich|anwalt|kündig|mahnung|mahnbescheid)/i;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
