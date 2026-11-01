@@ -276,6 +276,7 @@ KEINE Werbung (sondern passende Fachkategorie) sind:
 - Anmelde-/Login-Links, Bestätigungs- und Sicherheitscodes, Passwort-Mails, Zugangsdaten → "Sonstiges"
 - Mitteilungen zu unseren bestehenden Verträgen und Konten: "neue Rechnung/Dokumente im Portal", "Auswertungen verfügbar", "Handlungsbedarf/Action required", Pflichtinformationen, Vertragsumstellungen, Abkündigungen → "Sonstiges" bzw. "Rechnung"
 - Termin-Einladungen (Kalender) und persönliche Anfragen (z. B. Interview, Kooperation, konkrete Rückfrage) → "Anfrage" bzw. "Sonstiges"
+- Mails, mit denen uns ein Geschäftspartner ein Dokument schickt (kurzer Text + Anhang, z. B. Sicherungskarte, Plan, Bescheinigung) → passende Fachkategorie oder "Sonstiges"
 "Werbung" ist nur, was etwas verkaufen oder bewerben will und sich an viele richtet: Newsletter, Rabattaktionen, Gewinnspiele, Seminar-/Messe-Werbung, Kaltakquise-Serienmails.
 Im Zweifel NICHT "Werbung" wählen.
 Hinweis zur Kategorie "Sonstiges": Alles, was sich nicht eindeutig zuordnen lässt.
