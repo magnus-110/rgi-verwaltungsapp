@@ -5,6 +5,7 @@
 // entweder als Request-Header oder als OAuth-Client-Secret (Auto-Freigabe, PKCE).
 import { createClient } from "npm:@supabase/supabase-js@2.52.1";
 import { rundmailTools } from "./rundmail.ts";
+import { dokumentTools } from "./dokumente.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -562,10 +563,11 @@ const tools: Tool[] = [
     },
   },
   ...rundmailTools({ db, defaultUser: DEFAULT_UPLOADER, log, objektGroesse, mimeVon }),
+  ...dokumentTools({ db, log, dmsEintragAnlegen, mimeVon, uploaderId }),
 ];
 
 // ---------------------------------------------------------------- MCP
-const SERVER_INFO = { name: "rgi-verwaltungsapp", version: "1.2.0" };
+const SERVER_INFO = { name: "rgi-verwaltungsapp", version: "1.3.0" };
 async function mcp(msg: any): Promise<any | null> {
   const { id, method, params } = msg ?? {};
   const ok = (result: unknown) => ({ jsonrpc: "2.0", id, result });
@@ -577,7 +579,7 @@ async function mcp(msg: any): Promise<any | null> {
         protocolVersion: params?.protocolVersion ?? "2025-06-18",
         capabilities: { tools: { listChanged: false } },
         serverInfo: SERVER_INFO,
-        instructions: "Zugriff auf DMS und E-Mails der RGI-VerwaltungsApp. Dateien nie als Text durch den Chat schicken: über upload_url/download_url mit curl übertragen. E-Mails erst nach ausdrücklicher Zustimmung des Nutzers senden (mail_senden zuerst mit bestaetigt=false). Soll der Nutzer die Mail selbst prüfen und versenden, mail_entwurf_anlegen verwenden – das speichert nur einen Entwurf in der App. Rundmails an mehrere Eigentümer/Mieter eines Objekts: rundmail_entwurf_anlegen, persönliche Anhänge (z. B. Einladung je Einheit, Dateiname beginnt mit der Einheitennummer) mit rundmail_anhaenge_vorbereiten + rundmail_anhaenge_zuordnen – versendet wird die Rundmail vom Mitarbeiter in der App.",
+        instructions: "Zugriff auf DMS und E-Mails der RGI-VerwaltungsApp. Dateien nie als Text durch den Chat schicken: über upload_url/download_url mit curl übertragen. E-Mails erst nach ausdrücklicher Zustimmung des Nutzers senden (mail_senden zuerst mit bestaetigt=false). Soll der Nutzer die Mail selbst prüfen und versenden, mail_entwurf_anlegen verwenden – das speichert nur einen Entwurf in der App. Rundmails an mehrere Eigentümer/Mieter eines Objekts: rundmail_entwurf_anlegen, persönliche Anhänge (z. B. Einladung je Einheit, Dateiname beginnt mit der Einheitennummer) mit rundmail_anhaenge_vorbereiten + rundmail_anhaenge_zuordnen – versendet wird die Rundmail vom Mitarbeiter in der App. Dokumente (Briefe aus Vorlagen, ETV-Einladungen, Protokolle, TOP-Berichte, Angebote, RGI-Rechnungen, Jahresabrechnungen, Wirtschaftspläne, §35a-Bescheinigungen) mit dokument_erstellen – gleiche Vorlagen und Berechnung wie in der App; Ergebnis als Download-Link, optional ins DMS, als Mail-Anhang (dateien[].anhang) oder an eine Rundmail. Ab 50 Dokumenten erst den Nutzer fragen.",
       });
     case "ping":
       return ok({});

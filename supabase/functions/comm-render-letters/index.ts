@@ -310,6 +310,8 @@ Deno.serve(async (req) => {
     const campaign_id = body?.campaign_id;
     const outputFormat: "docx" | "pdf" = body?.output_format === "pdf" ? "pdf" : "docx";
     const meeting_id: string | null = body?.meeting_id || null;
+    // Konnektor legt die Einzel-PDFs selbst ab – dann kein ZIP im DMS
+    const dmsAblegen = body?.dms_ablegen !== false;
     if (!campaign_id) return json({ error: "campaign_id required" }, 400);
 
     const cloudConvertKey = Deno.env.get("CLOUDCONVERT_API_KEY");
@@ -431,7 +433,7 @@ Deno.serve(async (req) => {
 
     // ===== Auto-file the ZIP into the building DMS (Serienbriefe category) =====
     let dmsFileId: string | null = null;
-    try {
+    if (dmsAblegen) try {
       // 1. Find or create a "Serienbriefe" category for this building
       const { data: building } = await admin
         .from("buildings").select("management_mode").eq("id", campaign.building_id).maybeSingle();

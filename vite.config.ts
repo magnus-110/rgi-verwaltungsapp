@@ -17,6 +17,8 @@ export default defineConfig(({ mode, command }) => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      // Gemeinsamer Code mit den Edge Functions (z. B. Abrechnungs-/Wirtschaftsplan-Berechnung)
+      "@shared": path.resolve(__dirname, "./supabase/functions/_shared"),
     },
   },
 }));
