@@ -23,7 +23,7 @@ const json = (b: unknown, status = 200) =>
   new Response(JSON.stringify(b), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
 const MODELL = "mistral-medium-3-5";
-const JE_LAUF = 6;
+const JE_LAUF = 4; // parallel – eine Mail braucht mit Nachschlagen 10–60 s
 
 const ohneHtml = (s: string | null | undefined) =>
   (s ?? "")
@@ -295,7 +295,7 @@ Deno.serve(async (req) => {
   }
 
   const ergebnisse: any[] = [];
-  for (const id of ids) {
+  await Promise.all(ids.map(async (id) => {
     const start = Date.now();
     try {
       const r = await vorschlagFuer(db, KEY, id, eigene, konten ?? []);
@@ -306,7 +306,7 @@ Deno.serve(async (req) => {
       await db.from("email_antwort_vorschlaege").upsert({ email_id: id, stufe: null, fehler: String(e?.message || e).slice(0, 500), modell: MODELL, dauer_ms: Date.now() - start });
       ergebnisse.push({ id, fehler: e?.message });
     }
-  }
+  }));
 
   const abgeglichen = Array.isArray(body?.email_ids) ? 0 : await abgleich();
   return json({ ok: true, ergebnisse, abgeglichen });
