@@ -104,12 +104,14 @@ So schreibst du:
 - Fehlt eine Information, setze einen Platzhalter in eckigen Klammern, z. B. [Termin einsetzen] oder [Betrag prüfen].
 - Behaupte nie, dass etwas schon erledigt ist (überwiesen, beauftragt, weitergeleitet), wenn das nicht in der Akte steht.
 - Keine Zahlungszusagen, keine Preis- oder Auftragsfreigaben, keine verbindlichen Rechtsauskünfte – dort Platzhalter oder „wir prüfen das und melden uns“.
+- Sage nie zu, dass jemand von uns vor Ort ist, zu einem Termin kommt oder etwas erledigt, wenn das nicht ausdrücklich in der Akte steht. Wer vor Ort ansprechbar ist (Mieter, Hausmeister, Dienstleister), steht in der Akte – sonst Platzhalter.
+- Gewohnheit der Verwaltung: Schickt ein Geschäftspartner, Eigentümer oder Mieter persönlich etwas oder bestätigt etwas, bedankt sich die Verwaltung kurz („Super, vielen Dank!“). Das ist eine Antwort (antwort_noetig = true, meist "sicher").
 
 Einschätzung (stufe):
 - "sicher": Die Antwort ist vollständig und stimmt nach der Akte – ein Mensch muss nur noch kurz drüberlesen. Typisch: Bestätigungen, Dank, Weitergabe vorhandener Kontaktdaten/Termine/Unterlagen, Auskünfte, die eindeutig in der Akte stehen.
 - "entwurf": Ein brauchbarer Text ist möglich, aber ein Mensch muss etwas ergänzen oder entscheiden (Platzhalter vorhanden, Termin, Geld, Freigabe, Rechtsfrage, Handlung nötig).
 - "keine": Ohne den Menschen lässt sich nichts Sinnvolles schreiben (Wissen fehlt völlig, persönliche Absprache, heikler Konflikt). Dann entwurf leer lassen.
-antwort_noetig = false bei Rechnungen ohne Frage, automatischen Mails, Newslettern, reinen Danke-/OK-Mails, Mails nur zur Info oder in CC.
+antwort_noetig = false nur bei automatischen Mails (Portale, Systeme, noreply), Newslettern, Mails, in denen wir nur in CC stehen, und wenn der Absender sich selbst nur bedankt oder „OK“ sagt (Gesprächsende).
 Im Zweifel die vorsichtigere Stufe wählen.`;
 
 const TOOL = {
@@ -133,7 +135,7 @@ const TOOL = {
 };
 
 // Was nie „sicher“ sein darf, auch wenn die KI es so einschätzt.
-const HEIKEL = /(\[[^\]]{2,}\]|\b\d{1,3}(\.\d{3})*,\d{2}\s?(€|eur)|überwies|überweisen|freigabe|freigeben|beauftrag|auftrag erteil|rechtlich|anwalt|kündig|mahnung|mahnbescheid)/i;
+const HEIKEL = /(\b(ich|wir) (bin|sind|komme|kommen|werde|werden|kümmere|kümmern|melde|melden)\b|vor ort|\[[^\]]{2,}\]|\b\d{1,3}(\.\d{3})*,\d{2}\s?(€|eur)|überwies|überweisen|freigabe|freigeben|beauftrag|auftrag erteil|rechtlich|anwalt|kündig|mahnung|mahnbescheid)/i;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -383,7 +385,9 @@ async function vorschlagFuer(db: any, KEY: string, id: string, eigene: Set<strin
 
   // Gruß/Signatur entfernen, falls die KI sie doch geschrieben hat
   let entwurf = String(a.entwurf || "").trim();
-  entwurf = entwurf.replace(/\n+\s*(Mit freundlichen Grüßen|Freundliche Grüße|Viele Grüße|Beste Grüße|Liebe Grüße|Herzliche Grüße)[\s\S]*$/i, "").trim();
+  entwurf = entwurf
+    .replace(/\n+\s*((Danke|Vielen Dank)[^\n]{0,20}(und|&)\s*)?(Mit freundlichen Grüßen|Freundliche Grüße|Viele Grüße|Beste Grüße|Liebe Grüße|Herzliche Grüße|Schöne Grüße|Grüße)[\s\S]*$/i, "")
+    .trim();
 
   let stufe: string;
   if (a.antwort_noetig === false) stufe = "keine";
