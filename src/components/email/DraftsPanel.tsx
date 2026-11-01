@@ -4,7 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { FileText, Mail, Trash2, Loader2, Pencil } from "lucide-react";
+import { FileText, Trash2, Loader2, Plus } from "lucide-react";
+import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import { useComposeEmail } from "@/contexts/ComposeEmailContext";
 import { useAuth } from "@/hooks/useAuth";
@@ -124,96 +125,62 @@ export function DraftsPanel({ items: vorab, accounts, onChanged }: Props) {
   const fmt = (iso: string) =>
     new Date(iso).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" });
 
+  const empfaenger = (d: DraftRow) => {
+    const an = d.to_addresses || [];
+    if (an.length === 0) return "noch kein Empfänger";
+    return an.slice(0, 2).join(", ") + (an.length > 2 ? ` +${an.length - 2}` : "");
+  };
+
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      <div className="border-b px-4 py-3 flex items-center gap-2 shrink-0">
-        <FileText className="h-5 w-5 text-blue-600" />
-        <h2 className="font-semibold">Entwürfe</h2>
-        <Badge variant="outline" className="ml-2">
-          {items.length}
-        </Badge>
+      <div className="flex items-center gap-2 p-3 border-b shrink-0">
+        <FileText className="h-4 w-4 text-muted-foreground" />
+        <h2 className="font-medium text-sm flex-1">Entwürfe</h2>
+        <Button size="sm" onClick={() => openCompose()}>
+          <Plus className="h-4 w-4 mr-1" /> Neue E-Mail
+        </Button>
       </div>
 
-      <ScrollArea className="flex-1">
-        {items.length === 0 ? (
-          <div className="p-12 text-center">
-            <FileText className="h-12 w-12 mx-auto text-muted-foreground/30 mb-3" />
-            <p className="text-sm text-muted-foreground">Keine Entwürfe</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Beim Schließen einer unfertigen E-Mail wirst du gefragt, ob du sie als Entwurf speichern möchtest.
+      <ScrollArea className="flex-1 min-h-0">
+        <div className="p-3 space-y-2">
+          {items.length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              Keine Entwürfe. Beim Schließen einer unfertigen E-Mail wirst du gefragt, ob du sie als Entwurf
+              speichern möchtest.
             </p>
-          </div>
-        ) : (
-          <div className="divide-y">
-            {items.map((d) => (
-              <div
-                key={d.id}
-                className="p-4 hover:bg-muted/30 transition-colors cursor-pointer"
-                onClick={() => editDraft(d)}
-              >
-                <div className="flex items-start gap-3">
-                  <div className="h-9 w-9 rounded-full flex items-center justify-center shrink-0 bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
-                    <Mail className="h-4 w-4" />
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium truncate">
-                        {d.subject || <span className="italic text-muted-foreground">(ohne Betreff)</span>}
-                      </span>
-                      {fremd(d) && (
-                        <Badge variant="secondary" className="text-[11px] font-normal">
-                          Entwurf von {namen[d.user_id!] || "Kollege"}
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
-                      <div>
-                        Von: <span className="text-foreground">{accountLabel(d.account_id)}</span>
-                        {" · "}
-                        An:{" "}
-                        <span className="text-foreground">
-                          {(d.to_addresses || []).slice(0, 3).join(", ") || "—"}
-                          {(d.to_addresses || []).length > 3 ? ` +${d.to_addresses.length - 3}` : ""}
-                        </span>
-                      </div>
-                      <div>Zuletzt geändert: {fmt(d.updated_at)}</div>
-                      {d.body_text && (
-                        <div className="line-clamp-2 text-foreground/70 mt-1">{d.body_text.slice(0, 200)}</div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => editDraft(d)}
-                      title="Bearbeiten"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 hover:text-destructive"
-                      disabled={deletingId === d.id}
-                      onClick={() => removeDraft(d)}
-                      title="Löschen"
-                    >
-                      {deletingId === d.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
+          )}
+          {items.map((d) => (
+            <Card
+              key={d.id}
+              className="p-3 flex items-center gap-3 cursor-pointer hover:bg-muted/40"
+              onClick={() => editDraft(d)}
+            >
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-medium truncate">
+                  {d.subject || <span className="italic text-muted-foreground">(ohne Betreff)</span>}
+                </div>
+                <div className="text-xs text-muted-foreground truncate">
+                  An {empfaenger(d)} · von {accountLabel(d.account_id)} · {fmt(d.updated_at)}
                 </div>
               </div>
-            ))}
-          </div>
-        )}
+              <Badge variant="secondary">
+                {fremd(d) ? `Entwurf von ${namen[d.user_id!] || "Kollege"}` : "Entwurf"}
+              </Badge>
+              <Button
+                variant="ghost"
+                size="icon"
+                disabled={deletingId === d.id}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  removeDraft(d);
+                }}
+                aria-label="Löschen"
+              >
+                {deletingId === d.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              </Button>
+            </Card>
+          ))}
+        </div>
       </ScrollArea>
     </div>
   );
