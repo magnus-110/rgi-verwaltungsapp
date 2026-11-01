@@ -132,9 +132,9 @@ function splitLabor(b: any, account: any): { dienste: number; handwerker: number
   if (b.settlement_35a_type === "handwerker") return { dienste: 0, handwerker: labor };
   if (b.settlement_35a_type === "dienste") return { dienste: labor, handwerker: 0 };
 
-  const detail = b.invoices?.line_items_detail;
+  const detail = b.line_items_detail;
   if (Array.isArray(detail) && detail.length > 0) {
-    const vatRate = Number(b.invoices?.vat_rate ?? account?.default_vat_rate ?? 19);
+    const vatRate = Number(b.vat_rate ?? account?.default_vat_rate ?? 19);
     const factor = vatRate > 0 ? 1 + vatRate / 100 : 1;
     let nd = 0, nh = 0;
     for (const it of detail) {
@@ -228,10 +228,11 @@ Deno.serve(async (req) => {
     // Alle Buchungen – seitenweise, nicht nur die ersten 1000
     const bookingsRaw = await alleZeilen(() => admin
       .from("bookings")
+      // Positionen (line_items_detail) und MwSt-Satz stehen an der Buchung, nicht an der Rechnung
       .select(`id, booking_date, description, amount, amount_35a, is_35a_relevant,
-               settlement_35a_type,
+               settlement_35a_type, vat_rate, line_items_detail,
                account_id, counter_account_id, invoice_id,
-               invoices:invoices!bookings_invoice_id_fkey(invoice_number, invoice_date, vendor_name, vat_rate, line_items_detail)`)
+               invoices:invoices!bookings_invoice_id_fkey(invoice_number, invoice_date, vendor_name)`)
       .eq("building_id", building_id)
       .eq("fiscal_year", fiscal_year)
       .neq("status", "cancelled"));
