@@ -24,6 +24,11 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const PARALLEL = 4;
 
+/** Speicher-Schlüssel nur mit erlaubten Zeichen (§, Umlaute u. a. lehnt der Speicher ab) */
+export const speicherName = (n: string) =>
+  n.replace(/§/g, "Par").replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/Ä/g, "Ae").replace(/Ö/g, "Oe").replace(/Ü/g, "Ue").replace(/ß/g, "ss")
+    .normalize("NFKD").replace(/[^\w.\-]+/g, "_");
+
 export type Auftrag = {
   /** Dateiname ohne Endung */
   name: string;
@@ -61,7 +66,7 @@ async function erzeugen(db: any, auftraege: Auftrag[], format: "pdf" | "docx") {
       if (!res.ok) throw new Error((await res.text()).slice(0, 300));
       const bytes = new Uint8Array(await res.arrayBuffer());
       const dateiname = `${a.name.replace(/[\\/:*?"<>|]+/g, "_").replace(/\s+/g, "_").slice(0, 120)}.${format}`;
-      const path = `outgoing/finanz/${lauf}/${dateiname}`;
+      const path = `outgoing/finanz/${lauf}/${speicherName(dateiname)}`;
       const { error } = await db.storage.from("email-attachments").upload(path, bytes, {
         contentType: format === "pdf" ? "application/pdf" : "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         upsert: true,

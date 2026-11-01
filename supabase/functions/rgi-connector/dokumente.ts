@@ -151,7 +151,11 @@ export function dokumentTools(d: Deps): Tool[] {
     return data?.building_id ?? null;
   }
 
-  const sicher = (n: string) => n.replace(/[^\w.\-äöüÄÖÜß ]+/g, "_").replace(/\s+/g, "_");
+  const sicher = (n: string) => n.replace(/[^\w.\-äöüÄÖÜß§ ]+/g, "_").replace(/\s+/g, "_");
+  /** Speicher-Schlüssel nur mit erlaubten Zeichen (§, Umlaute u. a. lehnt der Speicher ab) */
+  const schluessel = (n: string) =>
+    n.replace(/§/g, "Par").replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/Ä/g, "Ae").replace(/Ö/g, "Oe").replace(/Ü/g, "Ue").replace(/ß/g, "ss")
+      .normalize("NFKD").replace(/[^\w.\-]+/g, "_");
 
   /** Ergebnis verteilen: Chat-Link, Mail-Anhang, DMS, Rundmail */
   async function ausliefern(art: string, dateien: Datei[], a: any, kontext: { building_id: string | null; wirtschaftsjahr?: number | null; kategorie?: string }) {
@@ -162,7 +166,7 @@ export function dokumentTools(d: Deps): Tool[] {
       const name = sicher(f.name);
       const mime = f.mime ?? d.mimeVon(name);
       // Ablage für Chat-Download und als Mail-Anhang (gleicher Speicherort wie mail_anhang_vorbereiten)
-      const path = `outgoing/claude/${lauf}/${name}`;
+      const path = `outgoing/claude/${lauf}/${schluessel(name)}`;
       const { error } = await db.storage.from("email-attachments").upload(path, f.bytes, { contentType: mime, upsert: true });
       if (error) throw new Error(`${name}: ${error.message}`);
       const { data: s } = await db.storage.from("email-attachments").createSignedUrl(path, 24 * 3600);
@@ -175,7 +179,7 @@ export function dokumentTools(d: Deps): Tool[] {
     if (dateien.length > 1) {
       const z = new PizZip();
       dateien.forEach((f, i) => z.file(ergebnis[i].dateiname, f.bytes));
-      const zp = `outgoing/claude/${lauf}/${sicher(ARTEN[art]?.titel ?? art).slice(0, 60)}.zip`;
+      const zp = `outgoing/claude/${lauf}/${schluessel(ARTEN[art]?.titel ?? art).slice(0, 60)}.zip`;
       await db.storage.from("email-attachments").upload(zp, z.generate({ type: "uint8array" }), { contentType: "application/zip", upsert: true });
       const { data: s } = await db.storage.from("email-attachments").createSignedUrl(zp, 24 * 3600);
       zip_download_url = s?.signedUrl ?? null;
@@ -194,7 +198,7 @@ export function dokumentTools(d: Deps): Tool[] {
       for (const [i, f] of dateien.entries()) {
         const kat = a.dms_kategorie_id ?? (await katFuer(f.kategorie ?? kontext.kategorie ?? ARTEN[art]?.kategorie ?? "sonstiges"));
         const name = ergebnis[i].dateiname;
-        const p = `claude/${building_id}/${lauf}/${name}`;
+        const p = `claude/${building_id}/${lauf}/${schluessel(name)}`;
         const { error } = await db.storage.from("building-files").upload(p, f.bytes, { contentType: ergebnis[i].anhang.mime_type, upsert: true });
         if (error) throw new Error(`DMS-Upload ${name}: ${error.message}`);
         let kontakte = f.kontakt_ids ?? [];
@@ -223,7 +227,7 @@ export function dokumentTools(d: Deps): Tool[] {
       const pfade: { path: string; art?: "persoenlich" | "alle"; einheiten?: string[] }[] = [];
       for (const [i, f] of dateien.entries()) {
         const persoenlich = !!f.einheiten?.length;
-        const p = `campaigns/${a.rundmail_id}/${persoenlich ? "personal" : "attachments"}/${ts}_${ergebnis[i].dateiname}`;
+        const p = `campaigns/${a.rundmail_id}/${persoenlich ? "personal" : "attachments"}/${ts}_${schluessel(ergebnis[i].dateiname)}`;
         const { error } = await db.storage.from("comm-assets").upload(p, f.bytes, { contentType: ergebnis[i].anhang.mime_type, upsert: true });
         if (error) throw new Error(`Rundmail-Anhang ${ergebnis[i].dateiname}: ${error.message}`);
         pfade.push(persoenlich ? { path: p, art: "persoenlich", einheiten: f.einheiten } : { path: p, art: "alle" });
