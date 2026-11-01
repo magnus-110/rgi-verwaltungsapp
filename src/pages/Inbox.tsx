@@ -78,7 +78,6 @@ import { EmailHtmlBody } from "@/components/email/EmailHtmlBody";
 import { PrintEmailDialog } from "@/components/email/PrintEmailDialog";
 import { ScheduledMailsPanel } from "@/components/email/ScheduledMailsPanel";
 import { DraftsPanel } from "@/components/email/DraftsPanel";
-import { KiSchritte, type KiSchritt } from "@/components/email/KiSchritte";
 import { EmailSettingsSection } from "@/components/email/EmailSettingsSection";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -817,10 +816,10 @@ export const Inbox = () => {
     queryFn: async () => {
       const { data } = await (supabase as any)
         .from("email_antwort_vorschlaege")
-        .select("stufe, entwurf, schritte")
+        .select("stufe, entwurf")
         .eq("email_id", selectedEmailId)
         .maybeSingle();
-      return data as { stufe: string | null; entwurf: string | null; schritte: KiSchritt[] | null } | null;
+      return data as { stufe: string | null; entwurf: string | null } | null;
     },
   });
 
@@ -1982,10 +1981,10 @@ export const Inbox = () => {
                                   if (beantwortet) return null;
                                   const stufe = (vorschlagStufen as Record<string, string>)[email.id];
                                   const ampel: Record<string, { farbe: string; text: string }> = {
-                                    gruen: { farbe: "bg-emerald-500/55", text: "KI-Antwort vorbereitet – beim Antworten prüfen und senden" },
-                                    gelb: { farbe: "bg-amber-400/70", text: "KI-Entwurf vorbereitet – bitte ergänzen" },
-                                    rot: { farbe: "bg-rose-400/65", text: "Braucht dich – keine KI-Antwort möglich" },
-                                    keine: { farbe: "bg-slate-300 dark:bg-slate-600", text: "Keine Antwort nötig" },
+                                    gruen: { farbe: "bg-emerald-500", text: "KI-Antwort vorbereitet – beim Antworten prüfen und senden" },
+                                    gelb: { farbe: "bg-amber-400", text: "KI-Entwurf vorbereitet – bitte ergänzen" },
+                                    rot: { farbe: "bg-rose-500", text: "Braucht dich – keine KI-Antwort möglich" },
+                                    keine: { farbe: "bg-slate-400 dark:bg-slate-500", text: "Keine Antwort nötig" },
                                   };
                                   const a = stufe ? ampel[stufe] : null;
                                   if (!a) return null;
@@ -2472,35 +2471,6 @@ export const Inbox = () => {
                             );
                           })()}
                         </div>
-                        <KiSchritte
-                          email={selectedEmail as any}
-                          stufe={selectedVorschlag?.stufe}
-                          entwurf={selectedVorschlag?.entwurf}
-                          schritte={selectedVorschlag?.schritte}
-                          onAntworten={(anhaenge?: File[]) => {
-                              openCompose({
-                                attachments: anhaenge,
-                                replyTo: {
-                                  id: selectedEmail.id,
-                                  message_id: (selectedEmail as any).message_id,
-                                  subject: selectedEmail.subject,
-                                  from_address: selectedEmail.from_address,
-                                  from_name: selectedEmail.from_name,
-                                  body_text: selectedEmail.body_text,
-                                  date: selectedEmail.date,
-                                  account_id: selectedEmail.account_id,
-                                  // Allen Beteiligten antworten (An + CC der Original-Mail)
-                                  to_addresses: (selectedEmail as any).to_addresses,
-                                  cc_addresses: (selectedEmail as any).cc_addresses,
-                                  self_addresses: ownEmailAddresses,
-                                  ki_entwurf:
-                                    selectedVorschlag?.stufe === "gruen" || selectedVorschlag?.stufe === "gelb"
-                                      ? selectedVorschlag.entwurf
-                                      : null,
-                                },
-                              });
-                          }}
-                        />
                       </div>
                       <div className="p-3 border-t flex gap-2">
                         <Button
