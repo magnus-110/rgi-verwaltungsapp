@@ -268,9 +268,10 @@ Hinweis zur Kategorie "Werbung": NUR unpersönliche Massen-Werbung: Newsletter, 
 KEINE Werbung (sondern passende Fachkategorie) sind:
 - Angebote von Handwerkern, Lieferanten oder Dienstleistern (z. B. "Angebot AN-2026-…", Pelletangebot, Winterdienst-Angebot, Wallbox-Angebot) → "Handwerker"
 - jede Antwort in einem laufenden Verlauf (Re:/AW:) und persönlich geschriebene Mails an uns
-- Rechnungen, Zahlungserinnerungen, Vertrags- oder Kontoinformationen → "Rechnung" bzw. "Sonstiges"
-- Anmelde-/Login-Links, Bestätigungs- und Sicherheitscodes, Passwort-Mails, Systemmeldungen von Diensten, die wir nutzen → "Sonstiges"
-Im Zweifel NICHT "Werbung" wählen.
+- Rechnungen, Zahlungserinnerungen, Mahnungen, Auftragsbestätigungen, Vertragsänderungen → "Rechnung" bzw. "Sonstiges"
+- Anmelde-/Login-Links, Bestätigungs- und Sicherheitscodes, Passwort-Mails, Zugangsdaten → "Sonstiges"
+Newsletter, Rabattaktionen, Produkt-/Software-Neuigkeiten, Seminar- und Messe-Einladungen von Firmen SIND Werbung – auch wenn wir den Dienst nutzen (z. B. Strato-Angebote, Newsletter von Verbänden oder Kanzleien).
+Im Zweifel bei persönlichen oder vorgangsbezogenen Mails NICHT "Werbung" wählen.
 Hinweis zur Kategorie "Sonstiges": Alles, was sich nicht eindeutig zuordnen lässt.
 
 ${preMatchedBuildingId
@@ -383,8 +384,10 @@ Nur wenn der Absender/Empfänger NICHT eindeutig per E-Mail-Adresse zugeordnet w
           const betreff = (email.subject || "").trim();
           const istAnmeldung = ANMELDE_MUSTER.test(betreff);
           const istVerlauf = !!email.in_reply_to || /^(re|aw|wg|fwd?|antw)\s*:/i.test(betreff);
-          if (istAnmeldung || isOutgoing || istVerlauf || directContactId) {
-            kategorie = /angebot/i.test(betreff) && !istAnmeldung ? "Handwerker" : "Sonstiges";
+          // Nur ein exakt hinterlegter Kontakt zählt (nicht der Domain-Abgleich).
+          const bekannterKontakt = !!(partyAddress && emailToContactId[partyAddress]);
+          if (istAnmeldung || isOutgoing || istVerlauf || bekannterKontakt) {
+            kategorie = !isOutgoing && !istAnmeldung && /angebot/i.test(betreff) ? "Handwerker" : "Sonstiges";
           }
         }
 
