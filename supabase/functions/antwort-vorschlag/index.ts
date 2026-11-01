@@ -508,6 +508,7 @@ async function vorschlagFuer(db: any, KEY: string, id: string, eigene: Set<strin
   // Gruß/Signatur entfernen, falls die KI sie doch geschrieben hat
   let entwurf = String(a.entwurf || "").trim();
   entwurf = entwurf
+    .replace(/\s*(Bei|Für) (weiteren )?(Rückfragen|Fragen)[^.\n]{0,60}(Verfügung|melden)[^.\n]{0,10}\.?\s*$/i, "")
     .replace(/\n+\s*((Danke|Vielen Dank)[^\n]{0,20}(und|&)\s*)?(Mit freundlichen Grüßen|Freundliche Grüße|Viele Grüße|Beste Grüße|Liebe Grüße|Herzliche Grüße|Schöne Grüße|Grüße)[\s\S]*$/i, "")
     .trim();
 
