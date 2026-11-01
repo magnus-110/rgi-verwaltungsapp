@@ -1,4 +1,4 @@
-import { requireAdmin } from "../_shared/require-admin.ts";
+import { requireStaffOrCron } from "../_shared/require-cron.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.52.1";
 
 const corsHeaders = {
@@ -64,7 +64,7 @@ const ANMELDE_MUSTER =
 
 Deno.serve(async (req) => {
   if (req.method !== "OPTIONS") {
-    const __auth = await requireAdmin(req, corsHeaders);
+    const __auth = await requireStaffOrCron(req, corsHeaders);
     if (!__auth.ok) return __auth.response;
   }
   if (req.method === "OPTIONS") {
