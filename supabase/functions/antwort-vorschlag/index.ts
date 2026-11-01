@@ -130,12 +130,76 @@ const TOOL = {
         entwurf: { type: "string", description: "Antworttext ab der Anrede, ohne Gruß und Signatur. Leer bei stufe keine." },
         fehlende_infos: { type: "string", description: "Was fehlt oder vom Menschen zu tun ist (kurz). Leer wenn nichts." },
         begruendung: { type: "string", description: "Ein Satz, warum diese Stufe." },
+        schritte: {
+          type: "array",
+          description: "0–3 sinnvolle nächste Schritte, die ein Mensch mit einem Klick bestätigt. Nur wenn wirklich passend.",
+          items: {
+            type: "object",
+            properties: {
+              typ: { type: "string", enum: ["anhang", "weiterleiten", "wiedervorlage"] },
+              titel: { type: "string", description: "Kurz, z. B. „Protokoll 2025 beifügen“, „An Hausmeister Huber weiterleiten“, „Wiedervorlage: Rückmeldung Versicherung“" },
+              datei_id: { type: "string", description: "nur anhang: id aus dms_suchen" },
+              an_email: { type: "string", description: "nur weiterleiten: E-Mail-Adresse aus der Akte oder adressen_suchen" },
+              an_name: { type: "string" },
+              text: { type: "string", description: "weiterleiten: kurzer Begleittext ab Anrede, ohne Gruß; wiedervorlage: Notiz" },
+              datum: { type: "string", description: "nur wiedervorlage: YYYY-MM-DD" },
+            },
+            required: ["typ", "titel"],
+            additionalProperties: false,
+          },
+        },
       },
       required: ["antwort_noetig", "stufe", "entwurf", "fehlende_infos", "begruendung"],
       additionalProperties: false,
     },
   },
 };
+
+/** Lese-Werkzeuge: die KI entscheidet selbst, wo sie nachschaut (nur lesen, nichts ändern). */
+const LESE_TOOLS = [
+  {
+    type: "function",
+    function: {
+      name: "adressen_suchen",
+      description: "Sucht unter Adressen (Kontakte: Eigentümer, Mieter, Handwerker, Dienstleister, Versicherungen, Behörden) nach Name, Firma oder Gewerk (z. B. hausmeister, heizung, winterdienst, kaminkehrer, elektro, ablesedienst). Liefert E-Mail, Telefon und Zuordnung zu Objekten.",
+      parameters: { type: "object", properties: { suchbegriff: { type: "string" }, gewerk: { type: "string" } }, required: ["suchbegriff"], additionalProperties: false },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "dms_suchen",
+      description: "Durchsucht die Dokumente im DMS (Dateiname und Inhalt), z. B. Protokoll, Teilungserklärung, Wirtschaftsplan, Abrechnung, Vertrag, Versicherungsschein. Liefert datei_id, Name, Objekt, Jahr und Textauszug.",
+      parameters: { type: "object", properties: { suchbegriff: { type: "string" }, gebaeude_id: { type: "string" } }, required: ["suchbegriff"], additionalProperties: false },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "mails_suchen",
+      description: "Durchsucht alle E-Mails (auch mit anderen Absendern) nach einem Begriff, z. B. Schadennummer, Rechnungsnummer, Name, Thema. Liefert Datum, Absender, Betreff, Auszug.",
+      parameters: { type: "object", properties: { suchbegriff: { type: "string" } }, required: ["suchbegriff"], additionalProperties: false },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "zahlungen_suchen",
+      description: "Sucht Kontobewegungen der verwalteten Konten nach Name oder Verwendungszweck (letzte 12 Monate), z. B. ob ein Eigentümer/Mieter gezahlt hat oder eine Rechnung überwiesen wurde.",
+      parameters: { type: "object", properties: { suchbegriff: { type: "string" } }, required: ["suchbegriff"], additionalProperties: false },
+    },
+  },
+];
+const MAX_RUNDEN = 5;
+
+const SYSTEM_WERKZEUGE = `
+
+Werkzeuge: Du kannst vor der Antwort selbst nachschlagen (adressen_suchen, dms_suchen, mails_suchen, zahlungen_suchen) – nur wenn es für die Antwort oder einen Schritt wirklich nötig ist, höchstens 4 Suchen. Danach rufst du antwort_vorschlag auf.
+Schritte (schritte), nur wenn eindeutig sinnvoll:
+- "anhang": Ein Dokument aus dem DMS gehört zur Antwort (z. B. angefragtes Protokoll). datei_id MUSS aus dms_suchen stammen. Im Entwurf dann ohne Platzhalter „anbei … “ schreiben ist erlaubt.
+- "weiterleiten": Die Mail sollte an einen zuständigen Dienstleister/Hausmeister/Kollegen. an_email MUSS aus der Akte oder adressen_suchen stammen. text = kurzer Begleittext im Schreibstil.
+- "wiedervorlage": Etwas muss nachverfolgt werden (Rückmeldung abwarten, Frist). datum in den nächsten 1–30 Tagen.
+Erfinde nie IDs oder Adressen.`;
 
 // Was nie „sicher“ sein darf, auch wenn die KI es so einschätzt.
 const HEIKEL = /(\b(melde|kümmere|bespreche|kläre|prüfe|schicke|sende|bereite|organisiere|rufe|komme|frage)\b[^.]{0,40}|anbei|im anhang|angehängt|beigefügt|weiterleit|leite[^.]{0,40}weiter|abgelegt|eingetragen|teilnahme|bestätigen[^.]{0,40}termin|\b(ich|wir) (bin|sind|komme|kommen|werde|werden|kümmere|kümmern|melde|melden)\b|vor ort|\[[^\]]{2,}\]|\b\d{1,3}(\.\d{3})*,\d{2}\s?(€|eur)|überwies|überweisen|freigabe|freigeben|beauftrag|auftrag erteil|rechtlich|anwalt|kündig|mahnung|mahnbescheid)/i;
@@ -322,15 +386,27 @@ async function vorschlagFuer(db: any, KEY: string, id: string, eigene: Set<strin
   for (const bid of buildingIds) {
     const [{ data: b }, { data: dl }, { data: etv }, { data: faelle }, { data: dok }] = await Promise.all([
       db.from("buildings").select("name, address, postal_code, city, manager_name, general_notes, etv_default_location, unit_count, heating_type, management_start_date").eq("id", bid).maybeSingle(),
-      db.from("building_service_providers").select("name, category, phone, email").eq("building_id", bid).limit(15),
+      db.from("contact_building_assignments").select("service_category, is_active, emails_override, phones_override, contacts(id, first_name, last_name, company_name)").eq("building_id", bid).eq("role_in_building", "dienstleister").limit(25),
       db.from("etv_meetings").select("title, meeting_date, location, status, invitation_sent_at").eq("building_id", bid).order("meeting_date", { ascending: false }).limit(3),
       db.from("cases").select("title, status, ai_summary, updated_at").eq("building_id", bid).in("status", ["open", "in_progress", "waiting_external"]).order("updated_at", { ascending: false }).limit(6),
       db.from("building_files").select("display_name, fiscal_year, created_at").eq("building_id", bid).is("deleted_at", null).order("created_at", { ascending: false }).limit(40),
     ]);
     if (!b) continue;
-    let t = `OBJEKT ${b.name} (${[b.address, b.postal_code, b.city].filter(Boolean).join(" ")}), ${b.unit_count ?? "?"} Einheiten, Heizung ${b.heating_type || "?"}, Verwalter ${b.manager_name || "?"}`;
+    let t = `OBJEKT [gebaeude_id ${bid}] ${b.name} (${[b.address, b.postal_code, b.city].filter(Boolean).join(" ")}), ${b.unit_count ?? "?"} Einheiten, Heizung ${b.heating_type || "?"}, Verwalter ${b.manager_name || "?"}`;
     if (b.general_notes) t += `\nNotizen: ${kurz(b.general_notes, 600)}`;
-    if (dl?.length) t += `\nDienstleister: ${dl.map((d: any) => `${d.category || ""} ${d.name}${d.phone ? ` Tel. ${d.phone}` : ""}`).join("; ")}`;
+    if (dl?.length) {
+      const kontaktIds = dl.map((d: any) => d.contacts?.id).filter(Boolean);
+      const { data: mails } = kontaktIds.length ? await db.from("contact_emails").select("contact_id, email").in("contact_id", kontaktIds) : { data: [] };
+      t += `\nZuständige Dienstleister: ${dl
+        .filter((d: any) => d.is_active !== false)
+        .map((d: any) => {
+          const c = d.contacts || {};
+          const name = c.company_name || [c.first_name, c.last_name].filter(Boolean).join(" ");
+          const mail = (mails ?? []).find((x: any) => x.contact_id === c.id)?.email || (Array.isArray(d.emails_override) ? d.emails_override[0] : "");
+          return `${d.service_category || "?"}: ${name}${mail ? ` <${mail}>` : ""}`;
+        })
+        .join("; ")}`;
+    }
     if (etv?.length) t += `\nVersammlungen: ${etv.map((e: any) => `${e.title || "ETV"} am ${datum(e.meeting_date)} in ${e.location || b.etv_default_location || "?"} (${e.status || ""}${e.invitation_sent_at ? ", Einladung verschickt" : ""})`).join("; ")}`;
     if (faelle?.length) t += `\nOffene Vorgänge: ${faelle.map((f: any) => `${f.title} [${f.status}]${f.ai_summary ? `: ${kurz(f.ai_summary, 160)}` : ""}`).join(" | ")}`;
     if (dok?.length) t += `\nDokumente im DMS (Auszug): ${dok.map((d: any) => d.display_name + (d.fiscal_year ? ` (${d.fiscal_year})` : "")).join("; ")}`;
@@ -370,27 +446,63 @@ async function vorschlagFuer(db: any, KEY: string, id: string, eigene: Set<strin
     verlaufText ? `\nFRÜHERER SCHRIFTVERKEHR MIT DEM ABSENDER (älteste zuerst):\n${verlaufText}` : "\nFRÜHERER SCHRIFTVERKEHR: keiner.",
   ].join("\n");
 
-  const res = await fetch("https://api.mistral.ai/v1/chat/completions", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: MODELL,
-      temperature: 0.2,
-      messages: [
-        { role: "system", content: SYSTEM + stil },
-        { role: "user", content: nutzer.slice(0, 60000) },
-      ],
-      tools: [TOOL],
-      tool_choice: { type: "function", function: { name: "antwort_vorschlag" } },
-    }),
-  });
-  if (!res.ok) throw new Error(`Mistral ${res.status}: ${(await res.text()).slice(0, 200)}`);
-  const out = await res.json();
-  const call = out.choices?.[0]?.message?.tool_calls?.[0];
-  if (!call) throw new Error("keine Antwort der KI");
-  const a = JSON.parse(call.function.arguments);
-  // Verbrauch mitschreiben (für die Kostenübersicht)
-  quellen.tokens = { ein: out.usage?.prompt_tokens ?? null, aus: out.usage?.completion_tokens ?? null };
+  // Agent-Schleife: die KI darf nachschlagen, dann muss sie antwort_vorschlag aufrufen
+  const nachrichten: any[] = [
+    { role: "system", content: SYSTEM + SYSTEM_WERKZEUGE + stil },
+    { role: "user", content: nutzer.slice(0, 60000) },
+  ];
+  const fundIds = { dateien: new Set<string>(), mails: new Set<string>() };
+  const suchen: string[] = [];
+  let ein = 0, aus = 0, runden = 0;
+  let a: any = null;
+  while (!a) {
+    runden++;
+    const letzte = runden > MAX_RUNDEN;
+    const res = await fetch("https://api.mistral.ai/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: MODELL,
+        temperature: 0.2,
+        messages: nachrichten,
+        tools: letzte ? [TOOL] : [...LESE_TOOLS, TOOL],
+        tool_choice: letzte ? { type: "function", function: { name: "antwort_vorschlag" } } : "any",
+      }),
+    });
+    if (!res.ok) throw new Error(`Mistral ${res.status}: ${(await res.text()).slice(0, 200)}`);
+    const out = await res.json();
+    ein += out.usage?.prompt_tokens ?? 0;
+    aus += out.usage?.completion_tokens ?? 0;
+    const msg = out.choices?.[0]?.message;
+    const calls = msg?.tool_calls ?? [];
+    if (!calls.length) {
+      if (letzte) throw new Error("keine Antwort der KI");
+      nachrichten.push({ role: "assistant", content: msg?.content || "" });
+      nachrichten.push({ role: "user", content: "Bitte rufe jetzt antwort_vorschlag auf." });
+      continue;
+    }
+    const final = calls.find((c: any) => c.function?.name === "antwort_vorschlag");
+    if (final) {
+      a = JSON.parse(final.function.arguments);
+      break;
+    }
+    nachrichten.push({ role: "assistant", content: msg.content || "", tool_calls: calls });
+    for (const c of calls) {
+      let args: any = {};
+      try { args = JSON.parse(c.function.arguments || "{}"); } catch { /* leer */ }
+      suchen.push(`${c.function.name}: ${args.suchbegriff ?? ""}`);
+      let ergebnis = "";
+      try {
+        ergebnis = await werkzeug(db, c.function.name, args, fundIds, m.date);
+      } catch (e: any) {
+        ergebnis = `Fehler: ${e?.message || e}`;
+      }
+      nachrichten.push({ role: "tool", name: c.function.name, tool_call_id: c.id, content: ergebnis.slice(0, 6000) || "keine Treffer" });
+    }
+  }
+  quellen.tokens = { ein, aus };
+  quellen.suchen = suchen;
+  const schritte = await schritteBereinigen(db, a.schritte, fundIds, kontaktAdressen(nutzer));
 
   // Gruß/Signatur entfernen, falls die KI sie doch geschrieben hat
   let entwurf = String(a.entwurf || "").trim();
@@ -417,5 +529,119 @@ async function vorschlagFuer(db: any, KEY: string, id: string, eigene: Set<strin
     fehlende_infos: String(a.fehlende_infos || "").slice(0, 1000) || null,
     begruendung: String(a.begruendung || "").slice(0, 500) || null,
     kontext: quellen,
+    schritte: stufe === "keine" ? null : (schritte.length ? schritte : null),
+    runden,
   };
+}
+
+/** E-Mail-Adressen, die in der Akte stehen (dürfen als Weiterleitungsziel genutzt werden). */
+function kontaktAdressen(text: string): Set<string> {
+  return new Set((text.match(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g) ?? []).map((x) => x.toLowerCase()));
+}
+
+async function werkzeug(db: any, name: string, args: any, fund: { dateien: Set<string>; mails: Set<string> }, bis: string): Promise<string> {
+  const q = String(args.suchbegriff || "").replace(/[%,()]/g, " ").trim().slice(0, 80);
+  if (!q && name !== "adressen_suchen") return "Suchbegriff fehlt";
+  if (name === "adressen_suchen") {
+    const gewerk = String(args.gewerk || "").toLowerCase().trim();
+    let anfrage = db
+      .from("contacts")
+      .select("id, first_name, last_name, company_name, contact_type, service_provider_categories, contact_building_assignments(role_in_building, service_category, unit_number, is_active, buildings(name)), contact_emails(email), contact_phones(phone_number)")
+      .limit(8);
+    if (q) anfrage = anfrage.or(`company_name.ilike.%${q}%,last_name.ilike.%${q}%,first_name.ilike.%${q}%,short_name.ilike.%${q}%,trade_notes.ilike.%${q}%`);
+    if (gewerk) anfrage = anfrage.contains("service_provider_categories", [gewerk]);
+    let { data } = await anfrage;
+    if ((!data || !data.length) && gewerk && q) {
+      ({ data } = await db
+        .from("contacts")
+        .select("id, first_name, last_name, company_name, contact_type, service_provider_categories, contact_building_assignments(role_in_building, service_category, unit_number, is_active, buildings(name)), contact_emails(email), contact_phones(phone_number)")
+        .contains("service_provider_categories", [gewerk])
+        .limit(8));
+    }
+    if (!data?.length) return "keine Treffer";
+    for (const c of data) for (const e of c.contact_emails ?? []) fund.mails.add(String(e.email).toLowerCase());
+    return data
+      .map((c: any) => {
+        const name = [c.company_name, [c.first_name, c.last_name].filter(Boolean).join(" ")].filter(Boolean).join(" – ");
+        const zu = (c.contact_building_assignments ?? [])
+          .filter((z: any) => z.is_active !== false)
+          .map((z: any) => `${z.buildings?.name || "?"}: ${z.role_in_building}${z.service_category ? ` (${z.service_category})` : ""}${z.unit_number ? ` Einheit ${z.unit_number}` : ""}`)
+          .join("; ");
+        return `- ${name} [${c.contact_type || "-"}${c.service_provider_categories?.length ? `, ${c.service_provider_categories.join("/")}` : ""}] E-Mail: ${(c.contact_emails ?? []).map((e: any) => e.email).join(", ") || "-"} · Tel: ${(c.contact_phones ?? []).map((p: any) => p.phone_number).join(", ") || "-"}${zu ? ` · Objekte: ${zu}` : ""}`;
+      })
+      .join("\n");
+  }
+  if (name === "dms_suchen") {
+    const gid = args.gebaeude_id && /^[0-9a-f-]{36}$/i.test(args.gebaeude_id) ? args.gebaeude_id : null;
+    let nachName = db.from("building_files").select("id, display_name, fiscal_year, created_at, buildings(name)").is("deleted_at", null).ilike("display_name", `%${q}%`).order("created_at", { ascending: false }).limit(8);
+    if (gid) nachName = nachName.eq("building_id", gid);
+    let nachText = db.from("document_chunks").select("file_id, content").ilike("content", `%${q}%`).not("file_id", "is", null).limit(8);
+    if (gid) nachText = nachText.eq("building_id", gid);
+    const [{ data: n }, { data: t }] = await Promise.all([nachName, nachText]);
+    const zeilen: string[] = [];
+    for (const f of n ?? []) {
+      fund.dateien.add(f.id);
+      zeilen.push(`- datei_id ${f.id}: ${f.display_name} (${(f as any).buildings?.name || "-"}${f.fiscal_year ? `, ${f.fiscal_year}` : ""}, abgelegt ${datum(f.created_at)})`);
+    }
+    const textIds = [...new Set((t ?? []).map((x: any) => x.file_id))].filter((id) => !fund.dateien.has(id)).slice(0, 5);
+    if (textIds.length) {
+      const { data: tf } = await db.from("building_files").select("id, display_name, fiscal_year, buildings(name)").in("id", textIds).is("deleted_at", null);
+      for (const f of tf ?? []) {
+        fund.dateien.add(f.id);
+        const ausz = (t ?? []).find((x: any) => x.file_id === f.id)?.content || "";
+        const i = ausz.toLowerCase().indexOf(q.toLowerCase());
+        zeilen.push(`- datei_id ${f.id}: ${f.display_name} (${(f as any).buildings?.name || "-"}${f.fiscal_year ? `, ${f.fiscal_year}` : ""}) – „…${ausz.slice(Math.max(0, i - 150), i + 250).replace(/\s+/g, " ")}…“`);
+      }
+    }
+    return zeilen.join("\n") || "keine Treffer";
+  }
+  if (name === "mails_suchen") {
+    const { data } = await db
+      .from("emails")
+      .select("date, from_name, from_address, subject, body_text")
+      .is("deleted_at", null)
+      .lt("date", bis)
+      .or(`subject.ilike.%${q}%,body_text.ilike.%${q}%`)
+      .order("date", { ascending: false })
+      .limit(8);
+    if (!data?.length) return "keine Treffer";
+    return data.map((e: any) => `- [${datum(e.date)}] ${e.from_name || ""} <${e.from_address}> – ${e.subject || ""}: ${kurz(nurNeuerText(e.body_text || "").replace(/\s+/g, " "), 400)}`).join("\n");
+  }
+  if (name === "zahlungen_suchen") {
+    const { data } = await db
+      .from("bank_transactions")
+      .select("booking_date, amount, debtor_name, creditor_name, purpose, buildings(name)")
+      .gte("booking_date", new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10))
+      .or(`debtor_name.ilike.%${q}%,creditor_name.ilike.%${q}%,purpose.ilike.%${q}%`)
+      .order("booking_date", { ascending: false })
+      .limit(12);
+    if (!data?.length) return "keine Treffer (Hinweis: Kontoumsätze sind nicht für alle Objekte vollständig importiert)";
+    return data.map((b: any) => `- ${datum(b.booking_date)} ${Number(b.amount).toFixed(2)} € ${b.amount >= 0 ? `von ${b.debtor_name || "?"}` : `an ${b.creditor_name || "?"}`} (${b.buildings?.name || "-"}): ${kurz(b.purpose, 120)}`).join("\n");
+  }
+  return "unbekanntes Werkzeug";
+}
+
+/** Nur Schritte mit geprüften Angaben durchlassen (keine erfundenen Dateien/Adressen/Daten). */
+async function schritteBereinigen(db: any, roh: any, fund: { dateien: Set<string>; mails: Set<string> }, akteMails: Set<string>) {
+  const aus: any[] = [];
+  for (const s of Array.isArray(roh) ? roh.slice(0, 3) : []) {
+    const titel = String(s?.titel || "").slice(0, 120);
+    if (!titel) continue;
+    if (s.typ === "anhang") {
+      if (!s.datei_id || !fund.dateien.has(s.datei_id)) continue;
+      const { data: f } = await db.from("building_files").select("id, display_name, file_path, storage_bucket, source, mime_type").eq("id", s.datei_id).is("deleted_at", null).maybeSingle();
+      if (!f) continue;
+      aus.push({ typ: "anhang", titel, datei_id: f.id, name: f.display_name, pfad: f.file_path, bucket: f.storage_bucket || (f.source === "invoice" ? "invoices" : "building-files"), mime: f.mime_type });
+    } else if (s.typ === "weiterleiten") {
+      const ziel = String(s.an_email || "").toLowerCase().trim();
+      if (!ziel || !(fund.mails.has(ziel) || akteMails.has(ziel))) continue;
+      aus.push({ typ: "weiterleiten", titel, an_email: ziel, an_name: String(s.an_name || "").slice(0, 80), text: String(s.text || "").slice(0, 2000) });
+    } else if (s.typ === "wiedervorlage") {
+      const d = String(s.datum || "");
+      const t = Date.parse(d);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || isNaN(t) || t < Date.now() - 86400000 || t > Date.now() + 60 * 86400000) continue;
+      aus.push({ typ: "wiedervorlage", titel, datum: d, text: String(s.text || "").slice(0, 500) });
+    }
+  }
+  return aus;
 }
