@@ -60,7 +60,8 @@ export const EMPTY_SIGNATURE_FIELDS: SignatureFields = {
 
 export const DEFAULT_SIGNATURE_COMPANY: SignatureCompany = {
   layout: "name_links",
-  logo_url: "https://rgi-immobilien.de/lovable-uploads/4a83f87f-ad41-4d60-9f25-40128b981ab0.png",
+  // Echtes PNG mit weißem Hintergrund – das Website-Logo ist ein WebP, das viele Mailprogramme nicht anzeigen
+  logo_url: "https://eebphowrbarzawwixqcc.supabase.co/storage/v1/object/public/Logo/email/rgi-logo-mail.png",
   website: "rgi-immobilien.de",
   address: "Vilstalstr. 4 · 87459 Pfronten",
   kg_name: "RGI-Immobilien GmbH & Co. KG",
@@ -170,7 +171,8 @@ export function renderSignatureHtml(f: SignatureFields, c: SignatureCompany): st
   const role = roleLine(f);
   const site = esc(websiteHref(clean(c.website) || "rgi-immobilien.de"));
   const logoImg = (w: number) => {
-    const h = Math.round((w * 64) / 170);
+    // Seitenverhältnis des Mail-Logos (480 × 166, PNG mit weißem Hintergrund)
+    const h = Math.round((w * 166) / 480);
     return clean(c.logo_url)
       ? `<a href="${site}" style="text-decoration:none;"><img src="${esc(clean(c.logo_url))}" width="${w}" height="${h}" alt="RGI Immobilien – Verkauf · Vermietung · Verwaltung" style="display:block;width:${w}px;height:${h}px;border:0;"></a>`
       : "";
@@ -190,7 +192,7 @@ export function renderSignatureHtml(f: SignatureFields, c: SignatureCompany): st
   const stil =
     `<style>@media only screen and (max-width:520px){` +
     `.rgi-logo{border-left:0 !important;margin:10px 0 0 0 !important;padding:0 !important;display:block !important;}` +
-    `.rgi-logo img{width:130px !important;height:49px !important;}` +
+    `.rgi-logo img{width:130px !important;height:45px !important;}` +
     `.rgi-strich{display:block !important;max-height:none !important;}` +
     `}</style>`;
   const strich =
