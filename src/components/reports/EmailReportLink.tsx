@@ -38,10 +38,15 @@ export function EmailToReportButton({ email, onCreated }: { email: EmailLike; on
   if (existing) return null;
   return (
     <>
-      <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setOpen(true)}>
-        <ClipboardList className="h-3.5 w-3.5" />
-        <span className="hidden sm:inline">Als Meldung übernehmen</span>
-        <span className="sm:hidden">Meldung</span>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8"
+        title="Als Meldung übernehmen"
+        aria-label="Als Meldung übernehmen"
+        onClick={() => setOpen(true)}
+      >
+        <ClipboardList className="h-4 w-4" />
       </Button>
       <CreateReportDialog
         open={open}
