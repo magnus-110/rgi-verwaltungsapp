@@ -1418,6 +1418,10 @@ async function reparseSingleEmail(supabase: any, emailId: string) {
     let attachments: ParsedAttachment[] = [];
     summary.parser_attachments = attachments.length;
     summary.structure_has_attachments = checkHasAttachments(msg.bodyStructure);
+    const teile: string[] = [];
+    const sammeln = (n: any) => { if (!n) return; if (n.childNodes?.length) n.childNodes.forEach(sammeln); else teile.push(`${n.part ?? "?"}:${n.type ?? ""}:${n.size ?? 0}:${n.dispositionParameters?.filename ?? n.parameters?.name ?? ""}`); };
+    sammeln(msg.bodyStructure);
+    console.log(`Nachladen: ${summary.postfach ?? account.email_address} UID ${uid} in ${foundFolder} – Teile ${teile.join(" | ")}`);
 
     if (summary.structure_has_attachments) {
       const downloaded = await downloadAttachmentsFromStructure(client, uid, msg.bodyStructure, {
