@@ -75,12 +75,11 @@ describe("emailSignature", () => {
     expect(f).toEqual({ greeting: "Für Rückfragen stehe ich gerne zur Verfügung.\n\nMit freundlichen Grüßen", name: "X", title: "", qualification: "", phone: "", email: "a@b.de" });
   });
 
-  it("HTML ohne Schlussformel, alle Aufbauten", () => {
-    for (const layout of ["name_links", "logo_links", "name_oben"] as const) {
-      const h = renderSignatureHtml(fields, { ...DEFAULT_SIGNATURE_COMPANY, layout });
-      expect(h).not.toContain("Mit freundlichen Grüßen");
-      expect(h).toContain("Magnus Göttinger");
-    }
+  it("HTML ohne Schlussformel, mit Handy-Fassung", () => {
+    const h = renderSignatureHtml(fields, DEFAULT_SIGNATURE_COMPANY);
+    expect(h).not.toContain("Mit freundlichen Grüßen");
+    expect(h).toContain("Magnus Göttinger");
+    expect(h).toContain("@media only screen and (max-width:520px)");
   });
 
   it("setzt die Schlussformel unten in den Text und tauscht sie beim Absenderwechsel", () => {

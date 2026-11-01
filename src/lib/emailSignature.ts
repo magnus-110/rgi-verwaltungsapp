@@ -27,10 +27,9 @@ export interface SignatureFields {
 
 export type SignatureLayout = "name_links" | "logo_links" | "name_oben";
 
+/** Es gibt nur noch einen Aufbau (Name links, Logo rechts; auf dem Handy Logo darunter). */
 export const SIGNATURE_LAYOUTS: { key: SignatureLayout; label: string; hint: string }[] = [
-  { key: "name_links", label: "Name links, Logo rechts", hint: "Name zuerst, Kontakt darunter, Logo rechts neben dem orangen Strich" },
-  { key: "logo_links", label: "Logo links, Name rechts", hint: "Logo vorne, Name und Kontakt rechts daneben" },
-  { key: "name_oben", label: "Name oben, Logo unten", hint: "Name und Kontakt untereinander, darunter ein kleines Logo – sehr schmal, gut fürs Handy" },
+  { key: "name_links", label: "Name links, Logo rechts", hint: "Auf dem Handy: Logo klein unter dem Kontakt" },
 ];
 
 export interface SignatureCompany {
@@ -184,47 +183,33 @@ export function renderSignatureHtml(f: SignatureFields, c: SignatureCompany): st
     : "";
   const kontakt = `<table ${T} style="border-collapse:collapse;">${rows.join("")}</table>`;
 
-  let haupt = "";
-  if (layout === "logo_links") {
-    // Logo links, Name und Kontakt rechts neben dem orangen Strich (auf dem Handy rutscht das Logo darüber)
-    const logo = clean(c.logo_url)
-      ? `<!--[if mso]><table ${T}><tr><td valign="middle" width="190" style="width:190px;"><![endif]-->` +
-        `<div style="display:inline-block;vertical-align:middle;width:190px;padding:0 0 10px 0;">${logoImg(170)}</div>` +
-        `<!--[if mso]></td><td valign="top"><![endif]-->`
-      : "";
-    const logoEnd = clean(c.logo_url) ? `<!--[if mso]></td></tr></table><![endif]-->` : "";
-    haupt =
-      `<tr><td style="font-size:0;line-height:0;">` +
-      logo +
-      `<div style="display:inline-block;vertical-align:middle;border-left:3px solid ${C.orange};padding:2px 0 2px 18px;font-size:12px;line-height:18px;">` +
-      nameHtml + roleHtml + kontakt +
-      `</div>` + logoEnd +
-      `</td></tr>`;
-  } else if (layout === "name_oben") {
-    // Name zuerst, oranger Strich darunter, Kontakt, kleines Logo am Ende – eine schmale Spalte
-    haupt =
-      `<tr><td style="padding:0;font-size:12px;line-height:18px;">` +
-      nameHtml + roleHtml.replace("padding-bottom:8px;", "padding-bottom:6px;") +
-      `<div style="width:40px;height:3px;line-height:3px;font-size:0;background:${C.orange};margin:0 0 8px 0;">&nbsp;</div>` +
-      kontakt +
-      (clean(c.logo_url) ? `<div style="padding:12px 0 0 0;">${logoImg(130)}</div>` : "") +
-      `</td></tr>`;
-  } else {
-    // Name links zuerst, dann oranger Strich und das Logo rechts (auf dem Handy rutscht das Logo darunter)
-    const logo = clean(c.logo_url)
-      ? `<!--[if mso]></td><td valign="middle" width="200" style="width:200px;"><![endif]-->` +
-        `<div style="display:inline-block;vertical-align:middle;border-left:3px solid ${C.orange};padding:6px 0 6px 20px;margin:0 0 0 20px;">${logoImg(160)}</div>`
-      : "";
-    haupt =
-      `<tr><td style="font-size:0;line-height:0;">` +
-      `<!--[if mso]><table ${T}><tr><td valign="middle"><![endif]-->` +
-      `<div style="display:inline-block;vertical-align:middle;padding:2px 0 8px 0;font-size:12px;line-height:18px;">` +
-      nameHtml + roleHtml + kontakt +
-      `</div>` +
-      logo +
-      `<!--[if mso]></td></tr></table><![endif]-->` +
-      `</td></tr>`;
-  }
+  // Ein Aufbau für alle Geräte: am PC Name links, Logo rechts hinter dem orangen Strich.
+  // Auf dem Handy (schmaler Bildschirm) rutscht das Logo unter den Kontakt; Mail-Apps, die
+  // Stilregeln verstehen (iPhone, Android, Gmail-App), zeigen dann die schmale Handy-Fassung:
+  // kurzer oranger Strich unter dem Namen, kleines Logo unten ohne Seitenstrich.
+  const stil =
+    `<style>@media only screen and (max-width:520px){` +
+    `.rgi-logo{border-left:0 !important;margin:10px 0 0 0 !important;padding:0 !important;display:block !important;}` +
+    `.rgi-logo img{width:130px !important;height:49px !important;}` +
+    `.rgi-strich{display:block !important;max-height:none !important;}` +
+    `}</style>`;
+  const strich =
+    `<div class="rgi-strich" style="display:none;max-height:0;overflow:hidden;mso-hide:all;">` +
+    `<div style="width:40px;height:3px;line-height:3px;font-size:0;background:${C.orange};margin:0 0 8px 0;">&nbsp;</div></div>`;
+  const logo = clean(c.logo_url)
+    ? `<!--[if mso]></td><td valign="middle" width="200" style="width:200px;"><![endif]-->` +
+      `<div class="rgi-logo" style="display:inline-block;vertical-align:middle;border-left:3px solid ${C.orange};padding:6px 0 6px 20px;margin:0 0 0 20px;">${logoImg(160)}</div>`
+    : "";
+  const haupt =
+    `<tr><td style="font-size:0;line-height:0;">` +
+    `<!--[if mso]><table ${T}><tr><td valign="middle"><![endif]-->` +
+    `<div style="display:inline-block;vertical-align:middle;padding:2px 0 8px 0;font-size:12px;line-height:18px;">` +
+    nameHtml + roleHtml + strich + kontakt +
+    `</div>` +
+    logo +
+    `<!--[if mso]></td></tr></table><![endif]-->` +
+    `</td></tr>`;
+  void layout;
 
   const legal = legalLines(c)
     .map((l, i) =>
@@ -238,6 +223,7 @@ export function renderSignatureHtml(f: SignatureFields, c: SignatureCompany): st
 
   return (
     `<!-- rgi-signatur -->` +
+    stil +
     `<table ${T} style="border-collapse:collapse;width:100%;max-width:640px;">` +
     haupt +
     (legal

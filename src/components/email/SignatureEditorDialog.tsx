@@ -13,15 +13,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
 import { FileSignature, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { SignaturePreview } from "./SignaturePreview";
 import {
   normalizeSignatureFields,
   renderSignatureHtml,
-  SIGNATURE_LAYOUTS,
-  type SignatureLayout,
   type SignatureCompany,
   type SignatureFields,
 } from "@/lib/emailSignature";
@@ -172,25 +169,6 @@ export function SignatureEditorDialog({
                 </div>
               </TabsContent>
               <TabsContent value="firma" className="pt-3 space-y-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Aufbau der Signatur (gilt für alle Postfächer)</Label>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    {SIGNATURE_LAYOUTS.map((l) => (
-                      <button
-                        key={l.key}
-                        type="button"
-                        onClick={() => setCompany((c) => (c ? { ...c, layout: l.key as SignatureLayout } : c))}
-                        className={cn(
-                          "rounded-md border p-2.5 text-left transition-colors",
-                          company.layout === l.key ? "border-primary bg-primary/5" : "hover:bg-muted/50",
-                        )}
-                      >
-                        <span className="block text-sm font-medium">{l.label}</span>
-                        <span className="block text-xs text-muted-foreground">{l.hint}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
                 <p className="text-xs text-muted-foreground">
                   Pflichtangaben für Geschäftsbriefe der GmbH &amp; Co. KG (§ 125 i. V. m. § 177a HGB, § 35a GmbHG).
                   Bitte genau wie im Handelsregister eintragen. Änderungen werden beim Speichern in alle Signaturen übernommen.
