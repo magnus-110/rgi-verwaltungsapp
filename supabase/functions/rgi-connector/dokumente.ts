@@ -29,6 +29,8 @@ export type Datei = {
   einheiten?: string[];
   /** Kontakte, die das Dokument im Portal sehen sollen (bei freigeben=true) */
   kontakt_ids?: string[];
+  /** DMS-Ordner (Slug), sonst der Ordner der Art */
+  kategorie?: string;
 };
 
 const S = (props: Record<string, any>, required: string[] = []) => ({ type: "object", properties: props, required, additionalProperties: false });
@@ -184,19 +186,26 @@ export function dokumentTools(d: Deps): Tool[] {
     if (a.ins_dms) {
       const building_id = a.dms_building_id ?? kontext.building_id ?? (await rgiGebaeude());
       if (!building_id) throw new Error("Für die DMS-Ablage fehlt das Objekt (building_id)");
-      const kat = a.dms_kategorie_id ?? (await kategorieId(building_id, kontext.kategorie ?? ARTEN[art]?.kategorie ?? "sonstiges"));
+      const katCache = new Map<string, string | null>();
+      const katFuer = async (slug: string) => {
+        if (!katCache.has(slug)) katCache.set(slug, await kategorieId(building_id, slug));
+        return katCache.get(slug)!;
+      };
       for (const [i, f] of dateien.entries()) {
+        const kat = a.dms_kategorie_id ?? (await katFuer(f.kategorie ?? kontext.kategorie ?? ARTEN[art]?.kategorie ?? "sonstiges"));
         const name = ergebnis[i].dateiname;
         const p = `claude/${building_id}/${lauf}/${name}`;
         const { error } = await db.storage.from("building-files").upload(p, f.bytes, { contentType: ergebnis[i].anhang.mime_type, upsert: true });
         if (error) throw new Error(`DMS-Upload ${name}: ${error.message}`);
         let kontakte = f.kontakt_ids ?? [];
         if (a.portal_freigeben && !kontakte.length && f.einheiten?.length) kontakte = await eigentuemerKontakte(building_id, f.einheiten);
-        const freigeben = !!a.portal_freigeben && kontakte.length > 0;
+        // Persönliche Dokumente nur für den Eigentümer, Gesamtdokumente für alle Eigentümer des Objekts
+        const persoenlich = kontakte.length > 0 || !!f.einheiten?.length;
+        const freigeben = !!a.portal_freigeben && (kontakte.length > 0 || !persoenlich);
         const r = await d.dmsEintragAnlegen({
           building_id, path: p, anzeigename: name, kategorie_id: kat ?? undefined, mime_type: ergebnis[i].anhang.mime_type,
           wirtschaftsjahr: kontext.wirtschaftsjahr ?? a.wirtschaftsjahr ?? undefined,
-          sichtbarkeit: freigeben ? "personen" : "intern", kontakt_ids: freigeben ? kontakte : undefined,
+          sichtbarkeit: !freigeben ? "intern" : persoenlich ? "personen" : "eigentuemer", kontakt_ids: freigeben && persoenlich ? kontakte : undefined,
           benachrichtigen: freigeben && a.benachrichtigen === true,
           beschreibung: `${ARTEN[art]?.titel ?? art} – erstellt über Claude`, tags: [art],
           mitarbeiter_email: a.mitarbeiter_email, source: "manual", texterkennung: false,
@@ -349,7 +358,7 @@ export function dokumentTools(d: Deps): Tool[] {
     const r = await funktion("finanz-dokumente", { art, building_id: a.building_id, wirtschaftsjahr: a.wirtschaftsjahr, einheiten: a.einheiten ?? null, nur_gesamt: !!a.nur_gesamt, format: a.format === "docx" ? "docx" : "pdf", vorlage_id: a.vorlage_id ?? null });
     const dateien: Datei[] = [];
     for (const f of r.dateien ?? []) {
-      dateien.push({ name: f.dateiname, bytes: await laden(f.bucket, f.path), einheiten: f.einheiten ?? undefined, kontakt_ids: f.kontakt_ids ?? undefined });
+      dateien.push({ name: f.dateiname, bytes: await laden(f.bucket, f.path), einheiten: f.einheiten ?? undefined, kontakt_ids: f.kontakt_ids ?? undefined, kategorie: f.kategorie ?? undefined });
     }
     const aus = await ausliefern(art, dateien, a, { building_id: a.building_id, wirtschaftsjahr: a.wirtschaftsjahr });
     // Gesamtdokumente in den passenden Ordner

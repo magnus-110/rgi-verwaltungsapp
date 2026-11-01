@@ -205,3 +205,6 @@ verify_jwt = false
 
 [functions.etv-einladungen-rundmail]
 verify_jwt = false
+
+[functions.finanz-dokumente]
+verify_jwt = false

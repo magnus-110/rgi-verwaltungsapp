@@ -10,6 +10,8 @@
  */
 import { supabase } from "@/integrations/supabase/client";
 import { resolveDmsFolder, type DmsFolderKey } from "./resolveDmsFolder";
+// Anzeigename-/Pfad-Regeln: Single Source of Truth in supabase/functions/_shared/finanzen/dmsAblage.ts
+import { dmsDisplayNameMitEndung, dmsStoragePfad } from "@shared/finanzen/dmsAblage.ts";
 
 export interface DmsUploadParams {
   bytes: Blob | ArrayBuffer | Uint8Array;
@@ -23,8 +25,6 @@ export interface DmsUploadParams {
   fiscalYear?: number | null;
 }
 
-const sanitize = (s: string) =>
-  s.replace(/[^a-zA-Z0-9äöüÄÖÜß_\-. ]+/g, "_").replace(/\s+/g, "_").slice(0, 120);
 
 export async function uploadGeneratedPdfToDms(
   p: DmsUploadParams,
@@ -38,7 +38,7 @@ export async function uploadGeneratedPdfToDms(
       : new Blob([p.bytes as BlobPart], { type: "application/pdf" });
 
   const id = crypto.randomUUID();
-  const path = `${p.buildingId}/abrechnungen/${p.periodId || "general"}/${id}.pdf`;
+  const path = dmsStoragePfad(p.buildingId, p.periodId, id);
 
   // 1) Ordner (Kategorie) auflösen / anlegen
   let categoryId: string | null = null;
@@ -70,9 +70,7 @@ export async function uploadGeneratedPdfToDms(
   const { data: inserted, error: insErr } = await supabase
     .from("building_files")
     .insert({
-      display_name:
-        sanitize(p.displayName) +
-        (p.displayName.toLowerCase().endsWith(".pdf") ? "" : ".pdf"),
+      display_name: dmsDisplayNameMitEndung(p.displayName),
       file_path: path,
       file_size: blob.size,
       mime_type: "application/pdf",

@@ -16,25 +16,12 @@
  *     └── Sammelberichte              (jahresbericht-sammelberichte)
  */
 import { supabase } from "@/integrations/supabase/client";
+// Ordner-Slugs: Single Source of Truth in supabase/functions/_shared/finanzen/dmsAblage.ts
+import { DMS_FOLDER_SLUGS, type DmsFolderKey } from "@shared/finanzen/dmsAblage.ts";
 
-export type DmsFolderKey =
-  | "gesamtabrechnung"
-  | "einzelabrechnung"
-  | "wirtschaftsplan_gesamt"
-  | "wirtschaftsplan_einzel"
-  | "paragraph_35a"
-  | "sammelbericht"
-  | "vermoegensbericht";
+export type { DmsFolderKey };
 
-const SLUG_MAP: Record<DmsFolderKey, string> = {
-  gesamtabrechnung:       "jahresbericht-gesamtabrechnung",
-  einzelabrechnung:       "jahresbericht-einzelabrechnung",
-  wirtschaftsplan_gesamt: "jahresbericht-gesamt-wp",
-  wirtschaftsplan_einzel: "jahresbericht-einzel-wp",
-  paragraph_35a:          "jahresbericht-35a",
-  sammelbericht:          "jahresbericht-sammelberichte",
-  vermoegensbericht:      "jahresbericht-vermoegen",
-};
+const SLUG_MAP: Record<DmsFolderKey, string> = DMS_FOLDER_SLUGS;
 
 export async function resolveDmsFolder(
   buildingId: string,
