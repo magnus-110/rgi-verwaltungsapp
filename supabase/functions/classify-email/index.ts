@@ -393,7 +393,11 @@ Nur wenn der Absender/Empfänger NICHT eindeutig per E-Mail-Adresse zugeordnet w
           // Nur ein exakt hinterlegter Kontakt zählt (nicht der Domain-Abgleich).
           const bekannterKontakt = !!(partyAddress && emailToContactId[partyAddress]);
           if (istAnmeldung || isOutgoing || istVerlauf || bekannterKontakt) {
-            kategorie = !isOutgoing && !istAnmeldung && /angebot/i.test(betreff) ? "Handwerker" : "Sonstiges";
+            kategorie = /rechnung|mahnung|zahlungserinnerung/i.test(betreff)
+              ? "Rechnung"
+              : !isOutgoing && !istAnmeldung && /angebot/i.test(betreff)
+                ? "Handwerker"
+                : "Sonstiges";
           }
         }
 
