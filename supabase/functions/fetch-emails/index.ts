@@ -1346,6 +1346,7 @@ async function reparseSingleEmail(supabase: any, emailId: string) {
           const von = new Date(tag.getTime() - 2 * 86400000);
           const bis = new Date(tag.getTime() + 2 * 86400000);
           const kandidaten = await client.search({ since: von, before: bis }, { uid: true });
+          console.log(`Nachladen: ${folderPath} – ${kandidaten?.length ?? 0} Mails im Zeitraum`);
           const norm = (x: string) => String(x || "").toLowerCase().replace(/\s+/g, " ").trim();
           const absender = norm(email.from_address);
           for (const k of (kandidaten || []).slice(-300)) {
@@ -1362,8 +1363,8 @@ async function reparseSingleEmail(supabase: any, emailId: string) {
             }
           }
         }
-      } catch (_) {
-        // skip unreadable folders
+      } catch (e: any) {
+        console.log(`Nachladen: Ordner ${folderPath} übersprungen: ${e?.message ?? e}`);
       }
       return false;
     };
