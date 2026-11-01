@@ -1345,11 +1345,16 @@ async function reparseSingleEmail(supabase: any, emailId: string) {
           const tag = new Date(email.date);
           const von = new Date(tag.getTime() - 2 * 86400000);
           const bis = new Date(tag.getTime() + 2 * 86400000);
-          const kandidaten = await client.search({ from: email.from_address, since: von, before: bis }, { uid: true });
-          for (const k of (kandidaten || []).slice(-20)) {
+          const kandidaten = await client.search({ since: von, before: bis }, { uid: true });
+          const norm = (x: string) => String(x || "").toLowerCase().replace(/\s+/g, " ").trim();
+          const absender = norm(email.from_address);
+          for (const k of (kandidaten || []).slice(-300)) {
             const m = await client.fetchOne(`${k}`, { uid: true, envelope: true }, { uid: true });
             const kid = String(m?.envelope?.messageId || "").replace(/^</, "").replace(/>$/, "");
-            const passt = kid ? kid === midOhne : (m?.envelope?.subject || "") === (email.subject || "");
+            const von2 = (m?.envelope?.from || []).map((f: any) => norm(f.address)).join(",");
+            // Weiterleitungen (z. B. info@ → persönliches Postfach) bekommen oft eine neue Message-ID:
+            // dann Absender + Betreff vergleichen
+            const passt = (kid && kid === midOhne) || (von2.includes(absender) && norm(m?.envelope?.subject) === norm(email.subject));
             if (passt) {
               uid = k;
               foundFolder = folderPath;
@@ -1370,7 +1375,7 @@ async function reparseSingleEmail(supabase: any, emailId: string) {
       }
     }
     if (uid === null) {
-      throw new Error(`Message-ID ${email.message_id} not found on server (searched all folders)`);
+      throw new Error(`Nachricht im Postfach ${account.email_address} nicht gefunden (Message-ID ${email.message_id}, alle Ordner durchsucht)`);
     }
     summary.uid = uid;
     summary.folder = foundFolder;
