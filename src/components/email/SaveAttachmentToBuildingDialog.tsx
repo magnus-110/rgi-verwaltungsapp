@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { resolveInlineType } from "@/lib/inlineFile";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -63,6 +63,11 @@ export function SaveAttachmentToBuildingDialog({
   const [newFolderName, setNewFolderName] = useState("");
   const [newFolderParentId, setNewFolderParentId] = useState<string>("__root__");
   const [savingFolder, setSavingFolder] = useState(false);
+  // KI-Vorschlag (Objekt, Ordner, Jahr) – wird vorausgewählt, wie bei der Mail-Zuordnung
+  const vorschlag = useRef<{ attachmentId: string; building_id: string | null; category_slug: string | null; wirtschaftsjahr: number | null } | null>(null);
+  const [vorschlagLaedt, setVorschlagLaedt] = useState(false);
+  const [vorschlagStand, setVorschlagStand] = useState(0);
+  const ordnerVorwahl = useRef<string | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -74,8 +79,39 @@ export function SaveAttachmentToBuildingDialog({
       setBenachrichtigen(true);
       setFiscalYear("general");
       setRemoveAfter(true);
+      vorschlag.current = null;
+      ordnerVorwahl.current = null;
     }
   }, [open, defaultBuildingId]);
+
+  // Vorschlag laden (oder einmal erzeugen lassen) und vorausfüllen
+  useEffect(() => {
+    if (!open || !ausMail || !attachments.length) return;
+    let abbruch = false;
+    (async () => {
+      const db = supabase as any;
+      const { data: att } = await db.from("email_attachments").select("id").eq("email_id", emailId).eq("file_path", attachments[0].path).maybeSingle();
+      if (!att?.id) return;
+      setVorschlagLaedt(true);
+      try {
+        let { data: v } = await db.from("dms_vorschlaege").select("*").eq("attachment_id", att.id).maybeSingle();
+        if (!v) {
+          const r = await supabase.functions.invoke("dms-vorschlag", { body: { attachment_id: att.id } });
+          v = (r.data as any)?.vorschlag ?? null;
+        }
+        if (abbruch || !v) return;
+        vorschlag.current = { attachmentId: att.id, building_id: v.building_id, category_slug: v.category_slug, wirtschaftsjahr: v.wirtschaftsjahr };
+        if (v.building_id) setBuildingId(v.building_id);
+        ordnerVorwahl.current = v.category_slug ?? null;
+        if (v.wirtschaftsjahr) setFiscalYear(String(v.wirtschaftsjahr));
+        setVorschlagStand((n) => n + 1);
+      } finally {
+        if (!abbruch) setVorschlagLaedt(false);
+      }
+    })();
+    return () => { abbruch = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, emailId, attachments[0]?.path]);
 
   useEffect(() => {
     if (!buildingId) { setCategories([]); return; }
@@ -86,6 +122,15 @@ export function SaveAttachmentToBuildingDialog({
       setCategories((data || []) as DocCategory[]);
     })();
   }, [buildingId]);
+
+  // Vorgeschlagenen Ordner wählen, sobald die Ordner des vorgeschlagenen Objekts geladen sind
+  useEffect(() => {
+    if (!ordnerVorwahl.current || !categories.length) return;
+    if (vorschlag.current?.building_id !== buildingId || categories[0]?.building_id !== buildingId) return;
+    const k = categories.find((c) => c.slug === ordnerVorwahl.current);
+    if (k) setCategoryId(k.id);
+    ordnerVorwahl.current = null;
+  }, [categories, vorschlagStand, buildingId]);
 
   const flatCategories = (() => {
     const byParent: Record<string, DocCategory[]> = {};
@@ -213,6 +258,20 @@ export function SaveAttachmentToBuildingDialog({
         }
       }
 
+      // Rückmeldung zum Vorschlag (übernommen oder geändert) – zum Messen und Lernen
+      if (vorschlag.current) {
+        const v = vorschlag.current;
+        const kat = categories.find((c) => c.id === categoryId);
+        const jahr = fiscalYear === "general" ? null : parseInt(fiscalYear, 10);
+        await (supabase as any).from("dms_vorschlaege").update({
+          abgelegt_am: new Date().toISOString(),
+          abgelegt_building_id: buildingId,
+          abgelegt_category_id: categoryId || null,
+          abgelegt_wirtschaftsjahr: jahr,
+          geaendert: v.building_id !== buildingId || (v.category_slug ?? null) !== (kat?.slug ?? null) || (v.wirtschaftsjahr ?? null) !== jahr,
+        }).eq("attachment_id", v.attachmentId);
+      }
+
       toast.success(`${attachments.length} Datei(en) in Stammakte abgelegt`);
       onDone?.({ removeAfter: !!removeAfterLabel && removeAfter });
       onOpenChange(false);
@@ -227,7 +286,10 @@ export function SaveAttachmentToBuildingDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>In Stammakte ablegen ({attachments.length})</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            In Stammakte ablegen ({attachments.length})
+            {vorschlagLaedt && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+          </DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <div>

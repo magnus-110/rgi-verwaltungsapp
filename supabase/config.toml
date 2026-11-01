@@ -208,3 +208,6 @@ verify_jwt = false
 
 [functions.finanz-dokumente]
 verify_jwt = false
+
+[functions.dms-vorschlag]
+verify_jwt = false

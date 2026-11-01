@@ -90,6 +90,14 @@ Deno.serve(async (req) => {
       const r = await lesen(db, a);
       await db.from("email_attachments").update({ extracted_text: r.text, text_status: r.status, sha256: r.sha ?? null, text_extrahiert_am: new Date().toISOString() }).eq("id", a.id);
       ergebnis.push({ id: a.id, name: a.file_name, status: r.status, zeichen: r.text?.length ?? 0 });
+      // Gleich den Ablage-Vorschlag fürs DMS vorbereiten (Objekt, Ordner, Jahr)
+      if (r.status === "ok") {
+        await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/dms-vorschlag`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ attachment_id: a.id }),
+        }).then((x) => x.body?.cancel()).catch((e) => console.error("dms-vorschlag", a.id, e?.message));
+      }
     } catch (e: any) {
       console.error("Anhang", a.id, e?.message);
       await db.from("email_attachments").update({ text_status: "fehler", text_fehler: String(e?.message ?? e).slice(0, 500), text_extrahiert_am: new Date().toISOString() }).eq("id", a.id);
