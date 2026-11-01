@@ -62,6 +62,9 @@ function buildingTokens(b: { name: string | null; address: string | null; city?:
 const ANMELDE_MUSTER =
   /(sicherer? link|secure link|anmelde-?link|login-?link|magic link|sign[- ]?in|log ?in to|bestätigungscode|verification code|sicherheitscode|einmal-?code|passwort|password|verify your|bestätige deine|bestätigen sie ihre)/i;
 
+/** Absender, deren Mails nie als Werbung gelten (Verbände, Fachkanzlei). */
+const NIE_WERBUNG_DOMAINS = ["arco24.de", "vdiv-bayern.de", "vdiv.de"];
+
 /** Vertrags-/Kontomitteilungen und Termine – nie Werbung. */
 const PFLICHT_MUSTER =
   /(rechnung|mahnung|zahlungserinnerung|handeln ist erforderlich|mitwirkung erforderlich|action required|pflichtinformation|auswertung|kundenportal|vertragsänderung|kündigung|auftragsbestätigung|bestellung|^(aktualisierte )?einladung:|interview)/i;
@@ -389,7 +392,9 @@ Nur wenn der Absender/Empfänger NICHT eindeutig per E-Mail-Adresse zugeordnet w
         let kategorie: string = classification.category;
         if (kategorie === "Werbung") {
           const betreff = (email.subject || "").trim();
-          const istAnmeldung = ANMELDE_MUSTER.test(betreff) || PFLICHT_MUSTER.test(betreff);
+          const absenderDomain = (email.from_address || "").toLowerCase().split("@")[1] || "";
+          const nieWerbung = NIE_WERBUNG_DOMAINS.some((d) => absenderDomain === d || absenderDomain.endsWith("." + d));
+          const istAnmeldung = ANMELDE_MUSTER.test(betreff) || PFLICHT_MUSTER.test(betreff) || nieWerbung;
           const istVerlauf = !!email.in_reply_to || /^(re|aw|wg|fwd?|antw)\s*:/i.test(betreff);
           // Nur ein exakt hinterlegter Kontakt zählt (nicht der Domain-Abgleich).
           const bekannterKontakt = !!(partyAddress && emailToContactId[partyAddress]);
