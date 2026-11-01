@@ -1292,7 +1292,7 @@ async function downloadAttachmentsFromStructure(
 async function reparseSingleEmail(supabase: any, emailId: string) {
   const { data: email, error: emailErr } = await supabase
     .from("emails")
-    .select("id, account_id, message_id, subject")
+    .select("id, account_id, message_id, subject, from_address, date, imap_uid")
     .eq("id", emailId)
     .single();
   if (emailErr || !email) throw new Error(`Email ${emailId} not found`);
@@ -1325,14 +1325,37 @@ async function reparseSingleEmail(supabase: any, emailId: string) {
     // Search INBOX first, then walk all folders, since older messages may have been moved.
     let uid: number | null = null;
     let foundFolder = "INBOX";
+    // Manche Server (z. B. Strato) finden die Message-ID nur ohne spitze Klammern –
+    // und als letzte Möglichkeit: Absender + Tag, dann Message-ID im Umschlag vergleichen.
+    const mid = String(email.message_id || "").trim();
+    const midOhne = mid.replace(/^</, "").replace(/>$/, "");
     const tryFolder = async (folderPath: string) => {
       try {
         await client.mailboxOpen(folderPath);
-        const res = await client.search({ header: { "message-id": email.message_id } }, { uid: true });
-        if (res && res.length > 0) {
-          uid = res[res.length - 1];
-          foundFolder = folderPath;
-          return true;
+        for (const wert of [mid, midOhne]) {
+          if (!wert) continue;
+          const res = await client.search({ header: { "message-id": wert } }, { uid: true });
+          if (res && res.length > 0) {
+            uid = res[res.length - 1];
+            foundFolder = folderPath;
+            return true;
+          }
+        }
+        if (email.from_address && email.date) {
+          const tag = new Date(email.date);
+          const von = new Date(tag.getTime() - 2 * 86400000);
+          const bis = new Date(tag.getTime() + 2 * 86400000);
+          const kandidaten = await client.search({ from: email.from_address, since: von, before: bis }, { uid: true });
+          for (const k of (kandidaten || []).slice(-20)) {
+            const m = await client.fetchOne(`${k}`, { uid: true, envelope: true }, { uid: true });
+            const kid = String(m?.envelope?.messageId || "").replace(/^</, "").replace(/>$/, "");
+            const passt = kid ? kid === midOhne : (m?.envelope?.subject || "") === (email.subject || "");
+            if (passt) {
+              uid = k;
+              foundFolder = folderPath;
+              return true;
+            }
+          }
         }
       } catch (_) {
         // skip unreadable folders
