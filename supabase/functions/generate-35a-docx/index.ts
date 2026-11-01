@@ -1,4 +1,5 @@
 import { requireAdmin } from "../_shared/require-admin.ts";
+import { alleZeilen } from "../_shared/finanzen/abfragen.ts";
 // Generates personalized §35a certificates by rendering a Word template (docxtemplater)
 // Returns either a single DOCX or a ZIP with one DOCX per owner.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.1";
@@ -224,7 +225,8 @@ Deno.serve(async (req) => {
     }
 
     // Bookings
-    const { data: bookingsRaw, error: bookingsError } = await admin
+    // Alle Buchungen – seitenweise, nicht nur die ersten 1000
+    const bookingsRaw = await alleZeilen(() => admin
       .from("bookings")
       .select(`id, booking_date, description, amount, amount_35a, is_35a_relevant,
                settlement_35a_type,
@@ -232,8 +234,7 @@ Deno.serve(async (req) => {
                invoices:invoices!bookings_invoice_id_fkey(invoice_number, invoice_date, vendor_name, vat_rate, line_items_detail)`)
       .eq("building_id", building_id)
       .eq("fiscal_year", fiscal_year)
-      .neq("status", "cancelled");
-    if (bookingsError) throw bookingsError;
+      .neq("status", "cancelled"));
 
     const bookings = (bookingsRaw || []).filter((b: any) =>
       (b.is_35a_relevant || b.amount_35a != null) &&

@@ -68,7 +68,6 @@ export async function abrechnungsDokumente(db: any, o: {
   }
 
   const warnungen: string[] = [];
-  if ((daten as any).rawBookings?.length >= 1000) warnungen.push("Mehr als 1000 Buchungen im Zeitraum – wie in der App werden nur die ersten 1000 berücksichtigt. Bitte prüfen.");
   if (ergebnis.distributionWarnings?.length) warnungen.push(...ergebnis.distributionWarnings.map((w: any) => `Konto ${w.accountNumber} ${w.accountName} (${w.distributionKey}): ${w.reason}`));
 
   return {

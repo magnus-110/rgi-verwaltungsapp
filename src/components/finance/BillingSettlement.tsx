@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { ErgebnisBeschliessen } from "./ErgebnisBeschliessen";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { ladeBuchungenZeitraum, ladeIstZahlungen, ladeWirtschaftsplanPositionen } from "@shared/finanzen/abfragen.ts";
 import { SUPABASE_FUNCTIONS_URL } from "@/integrations/supabase/functions-url";
 import JSZip from "jszip";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -126,17 +127,8 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   const { data: rawBookings = [] } = useQuery({
     queryKey: ["settlement-bookings", buildingId, periodId],
     enabled: !!period,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("bookings")
-        .select("account_id, counter_account_id, amount, booking_date, booking_type, booking_category, description, is_35a_relevant, fiscal_year")
-        .eq("building_id", buildingId)
-        .gte("booking_date", period!.period_from)
-        .lte("booking_date", period!.period_to)
-        .neq("status", "cancelled");
-      if (error) throw error;
-      return data;
-    },
+    // Alle Buchungen – seitenweise, nicht nur die ersten 1000 (gleiche Abfrage wie der Server)
+    queryFn: () => ladeBuchungenZeitraum(supabase, buildingId, period!.period_from, period!.period_to),
   });
 
   // Defense-in-depth-Filter (nur Buchungen auf bekannten Konten) passiert in berechneAbrechnung.
@@ -149,15 +141,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
       // Get person accounts (account_number starts with 0000)
       const personAccounts = accounts.filter(a => a.account_number.startsWith("0000"));
       if (personAccounts.length === 0) return [];
-      const { data, error } = await supabase
-        .from("bookings")
-        .select("account_id, amount, counter_account_id, description")
-        .eq("building_id", buildingId)
-        .eq("fiscal_year", fiscalYear)
-        .neq("status", "cancelled")
-        .in("account_id", personAccounts.map(a => a.id));
-      if (error) throw error;
-      return data;
+      return ladeIstZahlungen(supabase, buildingId, fiscalYear, personAccounts.map(a => a.id));
     },
   });
 
@@ -224,18 +208,10 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     },
   });
 
-  // Economic plan items for WP column
+  // Plan-Werte für die Spalte „Wirtschaftsplan" (Plan desselben Jahres: aktiv, sonst neuester)
   const { data: wpItems = [] } = useQuery({
     queryKey: ["wp-items-settlement", buildingId, fiscalYear],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("economic_plan_items" as any)
-        .select("account_id, planned_amount")
-        .eq("building_id", buildingId)
-        .eq("fiscal_year", fiscalYear);
-      if (error) return [];
-      return (data as any[]) || [];
-    },
+    queryFn: () => ladeWirtschaftsplanPositionen(supabase, buildingId, fiscalYear),
   });
 
   // Heating distribution values

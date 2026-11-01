@@ -86,7 +86,6 @@ async function wirtschaftsplan(db: any, b: any) {
   const wp = berechneWirtschaftsplan(daten, { fiscalYear: jahr });
   const warnungen: string[] = [];
   if (daten.plan?.status !== "active") warnungen.push("Der Wirtschaftsplan ist noch ein Entwurf (nicht aktiviert).");
-  if (daten.prevYearBookings.length >= 1000) warnungen.push("Vorjahres-IST: mehr als 1000 Buchungen – wie in der App werden nur die ersten 1000 berücksichtigt.");
 
   const auftraege: Auftrag[] = [];
   if (!b.einheiten?.length) {

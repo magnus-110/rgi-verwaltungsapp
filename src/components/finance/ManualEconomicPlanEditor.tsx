@@ -31,6 +31,7 @@ import { SHARE_TYPES } from "@/lib/shareTypes";
 import { useDmsJobs, type DmsJobItem } from "@/contexts/DmsJobsProvider";
 import { unitFilePrefix } from "@/lib/unitFilePrefix";
 import { berechneWirtschaftsplan, normalizeKey } from "@shared/finanzen/wirtschaftsplan.ts";
+import { ladeBuchungenJahr } from "@shared/finanzen/abfragen.ts";
 import { HausgeldUebernehmen, type HausgeldWert } from "./HausgeldUebernehmen";
 
 /** Einheitennummer eines Eigentümer-Datensatzes (ohne Platzhalter "–"). */
@@ -178,16 +179,8 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
   // ── Vorjahres-IST aus Buchungen (bank-zentrische Aggregation) ─────
   const { data: prevYearBookings = [] } = useQuery({
     queryKey: ["wp-prev-year-bookings", buildingId, fiscalYear],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("bookings")
-        .select("account_id, counter_account_id, amount, booking_category")
-        .eq("building_id", buildingId)
-        .eq("fiscal_year", fiscalYear - 1)
-        .neq("status", "cancelled");
-      if (error) throw error;
-      return data || [];
-    },
+    // Alle Buchungen des Vorjahres – seitenweise (gleiche Abfrage wie der Server)
+    queryFn: () => ladeBuchungenJahr(supabase, buildingId, fiscalYear - 1),
   });
 
   // ── Vorjahres-Brunata-Werte (für Hochrechnung Konto 1400 / heizk_abr) ──

@@ -4,6 +4,7 @@
 // oder Browser-Abhängigkeiten – läuft im Browser und in Deno gleich.
 import { isReserveContributionAccount } from "./kontoKlassifikation.ts";
 import { unitFilePrefix } from "./unitFilePrefix.ts";
+import { ladeBuchungenJahr } from "./abfragen.ts";
 
 export interface PlanZeile {
   account_id: string;
@@ -460,9 +461,7 @@ export async function ladeWirtschaftsplanDaten(db: any, buildingId: string, fisc
       .select("id, account_number, account_name, category, default_distribution_key, settlement_section, is_distributable, is_reserve_funded, reserve_role, is_wirtschaftsplan_relevant")
       .or(`building_id.is.null,building_id.eq.${buildingId}`).order("account_number").then((r: any) => pruefen(r, "Konten")),
     db.from("building_account_overrides").select("account_id, distribution_key").eq("building_id", buildingId).then((r: any) => pruefen(r, "Verteilerschlüssel")),
-    // Wie im Editor ohne Seitenweise-Abfrage (Supabase liefert höchstens 1000 Zeilen)
-    db.from("bookings").select("account_id, counter_account_id, amount, booking_category").eq("building_id", buildingId)
-      .eq("fiscal_year", fiscalYear - 1).neq("status", "cancelled").then((r: any) => pruefen(r, "Vorjahresbuchungen")),
+    ladeBuchungenJahr(db, buildingId, fiscalYear - 1),
     db.from("contact_building_assignments").select(`
           id, unit_number, floor_location, contact_id, unit_kind, billing_mode, parent_assignment_id, area_sqm_override,
           contacts(first_name, last_name, company_name),

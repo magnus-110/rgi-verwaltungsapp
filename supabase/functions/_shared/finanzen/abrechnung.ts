@@ -13,6 +13,7 @@
 // kein Supabase-Client-Import, keine DOM-APIs.
 // ============================================================
 
+import { ladeBuchungenZeitraum, ladeIstZahlungen, ladeWirtschaftsplanPositionen } from "./abfragen.ts";
 import { getEffectiveOpeningBalance, getEffectiveClosingBalance, signedTotalForAccount } from "./bookingAggregation.ts";
 import { getAccrualDisplaySign } from "./accrualSign.ts";
 import {
@@ -95,7 +96,7 @@ export interface AbrechnungsRohdaten {
   economicPlan: any;
   /** account_balances inkl. chart_of_accounts-Join */
   balances: any[];
-  /** economic_plan_items — siehe Bekannter Altfehler in ladeAbrechnungsDaten (immer []) */
+  /** economic_plan_items des Plans desselben Jahres (account_id, planned_amount) */
   wpItems: any[];
   /** heating_distribution_values der Periode */
   heatingDistValues: any[];
@@ -177,8 +178,9 @@ export function berechneAbrechnung(input: AbrechnungsRohdaten, optionen: Abrechn
   const getAccountAbsTotal = (accountId: string) => Math.abs(getAccountBookingTotal(accountId));
 
   const getWpAmount = (accountId: string) => {
+    // Plan-Beträge sind teils negativ (Kosten) gespeichert – angezeigt wird der Betrag
     const item = wpItems.find((w: any) => w.account_id === accountId);
-    return item ? Number(item.planned_amount) : 0;
+    return item ? Math.abs(Number(item.planned_amount) || 0) : 0;
   };
 
   // Group accounts by settlement_section
@@ -1047,9 +1049,7 @@ export interface AbrechnungsDaten extends AbrechnungsRohdaten {
  * `db` ist ein supabase-js Client (Service-Role oder User-JWT).
  * `fiscal_year` optional — die UI bekommt es als Prop `period.fiscal_year`
  * (siehe BillingTab.tsx), daher Default = period.fiscal_year.
- *
- * Hinweis: Die UI paginiert NICHT (kein .range-Loop) — es gilt also das
- * PostgREST max-rows-Limit (Supabase-Default 1000) auch hier. Bewusst gespiegelt.
+ * Buchungen werden seitenweise vollständig geladen (_shared/finanzen/abfragen.ts).
  */
 export async function ladeAbrechnungsDaten(
   db: any,
@@ -1085,17 +1085,7 @@ export async function ladeAbrechnungsDaten(
   })();
 
   // All bookings in the period — per booking_date (UI: enabled: !!period)
-  const rawBookingsP = (async () => {
-    const { data, error } = await db
-      .from("bookings")
-      .select("account_id, counter_account_id, amount, booking_date, booking_type, booking_category, description, is_35a_relevant, fiscal_year")
-      .eq("building_id", buildingId)
-      .gte("booking_date", period!.period_from)
-      .lte("booking_date", period!.period_to)
-      .neq("status", "cancelled");
-    if (error) throw error;
-    return data;
-  })();
+  const rawBookingsP = ladeBuchungenZeitraum(db, buildingId, period!.period_from, period!.period_to);
 
   // Owners with shares and costs (+ distribution_only-Merge)
   const assignmentsP = (async () => {
@@ -1143,13 +1133,8 @@ export async function ladeAbrechnungsDaten(
     return data;
   })();
 
-  // Bekannter Altfehler: Die UI fragt economic_plan_items mit .eq("building_id")
-  // und .eq("fiscal_year") ab — diese Spalten existieren in der Tabelle nicht.
-  // Die Abfrage schlägt daher immer fehl und liefert [] (wpItems = [], WP-Spalte
-  // der Abrechnung bleibt leer). Um identische Zahlen/Dokumente zu erhalten,
-  // wird hier bewusst ebenfalls [] verwendet, ohne Abfrage. Fix nur gemeinsam
-  // mit der UI (BillingSettlement.tsx, Query "wp-items-settlement")!
-  const wpItems: any[] = [];
+  // Plan-Werte für die Spalte „Wirtschaftsplan" (gleiche Abfrage wie die App)
+  const wpItems: any[] = await ladeWirtschaftsplanPositionen(db, buildingId, fiscalYear);
 
   // Heating distribution values
   const heatingDistValuesP = (async () => {
@@ -1196,15 +1181,7 @@ export async function ladeAbrechnungsDaten(
       // Get person accounts (account_number starts with 0000)
       const personAccounts = accounts.filter(a => a.account_number.startsWith("0000"));
       if (personAccounts.length === 0) return [];
-      const { data, error } = await db
-        .from("bookings")
-        .select("account_id, amount, counter_account_id, description")
-        .eq("building_id", buildingId)
-        .eq("fiscal_year", fiscalYear)
-        .neq("status", "cancelled")
-        .in("account_id", personAccounts.map(a => a.id));
-      if (error) throw error;
-      return data;
+      return ladeIstZahlungen(db, buildingId, fiscalYear, personAccounts.map(a => a.id));
     })() ?? [];
   }
 
