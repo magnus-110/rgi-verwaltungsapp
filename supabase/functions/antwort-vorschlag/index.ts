@@ -389,6 +389,8 @@ async function vorschlagFuer(db: any, KEY: string, id: string, eigene: Set<strin
   const call = out.choices?.[0]?.message?.tool_calls?.[0];
   if (!call) throw new Error("keine Antwort der KI");
   const a = JSON.parse(call.function.arguments);
+  // Verbrauch mitschreiben (für die Kostenübersicht)
+  quellen.tokens = { ein: out.usage?.prompt_tokens ?? null, aus: out.usage?.completion_tokens ?? null };
 
   // Gruß/Signatur entfernen, falls die KI sie doch geschrieben hat
   let entwurf = String(a.entwurf || "").trim();
