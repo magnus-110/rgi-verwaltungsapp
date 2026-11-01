@@ -139,7 +139,9 @@ Deno.serve(async (req) => {
 
     const system =
       "Du ordnest Dokumente einer Hausverwaltung (RGI Immobilien, Pfronten) im Dokumentenarchiv ein. " +
-      "Wähle das Objekt (WEG/Liegenschaft), den Ordner und – falls das Dokument klar zu einem Wirtschaftsjahr gehört (z. B. Abrechnung 2025, Rechnung vom März 2026) – das Jahr. " +
+      "Wähle das Objekt (WEG/Liegenschaft) und den Ordner. " +
+      "Ein Wirtschaftsjahr NUR bei Buchhaltungsunterlagen angeben (Rechnungen, Gutschriften, Kontoauszüge, Jahres-/Heizkostenabrechnungen, Wirtschaftspläne, §35a, Vermögensbericht) – sonst 0. " +
+      "Alles rund um Versicherungen (Policen, Versicherungsscheine, Angebote von Versicherern, Schadensfälle) gehört in dienstleister-versicherungen. " +
       "Nutze NUR die angegebenen IDs und Ordner-Schlüssel. Ist das Objekt nicht erkennbar, gib building_id leer zurück. " +
       "Adressen im Text, Objektnamen, Einheitennummern und die Hinweise sind die wichtigsten Anhaltspunkte. Die Adresse der Hausverwaltung (Vilstalstr. 4) ist KEIN Objekt.";
     const nutzer =
