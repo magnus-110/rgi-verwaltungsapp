@@ -142,6 +142,8 @@ async function notifyEmails() {
     .eq("is_draft", false)
     .eq("folder_id", inboxId)
     .is("deleted_at", null)
+    // Erkannte Werbung meldet nicht (liegt nur im Reiter „Werbung“)
+    .or("ai_category.is.null,ai_category.not.in.(Werbung,Newsletter)")
     .order("created_at", { ascending: false })
     .limit(200);
 

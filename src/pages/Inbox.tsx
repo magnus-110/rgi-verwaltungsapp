@@ -359,6 +359,7 @@ export const Inbox = () => {
         .select("folder_id, is_read, account_id")
         .eq("is_read", false)
         .eq("is_archived", false)
+        .or("ai_category.is.null,ai_category.not.in.(Werbung,Newsletter)")
         .in("account_id", myAccountIds);
       if (error) throw error;
       const counts: Record<string, number> = {};
@@ -731,13 +732,21 @@ export const Inbox = () => {
     return counts;
   }, [emails]);
 
-  const unreadCount = useMemo(() => emails.filter((e) => !e.is_read).length, [emails]);
+  // Erkannte Werbung erscheint nur im Reiter „Werbung“ – nicht unter „Alle“/„Ungelesen“.
+  // Bei aktiver Suche wird nichts ausgeblendet, damit man alles findet.
+  const istWerbung = (e: { ai_category?: string | null }) => normalizeCategory(e.ai_category) === "Werbung";
+  const ohneWerbung = useMemo(
+    () => (debouncedSearch ? emails : emails.filter((e) => !istWerbung(e))),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [emails, debouncedSearch],
+  );
+  const unreadCount = useMemo(() => ohneWerbung.filter((e) => !e.is_read).length, [ohneWerbung]);
 
   const filteredEmails = useMemo(() => {
     let list: typeof emails;
     if (filterCategory === "followup") list = emails.filter((e) => e.is_starred);
-    else if (filterCategory === "unread") list = emails.filter((e) => !e.is_read);
-    else if (filterCategory === "all") list = emails;
+    else if (filterCategory === "unread") list = ohneWerbung.filter((e) => !e.is_read);
+    else if (filterCategory === "all") list = ohneWerbung;
     else list = emails.filter((e) => normalizeCategory(e.ai_category) === filterCategory);
     // Pinned emails immer oben, dann nach Datum (DESC, wie aus Query)
     return [...list].sort((a, b) => {
@@ -753,7 +762,7 @@ export const Inbox = () => {
       const bd = b.date ? new Date(b.date).getTime() : 0;
       return bd - ad;
     });
-  }, [emails, filterCategory]);
+  }, [emails, ohneWerbung, filterCategory]);
 
   const selectedEmailMeta =
     filteredEmails.find((e) => e.id === selectedEmailId) || emails.find((e) => e.id === selectedEmailId);
@@ -1583,7 +1592,7 @@ export const Inbox = () => {
                       : "hover:bg-muted text-muted-foreground",
                   )}
                 >
-                  Alle ({emails.length})
+                  Alle ({ohneWerbung.length})
                 </button>
                 <button
                   onClick={() => setFilterCategory(filterCategory === "unread" ? "all" : "unread")}
