@@ -477,10 +477,23 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
   const handleNachladen = async () => {
     setNachladen(true);
     try {
-      const { data, error } = await supabase.functions.invoke("fetch-emails", {
-        body: { reparse: emailId },
-      });
-      if (error) throw error;
+      // Je Aufruf holt der Server einen Anhang (große Dateien sprengen sonst den Speicher) –
+      // so lange wiederholen, bis keiner mehr fehlt.
+      let geholtGesamt = 0;
+      let data: { inserted?: number; fehlen_noch?: number } | null = null;
+      for (let runde = 0; runde < 10; runde++) {
+        const r = await supabase.functions.invoke("fetch-emails", { body: { reparse: emailId } });
+        if (r.error) {
+          let msg = r.error.message;
+          try { const b = await (r.error as any)?.context?.json?.(); if (b?.error) msg = b.error; } catch { /* Standard */ }
+          throw new Error(msg);
+        }
+        data = r.data as typeof data;
+        geholtGesamt += Number(data?.inserted ?? 0);
+        if (!data?.fehlen_noch || !Number(data?.inserted ?? 0)) break;
+        toast.message(`Anhang ${geholtGesamt} geholt – weiter …`);
+      }
+      data = { ...(data ?? {}), inserted: geholtGesamt };
 
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["email-attachments", emailId] }),

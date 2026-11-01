@@ -1233,7 +1233,14 @@ async function downloadAttachmentsFromStructure(
   client: any,
   uid: number,
   bodyStructure: any,
-  limits: { maxPartBytes: number; maxTotalBytes: number } = {
+  limits: {
+    maxPartBytes: number;
+    maxTotalBytes: number;
+    /** Teile überspringen (z. B. schon vorhandene Anhänge) */
+    ueberspringen?: (filename: string, isInline: boolean, contentId: string | null) => boolean;
+    /** höchstens so viele Teile laden (Nachladen: einer je Aufruf, damit der Speicher reicht) */
+    maxAnzahl?: number;
+  } = {
     maxPartBytes: MAX_ATTACHMENT_PART_BYTES,
     maxTotalBytes: MAX_ATTACHMENT_TOTAL_BYTES,
   }
@@ -1248,16 +1255,7 @@ async function downloadAttachmentsFromStructure(
         console.warn(`Attachment total byte budget reached for UID ${uid}; remaining parts skipped.`);
         break;
       }
-      const partLimit = Math.min(limits.maxPartBytes, limits.maxTotalBytes - totalBytes);
-      const { bytes: merged, truncated } = await streamPartToBytes(client, uid, part, partLimit);
-      if (truncated) {
-        console.warn(`Attachment part ${part} for UID ${uid} exceeded byte limit and was skipped.`);
-        continue;
-      }
-      // NOTE: ImapFlow.download() already strips Content-Transfer-Encoding (base64/QP).
-      // Do NOT re-decode here — doing so corrupts binary attachments.
-      totalBytes += merged.byteLength;
-
+      if (limits.maxAnzahl && results.length >= limits.maxAnzahl) break;
 
       const dispParams = node.dispositionParameters || {};
       const ctParams = node.parameters || {};
@@ -1272,6 +1270,17 @@ async function downloadAttachmentsFromStructure(
       const mimeType = getNodeContentType(node);
       const isInline = isInlineAttachmentNode(node);
       const contentId = node.id ? String(node.id).replace(/^</, "").replace(/>$/, "") : null;
+      if (limits.ueberspringen?.(filename, isInline, contentId)) continue;
+
+      const partLimit = Math.min(limits.maxPartBytes, limits.maxTotalBytes - totalBytes);
+      const { bytes: merged, truncated } = await streamPartToBytes(client, uid, part, partLimit);
+      if (truncated) {
+        console.warn(`Attachment part ${part} for UID ${uid} exceeded byte limit and was skipped.`);
+        continue;
+      }
+      // NOTE: ImapFlow.download() already strips Content-Transfer-Encoding (base64/QP).
+      // Do NOT re-decode here — doing so corrupts binary attachments.
+      totalBytes += merged.byteLength;
 
       results.push({
         filename,
@@ -1424,14 +1433,35 @@ async function reparseSingleEmail(supabase: any, emailId: string) {
     sammeln(msg.bodyStructure);
     console.log(`Nachladen: ${summary.postfach ?? account.email_address} UID ${uid} in ${foundFolder} – Teile ${teile.join(" | ")}`);
 
-    if (summary.structure_has_attachments) {
+    // Schon vorhandene Anhänge überspringen; je Aufruf nur EINEN Anhang laden, damit der
+    // Speicher der Funktion auch bei großen Dateien reicht. Die App ruft so lange erneut auf,
+    // bis nichts mehr fehlt (Antwort: fehlen_noch).
+    const { data: schonDa } = await supabase
+      .from("email_attachments")
+      .select("file_name, is_inline, content_id")
+      .eq("email_id", emailId);
+    const schluesselVon = (n: string, inl: boolean, cid: string | null) => `${n}::${inl ? 1 : 0}::${cid || ""}`;
+    const vorhandeneSchluessel = new Set((schonDa || []).map((a: any) => schluesselVon(a.file_name, !!a.is_inline, a.content_id ?? null)));
+    const fehlendeTeile = collectAttachmentParts(msg.bodyStructure).filter(({ part, node }: any) => {
+      const dp = node.dispositionParameters || {};
+      const cp = node.parameters || {};
+      const fn = decodeRfc2047(String(dp.filename || dp["filename*"] || cp.name || cp["name*"] || `attachment_${part}`));
+      const cid = node.id ? String(node.id).replace(/^</, "").replace(/>$/, "") : null;
+      return !vorhandeneSchluessel.has(schluesselVon(fn, isInlineAttachmentNode(node), cid));
+    });
+    summary.fehlende_teile = fehlendeTeile.length;
+
+    if (summary.structure_has_attachments && fehlendeTeile.length) {
       const downloaded = await downloadAttachmentsFromStructure(client, uid, msg.bodyStructure, {
         maxPartBytes: MAX_ATTACHMENT_BYTES_SINGLE,
         maxTotalBytes: MAX_ATTACHMENT_BYTES_SINGLE,
+        ueberspringen: (fn, inl, cid) => vorhandeneSchluessel.has(schluesselVon(fn, inl, cid)),
+        maxAnzahl: 1,
       });
       attachments = downloaded;
       summary.fallback_downloaded = downloaded.length;
     }
+    summary.fehlen_noch = Math.max(0, fehlendeTeile.length - attachments.length);
 
     // Backfill body if missing/empty (older rows fetched before transfer-encoding decoding was fixed)
     try {
@@ -1479,7 +1509,7 @@ async function reparseSingleEmail(supabase: any, emailId: string) {
     for (const [idx, att] of attachments.entries()) {
       if (existingKeys.has(keyOf(att.filename, !!att.isInline, att.contentId ?? null))) continue;
       // Index-Prefix verhindert Überschreiben bei gleichnamigen Anhängen
-      const storagePath = `${emailId}/${idx}_${sanitizeStorageName(att.filename)}`;
+      const storagePath = `${emailId}/${Date.now()}${idx}_${sanitizeStorageName(att.filename)}`;
       const { error: upErr } = await supabase.storage
         .from("email-attachments")
         .upload(storagePath, att.content, { contentType: att.contentType, upsert: true });
