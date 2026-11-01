@@ -105,7 +105,10 @@ So schreibst du:
 - Behaupte nie, dass etwas schon erledigt ist (überwiesen, beauftragt, weitergeleitet), wenn das nicht in der Akte steht.
 - Keine Zahlungszusagen, keine Preis- oder Auftragsfreigaben, keine verbindlichen Rechtsauskünfte – dort Platzhalter oder „wir prüfen das und melden uns“.
 - Sage nie zu, dass jemand von uns vor Ort ist, zu einem Termin kommt oder etwas erledigt, wenn das nicht ausdrücklich in der Akte steht. Wer vor Ort ansprechbar ist (Mieter, Hausmeister, Dienstleister), steht in der Akte – sonst Platzhalter.
-- Gewohnheit der Verwaltung: Schickt ein Geschäftspartner, Eigentümer oder Mieter persönlich etwas oder bestätigt etwas, bedankt sich die Verwaltung kurz („Super, vielen Dank!“). Das ist eine Antwort (antwort_noetig = true, meist "sicher").
+- Du kannst keine Anhänge mitschicken, nichts weiterleiten, nichts ablegen und nichts eintragen. Schreibe nie „anbei“, „im Anhang“, „habe weitergeleitet“, „leite weiter“, „abgelegt“, „eingetragen“ als Tatsache. Braucht die Antwort einen Anhang oder eine Handlung, schreibe einen Platzhalter, z. B. [Anhang beifügen: SEPA-Mandat] oder [an Hausmeister weiterleiten].
+- Terminzusagen und Teilnahmebestätigungen nur mit Platzhalter [Termin prüfen].
+- Gewohnheit der Verwaltung: Schickt ein Geschäftspartner, Eigentümer oder Mieter persönlich etwas oder bestätigt etwas, bedankt sich die Verwaltung kurz, z. B. „Hallo Frau Josko,\n\nsuper, vielen Dank!“. Das ist eine eigene, kurze Antwort (antwort_noetig = true, meist "sicher"). Hänge diesen Dank NICHT an andere, längere Antworten an.
+- Nach der Anrede mit Komma geht es klein weiter („Hallo Herr Müller,\n\nvielen Dank …“), außer bei Substantiven und „Sie“.
 
 Einschätzung (stufe):
 - "sicher": Die Antwort ist vollständig und stimmt nach der Akte – ein Mensch muss nur noch kurz drüberlesen. Typisch: Bestätigungen, Dank, Weitergabe vorhandener Kontaktdaten/Termine/Unterlagen, Auskünfte, die eindeutig in der Akte stehen.
@@ -135,7 +138,7 @@ const TOOL = {
 };
 
 // Was nie „sicher“ sein darf, auch wenn die KI es so einschätzt.
-const HEIKEL = /(\b(ich|wir) (bin|sind|komme|kommen|werde|werden|kümmere|kümmern|melde|melden)\b|vor ort|\[[^\]]{2,}\]|\b\d{1,3}(\.\d{3})*,\d{2}\s?(€|eur)|überwies|überweisen|freigabe|freigeben|beauftrag|auftrag erteil|rechtlich|anwalt|kündig|mahnung|mahnbescheid)/i;
+const HEIKEL = /(anbei|im anhang|angehängt|beigefügt|weiterleit|leite[^.]{0,40}weiter|abgelegt|eingetragen|teilnahme|bestätigen[^.]{0,40}termin|\b(ich|wir) (bin|sind|komme|kommen|werde|werden|kümmere|kümmern|melde|melden)\b|vor ort|\[[^\]]{2,}\]|\b\d{1,3}(\.\d{3})*,\d{2}\s?(€|eur)|überwies|überweisen|freigabe|freigeben|beauftrag|auftrag erteil|rechtlich|anwalt|kündig|mahnung|mahnbescheid)/i;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -388,6 +391,12 @@ async function vorschlagFuer(db: any, KEY: string, id: string, eigene: Set<strin
   entwurf = entwurf
     .replace(/\n+\s*((Danke|Vielen Dank)[^\n]{0,20}(und|&)\s*)?(Mit freundlichen Grüßen|Freundliche Grüße|Viele Grüße|Beste Grüße|Liebe Grüße|Herzliche Grüße|Schöne Grüße|Grüße)[\s\S]*$/i, "")
     .trim();
+
+  // Nach „Hallo Herr X,“ klein weiter (häufige Satzanfänge; „Sie“ und Substantive bleiben groß)
+  entwurf = entwurf.replace(
+    /^([^\n]{2,80},\s*\n+\s*)(Super|Vielen|Danke|Gerne|Gern|Wir|Ich|Das|Die|Der|Leider|Alles|Ja|Nein|Zu|Bitte|Herzlichen|Besten|Anbei)\b/,
+    (_m, kopf, wort) => kopf + wort.charAt(0).toLowerCase() + wort.slice(1),
+  );
 
   let stufe: string;
   if (a.antwort_noetig === false) stufe = "keine";
