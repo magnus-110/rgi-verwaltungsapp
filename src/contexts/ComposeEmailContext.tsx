@@ -35,6 +35,8 @@ export interface ComposeState {
     cc_addresses?: unknown;
     /** Eigene Konto-Adressen, die nicht mit angeschrieben werden sollen */
     self_addresses?: string[];
+    /** KI-Antwortvorschlag – steht beim Öffnen schon im Textfeld (über dem Zitat) */
+    ki_entwurf?: string | null;
   } | null;
   forward?: {
     email_id?: string;
@@ -180,7 +182,7 @@ const buildInitial = (id: string, opts?: OpenOpts): ComposeState => {
     bodyText:
       prefill?.bodyText ??
       (replyTo
-        ? `\n\n--- Ursprüngliche Nachricht ---\nVon: ${replyTo.from_name} <${replyTo.from_address}>\nDatum: ${replyTo.date ? new Date(replyTo.date).toLocaleString("de-DE") : ""}\n\n${replyTo.body_text || stripHtml((replyTo as any).body_html || "")}`
+        ? `${replyTo.ki_entwurf ? replyTo.ki_entwurf.trim() : ""}\n\n--- Ursprüngliche Nachricht ---\nVon: ${replyTo.from_name} <${replyTo.from_address}>\nDatum: ${replyTo.date ? new Date(replyTo.date).toLocaleString("de-DE") : ""}\n\n${replyTo.body_text || stripHtml((replyTo as any).body_html || "")}`
         : forward
           ? `\n\n--- Weitergeleitete Nachricht ---\n${forward.body_text || stripHtml(forward.body_html || "")}`
           : ""),

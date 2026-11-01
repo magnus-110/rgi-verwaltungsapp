@@ -720,6 +720,28 @@ export const Inbox = () => {
     return "Sonstiges";
   };
 
+  // KI-Antwortvorschläge: Ampel in der Liste (grün = Antwort vorbereitet, orange = Entwurf, rot = braucht dich)
+  const listIds = useMemo(() => emails.map((e) => e.id), [emails]);
+  const { data: vorschlagStufen = {} } = useQuery({
+    queryKey: ["email-antwort-stufen", listIds.join(",")],
+    enabled: listIds.length > 0,
+    staleTime: 60_000,
+    refetchInterval: 120_000,
+    queryFn: async () => {
+      const map: Record<string, string> = {};
+      for (let i = 0; i < listIds.length; i += 200) {
+        const { data } = await (supabase as any)
+          .from("email_antwort_vorschlaege")
+          .select("email_id, stufe")
+          .in("email_id", listIds.slice(i, i + 200));
+        (data || []).forEach((v: any) => {
+          if (v.stufe) map[v.email_id] = v.stufe;
+        });
+      }
+      return map;
+    },
+  });
+
   const followUpCount = useMemo(() => emails.filter((e) => e.is_starred).length, [emails]);
 
   const categoryCounts = useMemo(() => {
@@ -786,6 +808,21 @@ export const Inbox = () => {
   }, [filteredEmails, selectedEmailIds]);
 
   // Lazy-Load Email-Body nur für die selektierte E-Mail
+  // KI-Entwurf der gewählten Mail – wird erst beim Klick auf „Antworten“ eingesetzt
+  const { data: selectedVorschlag } = useQuery({
+    queryKey: ["email-antwort-vorschlag", selectedEmailId],
+    enabled: !!selectedEmailId,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data } = await (supabase as any)
+        .from("email_antwort_vorschlaege")
+        .select("stufe, entwurf")
+        .eq("email_id", selectedEmailId)
+        .maybeSingle();
+      return data as { stufe: string | null; entwurf: string | null } | null;
+    },
+  });
+
   const { data: selectedEmailBody } = useQuery({
     queryKey: ["email-body", selectedEmailId],
     queryFn: async () => {
@@ -1837,7 +1874,17 @@ export const Inbox = () => {
                                   const replyId = (email as any).message_id
                                     ? (replyMap as any)[(email as any).message_id]
                                     : null;
-                                  if (!replyId) return null;
+                                  if (!replyId) {
+                                    const stufe = (vorschlagStufen as Record<string, string>)[email.id];
+                                    const ampel: Record<string, { farbe: string; text: string }> = {
+                                      gruen: { farbe: "bg-green-500", text: "KI-Antwort vorbereitet – beim Antworten prüfen und senden" },
+                                      gelb: { farbe: "bg-orange-400", text: "KI-Entwurf vorbereitet – bitte ergänzen" },
+                                      rot: { farbe: "bg-red-500", text: "Braucht dich – keine KI-Antwort möglich" },
+                                    };
+                                    const a = stufe ? ampel[stufe] : null;
+                                    if (!a || isSentFolder) return null;
+                                    return <span className={cn("h-2.5 w-2.5 rounded-full shrink-0", a.farbe)} title={a.text} aria-label={a.text} />;
+                                  }
                                   return (
                                     <button
                                       type="button"
@@ -2438,6 +2485,10 @@ export const Inbox = () => {
                                 to_addresses: (selectedEmail as any).to_addresses,
                                 cc_addresses: (selectedEmail as any).cc_addresses,
                                 self_addresses: ownEmailAddresses,
+                                ki_entwurf:
+                                  selectedVorschlag?.stufe === "gruen" || selectedVorschlag?.stufe === "gelb"
+                                    ? selectedVorschlag.entwurf
+                                    : null,
                               },
                             });
                           }}
