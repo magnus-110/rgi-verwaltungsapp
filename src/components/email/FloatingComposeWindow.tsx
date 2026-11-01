@@ -2,7 +2,7 @@ import { useState, useRef, useMemo, useEffect, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { textToHtmlWithLinks } from "@/lib/emailHtml";
-import { insertTextSignature, splitAtQuote, stripTextSignatures } from "@/lib/emailSignature";
+import { insertTextSignature, normalizeSignatureFields, schlussformelEinsetzen, splitAtQuote, stripTextSignatures } from "@/lib/emailSignature";
 import { ComposeSignatureBlock } from "./SignaturePreview";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,6 +38,7 @@ interface ComposeAccount {
   signature_html: string | null;
   signature_text: string | null;
   signature_rich_html: string | null;
+  signature_fields?: unknown;
 }
 
 const fileToBase64 = (file: File): Promise<string> =>
@@ -253,7 +254,7 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("email_accounts")
-        .select("id, display_name, email_address, signature_html, signature_text, signature_rich_html")
+        .select("id, display_name, email_address, signature_html, signature_text, signature_rich_html, signature_fields")
         .eq("is_active", true)
         .order("display_name");
       if (error) throw error;
@@ -427,12 +428,23 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
   useEffect(() => {
     if (!compose.accountId || accounts.length === 0) return;
     if (compose.accountId === prevAccountRef.current) return;
+    const vorher = prevAccountRef.current;
     prevAccountRef.current = compose.accountId;
     const knownSignatures = accounts.flatMap((a) => [a.signature_html, a.signature_text]);
-    const cleaned = stripTextSignatures(compose.bodyText || "", knownSignatures);
+    let cleaned = stripTextSignatures(compose.bodyText || "", knownSignatures);
+    // Schlussformel des Absenders („Für Rückfragen … Mit freundlichen Grüßen“) unten in den Text –
+    // dort kann man sie in jeder Mail ändern oder löschen. Beim Absenderwechsel wird sie getauscht.
+    const altesKonto = accounts.find((a) => a.id === vorher);
+    cleaned = schlussformelEinsetzen(cleaned, schlussformelFor(compose.accountId), altesKonto ? schlussformelFor(altesKonto.id) : null);
     if (cleaned !== compose.bodyText) update({ bodyText: cleaned });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [compose.accountId, accounts]);
+
+  /** Schlussformel des Absenders (steht im Text, nicht in der Signatur). */
+  const schlussformelFor = (accountId: string) => {
+    const acc = accounts.find((a) => a.id === accountId);
+    return acc?.signature_fields ? normalizeSignatureFields(acc.signature_fields).greeting.trim() : "";
+  };
 
   /** Signatur des gewählten Absenders (Text + HTML), sofern angehängt werden soll. */
   const signatureFor = (accountId: string) => {
@@ -923,9 +935,9 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
     const headFull = m && m.index !== undefined ? cur.slice(0, m.index) : cur;
     const tail = m && m.index !== undefined ? cur.slice(m.index) : "";
 
-    // Split head into editable area + existing signature, so template body lands ABOVE the signature.
+    // Split head into editable area + Schlussformel/alte Signatur, so template body lands ABOVE it.
     const account = accounts.find((a) => a.id === compose.accountId);
-    const sig = account?.signature_html || "";
+    const sig = schlussformelFor(compose.accountId) || account?.signature_html || "";
     let beforeSig = headFull;
     let signaturePart = "";
     if (sig) {
@@ -950,9 +962,9 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
     const headFull = m && m.index !== undefined ? cur.slice(0, m.index) : cur;
     const tail = m && m.index !== undefined ? cur.slice(m.index) : "";
 
-    // Split head into editable area + existing signature, so voice body lands ABOVE the signature.
+    // Split head into editable area + Schlussformel/alte Signatur, so voice body lands ABOVE it.
     const account = accounts.find((a) => a.id === compose.accountId);
-    const sig = account?.signature_html || "";
+    const sig = schlussformelFor(compose.accountId) || account?.signature_html || "";
     let beforeSig = headFull;
     let signaturePart = "";
     if (sig) {

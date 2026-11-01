@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_SIGNATURE_COMPANY,
+  schlussformelEinsetzen,
   insertTextSignature,
   normalizeSignatureFields,
   phoneHref,
@@ -25,9 +26,10 @@ describe("emailSignature", () => {
     expect(phoneHref("0049 151 123")).toBe("+49151123");
   });
 
-  it("Textversion enthält Grußformel, Name und Pflichtangaben", () => {
+  it("Textversion enthält Name und Pflichtangaben, aber keine Schlussformel", () => {
     const t = renderSignatureText(fields, DEFAULT_SIGNATURE_COMPANY);
-    expect(t.startsWith("Mit freundlichen Grüßen\n\nMagnus Göttinger\n")).toBe(true);
+    expect(t.startsWith("Magnus Göttinger\n")).toBe(true);
+    expect(t).not.toContain("Mit freundlichen Grüßen");
     expect(t).toContain("Geschäftsführer · zert. Verwalter (IHK) nach § 26a WEG");
     expect(t).toContain("RGI-Immobilien GmbH & Co. KG · Sitz Pfronten · Amtsgericht Kempten (Allgäu) HRA 11535");
     expect(t).toContain("Komplementärin: RGI-Immobilien Verwaltungs GmbH");
@@ -70,6 +72,23 @@ describe("emailSignature", () => {
 
   it("normalisiert gespeicherte Felder", () => {
     const f = normalizeSignatureFields({ name: "X", phone: 5 }, "a@b.de");
-    expect(f).toEqual({ greeting: "Mit freundlichen Grüßen", name: "X", title: "", qualification: "", phone: "", email: "a@b.de" });
+    expect(f).toEqual({ greeting: "Für Rückfragen stehe ich gerne zur Verfügung.\n\nMit freundlichen Grüßen", name: "X", title: "", qualification: "", phone: "", email: "a@b.de" });
+  });
+
+  it("HTML ohne Schlussformel, alle Aufbauten", () => {
+    for (const layout of ["name_links", "logo_links", "name_oben"] as const) {
+      const h = renderSignatureHtml(fields, { ...DEFAULT_SIGNATURE_COMPANY, layout });
+      expect(h).not.toContain("Mit freundlichen Grüßen");
+      expect(h).toContain("Magnus Göttinger");
+    }
+  });
+
+  it("setzt die Schlussformel unten in den Text und tauscht sie beim Absenderwechsel", () => {
+    const sf = "Für Rückfragen stehe ich gerne zur Verfügung.\n\nMit freundlichen Grüßen";
+    expect(schlussformelEinsetzen("", sf)).toBe(`\n\n${sf}`);
+    expect(schlussformelEinsetzen(`Hallo\n\n${sf}`, sf)).toBe(`Hallo\n\n${sf}`);
+    expect(schlussformelEinsetzen("Hallo\n\nMit freundlichen Grüßen", "Viele Grüße", "Mit freundlichen Grüßen")).toBe("Hallo\n\nViele Grüße");
+    const mitZitat = "Hallo\n\n--- Ursprüngliche Nachricht ---\nText";
+    expect(schlussformelEinsetzen(mitZitat, "MfG")).toBe("Hallo\n\nMfG\n\n--- Ursprüngliche Nachricht ---\nText");
   });
 });

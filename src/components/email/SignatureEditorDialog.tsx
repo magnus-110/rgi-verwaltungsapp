@@ -12,18 +12,21 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 import { FileSignature, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { SignaturePreview } from "./SignaturePreview";
 import {
   normalizeSignatureFields,
   renderSignatureHtml,
+  SIGNATURE_LAYOUTS,
+  type SignatureLayout,
   type SignatureCompany,
   type SignatureFields,
 } from "@/lib/emailSignature";
 
 const FIELD_LABELS: { key: keyof SignatureFields; label: string; placeholder?: string }[] = [
-  { key: "greeting", label: "Grußformel", placeholder: "Mit freundlichen Grüßen" },
   { key: "name", label: "Name", placeholder: "Max Mustermann" },
   { key: "title", label: "Funktion", placeholder: "z. B. Geschäftsführer" },
   { key: "qualification", label: "Zusatz", placeholder: "z. B. zert. Verwalter (IHK) nach § 26a WEG" },
@@ -141,7 +144,19 @@ export function SignatureEditorDialog({
                 <TabsTrigger value="person">Angaben zur Person</TabsTrigger>
                 <TabsTrigger value="firma">Pflichtangaben &amp; Logo (alle Postfächer)</TabsTrigger>
               </TabsList>
-              <TabsContent value="person" className="pt-3">
+              <TabsContent value="person" className="pt-3 space-y-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Schlussformel im Mailtext</Label>
+                  <Textarea
+                    value={fields.greeting}
+                    onChange={(e) => setField("greeting", e.target.value)}
+                    rows={3}
+                    placeholder={"Für Rückfragen stehe ich gerne zur Verfügung.\n\nMit freundlichen Grüßen"}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Steht nicht in der Signatur, sondern wird in jeder neuen Mail unten in den Text geschrieben – dort kannst du sie ändern oder löschen. Leer lassen = keine Vorbelegung.
+                  </p>
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {FIELD_LABELS.map(({ key, label, placeholder }) => (
                     <div key={key} className="space-y-1.5">
@@ -157,6 +172,25 @@ export function SignatureEditorDialog({
                 </div>
               </TabsContent>
               <TabsContent value="firma" className="pt-3 space-y-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Aufbau der Signatur (gilt für alle Postfächer)</Label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {SIGNATURE_LAYOUTS.map((l) => (
+                      <button
+                        key={l.key}
+                        type="button"
+                        onClick={() => setCompany((c) => (c ? { ...c, layout: l.key as SignatureLayout } : c))}
+                        className={cn(
+                          "rounded-md border p-2.5 text-left transition-colors",
+                          company.layout === l.key ? "border-primary bg-primary/5" : "hover:bg-muted/50",
+                        )}
+                      >
+                        <span className="block text-sm font-medium">{l.label}</span>
+                        <span className="block text-xs text-muted-foreground">{l.hint}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <p className="text-xs text-muted-foreground">
                   Pflichtangaben für Geschäftsbriefe der GmbH &amp; Co. KG (§ 125 i. V. m. § 177a HGB, § 35a GmbHG).
                   Bitte genau wie im Handelsregister eintragen. Änderungen werden beim Speichern in alle Signaturen übernommen.

@@ -10,7 +10,11 @@
 //   der Mail und das Erkennungsmerkmal, um die HTML-Signatur einzusetzen.
 
 export interface SignatureFields {
-  /** Grußformel, z. B. „Mit freundlichen Grüßen“ */
+  /**
+   * Schlussformel, z. B. „Für Rückfragen stehe ich gerne zur Verfügung.\n\nMit freundlichen Grüßen“.
+   * Steht NICHT in der Signatur, sondern wird beim Verfassen als Text unten vorbelegt –
+   * so kann man sie in jeder Mail ändern oder löschen.
+   */
   greeting: string;
   name: string;
   /** z. B. „Geschäftsführer“ */
@@ -21,7 +25,16 @@ export interface SignatureFields {
   email: string;
 }
 
+export type SignatureLayout = "name_links" | "logo_links" | "name_oben";
+
+export const SIGNATURE_LAYOUTS: { key: SignatureLayout; label: string; hint: string }[] = [
+  { key: "name_links", label: "Name links, Logo rechts", hint: "Name zuerst, Kontakt darunter, Logo rechts neben dem orangen Strich" },
+  { key: "logo_links", label: "Logo links, Name rechts", hint: "Logo vorne, Name und Kontakt rechts daneben" },
+  { key: "name_oben", label: "Name oben, Logo unten", hint: "Name und Kontakt untereinander, darunter ein kleines Logo – sehr schmal, gut fürs Handy" },
+];
+
 export interface SignatureCompany {
+  layout: SignatureLayout;
   logo_url: string;
   website: string;
   address: string;
@@ -35,8 +48,10 @@ export interface SignatureCompany {
   managing_directors: string;
 }
 
+export const STANDARD_SCHLUSSFORMEL = "Für Rückfragen stehe ich gerne zur Verfügung.\n\nMit freundlichen Grüßen";
+
 export const EMPTY_SIGNATURE_FIELDS: SignatureFields = {
-  greeting: "Mit freundlichen Grüßen",
+  greeting: STANDARD_SCHLUSSFORMEL,
   name: "",
   title: "",
   qualification: "",
@@ -45,6 +60,7 @@ export const EMPTY_SIGNATURE_FIELDS: SignatureFields = {
 };
 
 export const DEFAULT_SIGNATURE_COMPANY: SignatureCompany = {
+  layout: "name_links",
   logo_url: "https://rgi-immobilien.de/lovable-uploads/4a83f87f-ad41-4d60-9f25-40128b981ab0.png",
   website: "rgi-immobilien.de",
   address: "Vilstalstr. 4 · 87459 Pfronten",
@@ -108,7 +124,7 @@ function legalLines(c: SignatureCompany): string[] {
   return lines.filter(Boolean);
 }
 
-/** Textversion der Signatur (inkl. Grußformel). */
+/** Textversion der Signatur (ohne Schlussformel – die steht im Mailtext). */
 export function renderSignatureText(f: SignatureFields, c: SignatureCompany): string {
   const contact = [
     clean(f.phone) && `Tel. ${clean(f.phone)}`,
@@ -116,7 +132,6 @@ export function renderSignatureText(f: SignatureFields, c: SignatureCompany): st
     clean(c.website),
   ].filter(Boolean).join(" · ");
   const lines: string[] = [];
-  if (clean(f.greeting)) lines.push(clean(f.greeting), "");
   for (const x of [
     clean(f.name),
     roleLine(f),
@@ -133,8 +148,9 @@ export function renderSignatureText(f: SignatureFields, c: SignatureCompany): st
   return lines.join("\n").trim();
 }
 
-/** HTML-Version der Signatur (inkl. Grußformel). */
+/** HTML-Version der Signatur (ohne Schlussformel – die steht im Mailtext). */
 export function renderSignatureHtml(f: SignatureFields, c: SignatureCompany): string {
+  const layout: SignatureLayout = c.layout || "name_links";
   const link = `color:${C.dark};text-decoration:none;`;
   const row = (label: string, content: string) =>
     `<tr><td style="padding:0 8px 2px 0;font-family:${BODY};font-size:12px;line-height:18px;color:${C.orange};font-weight:bold;">${label}</td>` +
@@ -153,17 +169,63 @@ export function renderSignatureHtml(f: SignatureFields, c: SignatureCompany): st
   if (clean(c.address)) rows.push(row("A", esc(clean(c.address))));
 
   const role = roleLine(f);
-  const greeting = clean(f.greeting)
-    ? `<tr><td style="padding:0 0 14px 0;font-family:${BODY};font-size:14px;line-height:20px;color:${C.dark};">${esc(clean(f.greeting))}</td></tr>`
+  const site = esc(websiteHref(clean(c.website) || "rgi-immobilien.de"));
+  const logoImg = (w: number) => {
+    const h = Math.round((w * 64) / 170);
+    return clean(c.logo_url)
+      ? `<a href="${site}" style="text-decoration:none;"><img src="${esc(clean(c.logo_url))}" width="${w}" height="${h}" alt="RGI Immobilien – Verkauf · Vermietung · Verwaltung" style="display:block;width:${w}px;height:${h}px;border:0;"></a>`
+      : "";
+  };
+  const nameHtml = clean(f.name)
+    ? `<div style="font-family:${HEAD};font-size:17px;line-height:22px;font-weight:bold;color:${C.dark};${role ? "" : "padding-bottom:8px;"}">${esc(clean(f.name))}</div>`
     : "";
-  const logo = clean(c.logo_url)
-    ? `<!--[if mso]><table ${T}><tr><td valign="middle" width="190" style="width:190px;"><![endif]-->` +
-      `<div style="display:inline-block;vertical-align:middle;width:190px;padding:0 0 10px 0;">` +
-      `<a href="${esc(websiteHref(clean(c.website) || "rgi-immobilien.de"))}" style="text-decoration:none;">` +
-      `<img src="${esc(clean(c.logo_url))}" width="170" height="64" alt="RGI Immobilien – Verkauf · Vermietung · Verwaltung" style="display:block;width:170px;height:64px;border:0;"></a></div>` +
-      `<!--[if mso]></td><td valign="top"><![endif]-->`
+  const roleHtml = role
+    ? `<div style="font-family:${BODY};font-size:12px;line-height:18px;color:${C.mid};padding-bottom:8px;">${esc(role)}</div>`
     : "";
-  const logoEnd = clean(c.logo_url) ? `<!--[if mso]></td></tr></table><![endif]-->` : "";
+  const kontakt = `<table ${T} style="border-collapse:collapse;">${rows.join("")}</table>`;
+
+  let haupt = "";
+  if (layout === "logo_links") {
+    // Logo links, Name und Kontakt rechts neben dem orangen Strich (auf dem Handy rutscht das Logo darüber)
+    const logo = clean(c.logo_url)
+      ? `<!--[if mso]><table ${T}><tr><td valign="middle" width="190" style="width:190px;"><![endif]-->` +
+        `<div style="display:inline-block;vertical-align:middle;width:190px;padding:0 0 10px 0;">${logoImg(170)}</div>` +
+        `<!--[if mso]></td><td valign="top"><![endif]-->`
+      : "";
+    const logoEnd = clean(c.logo_url) ? `<!--[if mso]></td></tr></table><![endif]-->` : "";
+    haupt =
+      `<tr><td style="font-size:0;line-height:0;">` +
+      logo +
+      `<div style="display:inline-block;vertical-align:middle;border-left:3px solid ${C.orange};padding:2px 0 2px 18px;font-size:12px;line-height:18px;">` +
+      nameHtml + roleHtml + kontakt +
+      `</div>` + logoEnd +
+      `</td></tr>`;
+  } else if (layout === "name_oben") {
+    // Name zuerst, oranger Strich darunter, Kontakt, kleines Logo am Ende – eine schmale Spalte
+    haupt =
+      `<tr><td style="padding:0;font-size:12px;line-height:18px;">` +
+      nameHtml + roleHtml.replace("padding-bottom:8px;", "padding-bottom:6px;") +
+      `<div style="width:40px;height:3px;line-height:3px;font-size:0;background:${C.orange};margin:0 0 8px 0;">&nbsp;</div>` +
+      kontakt +
+      (clean(c.logo_url) ? `<div style="padding:12px 0 0 0;">${logoImg(130)}</div>` : "") +
+      `</td></tr>`;
+  } else {
+    // Name links zuerst, dann oranger Strich und das Logo rechts (auf dem Handy rutscht das Logo darunter)
+    const logo = clean(c.logo_url)
+      ? `<!--[if mso]></td><td valign="middle" width="200" style="width:200px;"><![endif]-->` +
+        `<div style="display:inline-block;vertical-align:middle;border-left:3px solid ${C.orange};padding:6px 0 6px 20px;margin:0 0 0 20px;">${logoImg(160)}</div>`
+      : "";
+    haupt =
+      `<tr><td style="font-size:0;line-height:0;">` +
+      `<!--[if mso]><table ${T}><tr><td valign="middle"><![endif]-->` +
+      `<div style="display:inline-block;vertical-align:middle;padding:2px 0 8px 0;font-size:12px;line-height:18px;">` +
+      nameHtml + roleHtml + kontakt +
+      `</div>` +
+      logo +
+      `<!--[if mso]></td></tr></table><![endif]-->` +
+      `</td></tr>`;
+  }
+
   const legal = legalLines(c)
     .map((l, i) =>
       i === 0 && clean(c.kg_name)
@@ -177,20 +239,7 @@ export function renderSignatureHtml(f: SignatureFields, c: SignatureCompany): st
   return (
     `<!-- rgi-signatur -->` +
     `<table ${T} style="border-collapse:collapse;width:100%;max-width:640px;">` +
-    greeting +
-    `<tr><td style="font-size:0;line-height:0;">` +
-    logo +
-    `<div style="display:inline-block;vertical-align:middle;border-left:3px solid ${C.orange};padding:2px 0 2px 18px;font-size:12px;line-height:18px;">` +
-    (clean(f.name)
-      ? `<div style="font-family:${HEAD};font-size:17px;line-height:22px;font-weight:bold;color:${C.dark};${role ? "" : "padding-bottom:8px;"}">${esc(clean(f.name))}</div>`
-      : "") +
-    (role
-      ? `<div style="font-family:${BODY};font-size:12px;line-height:18px;color:${C.mid};padding-bottom:8px;">${esc(role)}</div>`
-      : "") +
-    `<table ${T} style="border-collapse:collapse;">${rows.join("")}</table>` +
-    `</div>` +
-    logoEnd +
-    `</td></tr>` +
+    haupt +
     (legal
       ? `<tr><td style="padding:16px 0 0 0;"><table ${T} width="100%" style="border-collapse:collapse;width:100%;max-width:640px;"><tr>` +
         `<td style="border-top:1px solid ${C.line};padding:10px 0 0 0;font-family:${BODY};font-size:10px;line-height:15px;color:${C.grey};">${legal}</td>` +
@@ -219,8 +268,9 @@ export function normalizeSignatureCompany(raw: unknown): SignatureCompany {
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   const out = { ...DEFAULT_SIGNATURE_COMPANY };
   (Object.keys(out) as (keyof SignatureCompany)[]).forEach((k) => {
-    if (typeof r[k] === "string") out[k] = r[k] as string;
+    if (typeof r[k] === "string") (out as Record<string, string>)[k] = r[k] as string;
   });
+  if (!SIGNATURE_LAYOUTS.some((l) => l.key === out.layout)) out.layout = DEFAULT_SIGNATURE_COMPANY.layout;
   return out;
 }
 
@@ -265,4 +315,22 @@ export function insertTextSignature(body: string, signatureText: string): string
   const { head, tail } = splitAtQuote(body);
   const h = head.replace(/\s+$/, "");
   return (h ? `${h}\n\n` : "") + sig + (tail ? `\n\n${tail.replace(/^\n+/, "")}` : "");
+}
+
+/**
+ * Schlussformel unten in den eigenen Text setzen (über eine zitierte Nachricht).
+ * Eine vorher eingesetzte Schlussformel (z. B. beim Wechsel des Absenders) wird ersetzt;
+ * steht die Formel schon am Ende, bleibt alles, wie es ist.
+ */
+export function schlussformelEinsetzen(body: string, neu: string, alt?: string | null): string {
+  const n = clean(neu);
+  const a = clean(alt);
+  const { head, tail } = splitAtQuote(body || "");
+  let h = head.replace(/\s+$/, "");
+  if (a && a !== n && h.endsWith(a)) h = h.slice(0, h.length - a.length).replace(/\s+$/, "");
+  if (!n || h.endsWith(n)) {
+    return h === head.replace(/\s+$/, "") ? body : h + (tail ? `\n\n${tail.replace(/^\n+/, "")}` : "");
+  }
+  const kopf = h ? `${h}\n\n${n}` : `\n\n${n}`;
+  return kopf + (tail ? `\n\n${tail.replace(/^\n+/, "")}` : "");
 }
