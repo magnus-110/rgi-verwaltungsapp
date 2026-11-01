@@ -196,7 +196,8 @@ const SYSTEM_WERKZEUGE = `
 
 Werkzeuge: Du kannst vor der Antwort selbst nachschlagen (adressen_suchen, dms_suchen, mails_suchen, zahlungen_suchen) – nur wenn es für die Antwort oder einen Schritt wirklich nötig ist, höchstens 4 Suchen. Danach rufst du antwort_vorschlag auf.
 Schritte (schritte), nur wenn eindeutig sinnvoll:
-- "anhang": Ein Dokument aus dem DMS gehört zur Antwort (z. B. angefragtes Protokoll). datei_id MUSS aus dms_suchen stammen. Im Entwurf dann ohne Platzhalter „anbei … “ schreiben ist erlaubt.
+- "anhang": NUR wenn der Absender uns um ein Dokument bittet (z. B. „Können Sie mir das Protokoll schicken?“) und es im DMS liegt – dann wird es der Antwort beigefügt. datei_id MUSS aus dms_suchen stammen. Im Entwurf darf dann „anbei …“ stehen. Schickt uns der Absender selbst ein Dokument, ist das KEIN Anhang-Schritt.
+- Suche nicht zweimal nach demselben. Bei einer reinen Dank-/Bestätigungsmail brauchst du keine Suche.
 - "weiterleiten": Die Mail sollte an einen zuständigen Dienstleister/Hausmeister/Kollegen. an_email MUSS aus der Akte oder adressen_suchen stammen. text = kurzer Begleittext im Schreibstil.
 - "wiedervorlage": Etwas muss nachverfolgt werden (Rückmeldung abwarten, Frist). datum in den nächsten 1–30 Tagen.
 Erfinde nie IDs oder Adressen.`;

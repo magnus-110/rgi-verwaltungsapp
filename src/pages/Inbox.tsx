@@ -78,6 +78,7 @@ import { EmailHtmlBody } from "@/components/email/EmailHtmlBody";
 import { PrintEmailDialog } from "@/components/email/PrintEmailDialog";
 import { ScheduledMailsPanel } from "@/components/email/ScheduledMailsPanel";
 import { DraftsPanel } from "@/components/email/DraftsPanel";
+import { KiSchritte, type KiSchritt } from "@/components/email/KiSchritte";
 import { EmailSettingsSection } from "@/components/email/EmailSettingsSection";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -816,10 +817,10 @@ export const Inbox = () => {
     queryFn: async () => {
       const { data } = await (supabase as any)
         .from("email_antwort_vorschlaege")
-        .select("stufe, entwurf")
+        .select("stufe, entwurf, schritte")
         .eq("email_id", selectedEmailId)
         .maybeSingle();
-      return data as { stufe: string | null; entwurf: string | null } | null;
+      return data as { stufe: string | null; entwurf: string | null; schritte: KiSchritt[] | null } | null;
     },
   });
 
@@ -2471,6 +2472,35 @@ export const Inbox = () => {
                             );
                           })()}
                         </div>
+                        <KiSchritte
+                          email={selectedEmail as any}
+                          stufe={selectedVorschlag?.stufe}
+                          entwurf={selectedVorschlag?.entwurf}
+                          schritte={selectedVorschlag?.schritte}
+                          onAntworten={(anhaenge?: File[]) => {
+                              openCompose({
+                                attachments: anhaenge,
+                                replyTo: {
+                                  id: selectedEmail.id,
+                                  message_id: (selectedEmail as any).message_id,
+                                  subject: selectedEmail.subject,
+                                  from_address: selectedEmail.from_address,
+                                  from_name: selectedEmail.from_name,
+                                  body_text: selectedEmail.body_text,
+                                  date: selectedEmail.date,
+                                  account_id: selectedEmail.account_id,
+                                  // Allen Beteiligten antworten (An + CC der Original-Mail)
+                                  to_addresses: (selectedEmail as any).to_addresses,
+                                  cc_addresses: (selectedEmail as any).cc_addresses,
+                                  self_addresses: ownEmailAddresses,
+                                  ki_entwurf:
+                                    selectedVorschlag?.stufe === "gruen" || selectedVorschlag?.stufe === "gelb"
+                                      ? selectedVorschlag.entwurf
+                                      : null,
+                                },
+                              });
+                          }}
+                        />
                       </div>
                       <div className="p-3 border-t flex gap-2">
                         <Button
