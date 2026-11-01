@@ -62,6 +62,10 @@ function buildingTokens(b: { name: string | null; address: string | null; city?:
 const ANMELDE_MUSTER =
   /(sicherer? link|secure link|anmelde-?link|login-?link|magic link|sign[- ]?in|log ?in to|bestätigungscode|verification code|sicherheitscode|einmal-?code|passwort|password|verify your|bestätige deine|bestätigen sie ihre)/i;
 
+/** Vertrags-/Kontomitteilungen und Termine – nie Werbung. */
+const PFLICHT_MUSTER =
+  /(rechnung|mahnung|zahlungserinnerung|handeln ist erforderlich|mitwirkung erforderlich|action required|pflichtinformation|auswertung|kundenportal|vertragsänderung|kündigung|auftragsbestätigung|bestellung|^(aktualisierte )?einladung:|interview)/i;
+
 Deno.serve(async (req) => {
   if (req.method !== "OPTIONS") {
     const __auth = await requireStaffOrCron(req, corsHeaders);
@@ -270,8 +274,10 @@ KEINE Werbung (sondern passende Fachkategorie) sind:
 - jede Antwort in einem laufenden Verlauf (Re:/AW:) und persönlich geschriebene Mails an uns
 - Rechnungen, Zahlungserinnerungen, Mahnungen, Auftragsbestätigungen, Vertragsänderungen → "Rechnung" bzw. "Sonstiges"
 - Anmelde-/Login-Links, Bestätigungs- und Sicherheitscodes, Passwort-Mails, Zugangsdaten → "Sonstiges"
-Newsletter, Rabattaktionen, Produkt-/Software-Neuigkeiten, Seminar- und Messe-Einladungen von Firmen SIND Werbung – auch wenn wir den Dienst nutzen (z. B. Strato-Angebote, Newsletter von Verbänden oder Kanzleien).
-Im Zweifel bei persönlichen oder vorgangsbezogenen Mails NICHT "Werbung" wählen.
+- Mitteilungen zu unseren bestehenden Verträgen und Konten: "neue Rechnung/Dokumente im Portal", "Auswertungen verfügbar", "Handlungsbedarf/Action required", Pflichtinformationen, Vertragsumstellungen, Abkündigungen → "Sonstiges" bzw. "Rechnung"
+- Termin-Einladungen (Kalender) und persönliche Anfragen (z. B. Interview, Kooperation, konkrete Rückfrage) → "Anfrage" bzw. "Sonstiges"
+"Werbung" ist nur, was etwas verkaufen oder bewerben will und sich an viele richtet: Newsletter, Rabattaktionen, Gewinnspiele, Seminar-/Messe-Werbung, Kaltakquise-Serienmails.
+Im Zweifel NICHT "Werbung" wählen.
 Hinweis zur Kategorie "Sonstiges": Alles, was sich nicht eindeutig zuordnen lässt.
 
 ${preMatchedBuildingId
@@ -382,7 +388,7 @@ Nur wenn der Absender/Empfänger NICHT eindeutig per E-Mail-Adresse zugeordnet w
         let kategorie: string = classification.category;
         if (kategorie === "Werbung") {
           const betreff = (email.subject || "").trim();
-          const istAnmeldung = ANMELDE_MUSTER.test(betreff);
+          const istAnmeldung = ANMELDE_MUSTER.test(betreff) || PFLICHT_MUSTER.test(betreff);
           const istVerlauf = !!email.in_reply_to || /^(re|aw|wg|fwd?|antw)\s*:/i.test(betreff);
           // Nur ein exakt hinterlegter Kontakt zählt (nicht der Domain-Abgleich).
           const bekannterKontakt = !!(partyAddress && emailToContactId[partyAddress]);
