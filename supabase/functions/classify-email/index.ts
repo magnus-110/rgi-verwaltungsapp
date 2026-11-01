@@ -58,6 +58,10 @@ function buildingTokens(b: { name: string | null; address: string | null; city?:
   return [...tokens];
 }
 
+/** Anmelde-Links, Bestätigungs- und Sicherheitscodes – nie Werbung. */
+const ANMELDE_MUSTER =
+  /(sicherer? link|secure link|anmelde-?link|login-?link|magic link|sign[- ]?in|log ?in to|bestätigungscode|verification code|sicherheitscode|einmal-?code|passwort|password|verify your|bestätige deine|bestätigen sie ihre)/i;
+
 Deno.serve(async (req) => {
   if (req.method !== "OPTIONS") {
     const __auth = await requireAdmin(req, corsHeaders);
@@ -85,7 +89,7 @@ Deno.serve(async (req) => {
     let query = supabaseAdmin
       .from("emails")
       .select(
-        "id, subject, from_address, from_name, body_text, to_addresses, folder_id"
+        "id, subject, from_address, from_name, body_text, to_addresses, folder_id, in_reply_to"
       )
       .is("ai_category", null)
       .order("date", { ascending: false })
@@ -95,7 +99,7 @@ Deno.serve(async (req) => {
       query = supabaseAdmin
         .from("emails")
         .select(
-          "id, subject, from_address, from_name, body_text, to_addresses, folder_id"
+          "id, subject, from_address, from_name, body_text, to_addresses, folder_id, in_reply_to"
         )
         .in("id", emailIds);
     }
@@ -260,7 +264,13 @@ Inhalt (Auszug): ${(email.body_text || "").substring(0, 1500)}`;
 WICHTIG zur Zuordnung:
 ${directionHint}
 
-Hinweis zur Kategorie "Werbung": Newsletter, Marketing, Produktankündigungen.
+Hinweis zur Kategorie "Werbung": NUR unpersönliche Massen-Werbung: Newsletter, Marketing-Aktionen, Rabatte, Gewinnspiele, Immobilienportal-Suchaufträge, Produktankündigungen von Software-Anbietern.
+KEINE Werbung (sondern passende Fachkategorie) sind:
+- Angebote von Handwerkern, Lieferanten oder Dienstleistern (z. B. "Angebot AN-2026-…", Pelletangebot, Winterdienst-Angebot, Wallbox-Angebot) → "Handwerker"
+- jede Antwort in einem laufenden Verlauf (Re:/AW:) und persönlich geschriebene Mails an uns
+- Rechnungen, Zahlungserinnerungen, Vertrags- oder Kontoinformationen → "Rechnung" bzw. "Sonstiges"
+- Anmelde-/Login-Links, Bestätigungs- und Sicherheitscodes, Passwort-Mails, Systemmeldungen von Diensten, die wir nutzen → "Sonstiges"
+Im Zweifel NICHT "Werbung" wählen.
 Hinweis zur Kategorie "Sonstiges": Alles, was sich nicht eindeutig zuordnen lässt.
 
 ${preMatchedBuildingId
@@ -365,8 +375,21 @@ Nur wenn der Absender/Empfänger NICHT eindeutig per E-Mail-Adresse zugeordnet w
         // recipient/third-party mis-assignment)
         const finalContactId = directContactId;
 
+        // Sicherheitsnetz: Werbung landet nur noch im Reiter „Werbung“ und taucht im
+        // Posteingang nicht mehr auf. Deshalb nie als Werbung einstufen, was
+        // offensichtlich keine ist.
+        let kategorie: string = classification.category;
+        if (kategorie === "Werbung") {
+          const betreff = (email.subject || "").trim();
+          const istAnmeldung = ANMELDE_MUSTER.test(betreff);
+          const istVerlauf = !!email.in_reply_to || /^(re|aw|wg|fwd?|antw)\s*:/i.test(betreff);
+          if (istAnmeldung || isOutgoing || istVerlauf || directContactId) {
+            kategorie = /angebot/i.test(betreff) && !istAnmeldung ? "Handwerker" : "Sonstiges";
+          }
+        }
+
         const updateData: Record<string, any> = {
-          ai_category: classification.category,
+          ai_category: kategorie,
           ai_priority: classification.priority,
           ai_summary: classification.summary,
         };
