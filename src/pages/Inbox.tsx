@@ -1874,17 +1874,7 @@ export const Inbox = () => {
                                   const replyId = (email as any).message_id
                                     ? (replyMap as any)[(email as any).message_id]
                                     : null;
-                                  if (!replyId) {
-                                    const stufe = (vorschlagStufen as Record<string, string>)[email.id];
-                                    const ampel: Record<string, { farbe: string; text: string }> = {
-                                      gruen: { farbe: "bg-green-500", text: "KI-Antwort vorbereitet – beim Antworten prüfen und senden" },
-                                      gelb: { farbe: "bg-orange-400", text: "KI-Entwurf vorbereitet – bitte ergänzen" },
-                                      rot: { farbe: "bg-red-500", text: "Braucht dich – keine KI-Antwort möglich" },
-                                    };
-                                    const a = stufe ? ampel[stufe] : null;
-                                    if (!a || isSentFolder) return null;
-                                    return <span className={cn("h-2.5 w-2.5 rounded-full shrink-0", a.farbe)} title={a.text} aria-label={a.text} />;
-                                  }
+                                  if (!replyId) return null;
                                   return (
                                     <button
                                       type="button"
@@ -1984,6 +1974,22 @@ export const Inbox = () => {
                                 )}
                               </div>
                               <div className="flex items-center gap-1 shrink-0">
+                                {/* KI-Ampel: dezenter Punkt links neben der Zuordnung */}
+                                {(() => {
+                                  if (isSentFolder) return null;
+                                  const beantwortet = (email as any).message_id && (replyMap as any)[(email as any).message_id];
+                                  if (beantwortet) return null;
+                                  const stufe = (vorschlagStufen as Record<string, string>)[email.id];
+                                  const ampel: Record<string, { farbe: string; text: string }> = {
+                                    gruen: { farbe: "bg-emerald-500/55", text: "KI-Antwort vorbereitet – beim Antworten prüfen und senden" },
+                                    gelb: { farbe: "bg-amber-400/70", text: "KI-Entwurf vorbereitet – bitte ergänzen" },
+                                    rot: { farbe: "bg-rose-400/65", text: "Braucht dich – keine KI-Antwort möglich" },
+                                    keine: { farbe: "bg-slate-300 dark:bg-slate-600", text: "Keine Antwort nötig" },
+                                  };
+                                  const a = stufe ? ampel[stufe] : null;
+                                  if (!a) return null;
+                                  return <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", a.farbe)} title={a.text} aria-label={a.text} />;
+                                })()}
                                 {/* Assignment badge - clickable to change */}
                                 {(() => {
                                   const getShortCode = (userId: string) => {
