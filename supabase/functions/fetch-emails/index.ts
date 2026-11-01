@@ -1332,7 +1332,7 @@ async function reparseSingleEmail(supabase: any, emailId: string) {
     // und als letzte Möglichkeit: Absender + Tag, dann Message-ID im Umschlag vergleichen.
     const mid = String(email.message_id || "").trim();
     const midOhne = mid.replace(/^</, "").replace(/>$/, "");
-    const tryFolder = async (folderPath: string) => {
+    const tryFolder = async (folderPath: string, mitSuche = true) => {
       try {
         await client.mailboxOpen(folderPath);
         for (const wert of [mid, midOhne]) {
@@ -1344,7 +1344,7 @@ async function reparseSingleEmail(supabase: any, emailId: string) {
             return true;
           }
         }
-        if (email.from_address && email.date) {
+        if (mitSuche && email.from_address && email.date) {
           const tag = new Date(email.date);
           const von = new Date(tag.getTime() - 2 * 86400000);
           const bis = new Date(tag.getTime() + 2 * 86400000);
@@ -1392,12 +1392,13 @@ async function reparseSingleEmail(supabase: any, emailId: string) {
           console.log(`Nachladen: ${acc.email_address} nicht erreichbar: ${e?.message ?? e}`);
           continue;
         }
-        if (await tryFolder("INBOX")) { summary.postfach = acc.email_address; break; }
+        // In fremden Postfächern nur über die Message-ID suchen (das Durchsehen aller Mails wäre zu teuer)
+        if (await tryFolder("INBOX", false)) { summary.postfach = acc.email_address; break; }
         const folders = await client.list();
         let gefunden = false;
         for (const f of folders) {
           if (!f.path || f.path === "INBOX") continue;
-          if (await tryFolder(f.path)) { gefunden = true; break; }
+          if (await tryFolder(f.path, false)) { gefunden = true; break; }
         }
         if (gefunden) { summary.postfach = acc.email_address; break; }
       }
