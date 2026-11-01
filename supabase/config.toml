@@ -211,3 +211,6 @@ verify_jwt = false
 
 [functions.dms-vorschlag]
 verify_jwt = false
+
+[functions.antwort-vorschlag]
+verify_jwt = false
