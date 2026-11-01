@@ -1304,20 +1304,23 @@ async function reparseSingleEmail(supabase: any, emailId: string) {
     .single();
   if (accErr || !account) throw new Error(`Account for email not found`);
 
-  const isSecure = account.use_ssl || account.imap_port === 993;
-  const client = new ImapFlow({
-    host: account.imap_host,
-    port: account.imap_port,
-    secure: isSecure,
-    auth: { user: account.imap_user, pass: account.imap_password },
-    logger: false,
-    tls: { rejectUnauthorized: false },
-  });
-  client.on("error", (err: any) => {
-    if (!isIgnorableConnectionError(err)) {
-      console.error(`Reparse IMAP error:`, err.message);
-    }
-  });
+  const verbinde = (acc: any) => {
+    const c = new ImapFlow({
+      host: acc.imap_host,
+      port: acc.imap_port,
+      secure: acc.use_ssl || acc.imap_port === 993,
+      auth: { user: acc.imap_user, pass: acc.imap_password },
+      logger: false,
+      tls: { rejectUnauthorized: false },
+    });
+    c.on("error", (err: any) => {
+      if (!isIgnorableConnectionError(err)) {
+        console.error(`Reparse IMAP error:`, err.message);
+      }
+    });
+    return c;
+  };
+  let client = verbinde(account);
 
   await client.connect();
   let summary: any = { emailId, message_id: email.message_id };
@@ -1375,8 +1378,32 @@ async function reparseSingleEmail(supabase: any, emailId: string) {
         if (await tryFolder(f.path)) break;
       }
     }
+    // Nicht im eigenen Postfach (z. B. an info@ geschickt, in der App einem anderen Postfach zugeordnet):
+    // die übrigen Postfächer durchsuchen
     if (uid === null) {
-      throw new Error(`Nachricht im Postfach ${account.email_address} nicht gefunden (Message-ID ${email.message_id}, alle Ordner durchsucht)`);
+      const { data: andere } = await supabase.from("email_accounts").select("*").eq("is_active", true).neq("id", account.id);
+      for (const acc of andere ?? []) {
+        try { if (client.usable) await client.logout(); } catch (_) {}
+        try { client.close(); } catch (_) {}
+        client = verbinde(acc);
+        try {
+          await client.connect();
+        } catch (e: any) {
+          console.log(`Nachladen: ${acc.email_address} nicht erreichbar: ${e?.message ?? e}`);
+          continue;
+        }
+        if (await tryFolder("INBOX")) { summary.postfach = acc.email_address; break; }
+        const folders = await client.list();
+        let gefunden = false;
+        for (const f of folders) {
+          if (!f.path || f.path === "INBOX") continue;
+          if (await tryFolder(f.path)) { gefunden = true; break; }
+        }
+        if (gefunden) { summary.postfach = acc.email_address; break; }
+      }
+    }
+    if (uid === null) {
+      throw new Error(`Nachricht in keinem Postfach gefunden (Message-ID ${email.message_id}, alle Postfächer und Ordner durchsucht)`);
     }
     summary.uid = uid;
     summary.folder = foundFolder;
