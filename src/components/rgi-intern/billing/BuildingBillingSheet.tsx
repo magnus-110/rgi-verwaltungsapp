@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   Plus, Save, MoreVertical, Trash2, Ban, Calculator, FileStack, Receipt, Undo2, Info,
-  FolderKanban, CheckCircle2, Landmark, User, Bookmark, PencilLine,
+  FolderKanban, CheckCircle2, Landmark, User, Bookmark, PencilLine, Copy,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -40,7 +40,7 @@ import {
   type BillingRow, DEFAULT_INTRO, isOpenRow, rowNet, rowsNet,
   rowFromEvent, suggestionsFromContract, mergeSuggestions, isMemoRow, rowNeedsAmount,
 } from "@/types/rgiBilling";
-import { type FeeDebtor, formatDate, formatEur } from "@/types/rgiContracts";
+import { type FeeDebtor, formatDate, formatEur, isPercentBasis } from "@/types/rgiContracts";
 import { BillingRowDialog, PercentBaseDialog } from "./BillingRowDialogs";
 
 interface Props {
@@ -121,7 +121,17 @@ export function BuildingBillingSheet({
 
   // ---------------- Zeilen zusammenstellen ----------------
 
-  const eventRows = useMemo(() => (events ?? []).map(rowFromEvent), [events]);
+  // Gespeicherte Vertragsposten (z. B. ein duplizierter Versicherungs-
+  // schaden) kennen ihren Prozentbaustein nur über den Vertrag – damit
+  // „Betrag berechnen“ auch bei ihnen funktioniert, hier nachtragen.
+  const eventRows = useMemo(
+    () => (events ?? []).map((ev) => {
+      const row = rowFromEvent(ev);
+      const fee = row.feeId ? contract?.fees?.find((f) => f.id === row.feeId) : undefined;
+      return fee && isPercentBasis(fee.basis) ? { ...row, needsInput: true } : row;
+    }),
+    [events, contract],
+  );
 
   const suggestionRows = useMemo(
     () => mergeSuggestions(eventRows, suggestionsFromContract(contract, year)),
@@ -311,6 +321,37 @@ export function BuildingBillingSheet({
     } finally {
       setSavingRow(false);
     }
+  };
+
+  /**
+   * Legt eine Kopie der Zeile als eigenen, gespeicherten Posten an –
+   * z. B. ein zweiter Versicherungsschaden im selben Objekt. Menge,
+   * Preis und Bezeichnung werden so übernommen, wie sie gerade im Blatt
+   * stehen; das Datum ist heute.
+   */
+  const duplicate = async (row: BillingRow) => {
+    if (!buildingId) return;
+    await upsert.mutateAsync({
+      building_id: buildingId,
+      contract_id: row.contractId,
+      fee_id: row.feeId,
+      status: "approved",
+      occurred_on: new Date().toISOString().slice(0, 10),
+      label: row.label,
+      quantity: row.quantity,
+      unit: row.unit,
+      amount_net: rowNeedsAmount(row) ? null : (row.unitPriceNet ?? 0),
+      vat_rate: row.vatRate,
+      debtor: row.debtor,
+      // Kein source_id und kein Zeitraum: sonst sperren die eindeutigen
+      // Indizes die Kopie bzw. den Vorschlag fürs Honorarjahr.
+      source_kind: row.sourceKind ?? "manual",
+      source_id: null,
+      period_key: null,
+      notes: row.hint ?? null,
+      created_by: user?.id ?? null,
+    } as any);
+    setTab("open");
   };
 
   const applyPreset = (presetId: string) => {
@@ -571,7 +612,7 @@ export function BuildingBillingSheet({
         </div>
 
         {/* Menge × Einzelpreis = Betrag */}
-        {needsAmount && r.amountOpen ? (
+        {needsAmount && !r.needsInput ? (
           <Button variant="outline" size="sm" className="h-9 gap-1.5 shrink-0 ml-auto" onClick={() => setEditRow(r)}>
             <PencilLine className="w-3.5 h-3.5" />Betrag eintragen
           </Button>
@@ -619,6 +660,11 @@ export function BuildingBillingSheet({
             {r.needsInput && editable && (
               <DropdownMenuItem onClick={() => setPercentRow(r)}>
                 <Calculator className="w-4 h-4 mr-2" />Betrag neu berechnen
+              </DropdownMenuItem>
+            )}
+            {editable && r.origin !== "time" && !r.periodKey && (
+              <DropdownMenuItem onClick={() => duplicate(r)}>
+                <Copy className="w-4 h-4 mr-2" />Duplizieren
               </DropdownMenuItem>
             )}
             {editable && (
