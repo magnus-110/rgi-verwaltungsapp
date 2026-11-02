@@ -18,7 +18,7 @@ import {
   StickyNote,
   Users,
   Wallet,
-  Workflow, ReceiptText, ClipboardList, LayoutDashboard, SlidersHorizontal, Search, Send } from 'lucide-react';
+  Workflow, ReceiptText, ClipboardList, LayoutDashboard, SlidersHorizontal, Search, Send, PenLine } from 'lucide-react';
 
 /**
  * Die Navigation — an einer Stelle.
@@ -60,6 +60,7 @@ export const adminMenu: MenuItem[] = [
   { title: 'Postfach', url: '/postfach', icon: Mail },
   { title: 'Kalender', url: '/calendar', icon: CalendarDays },
 
+  { title: 'Unterschriften', url: '/unterschriften', icon: PenLine, abschnitt: 'Büro' },
   { title: 'Pinnwand', url: '/pinnwand', icon: StickyNote, abschnitt: 'Büro' },
   { title: 'Vorgänge', url: '/vorgaenge', icon: FolderKanban, abschnitt: 'Büro' },
   { title: 'Jahreszyklus', url: '/jahreszyklus', icon: CalendarRange, abschnitt: 'Büro' },

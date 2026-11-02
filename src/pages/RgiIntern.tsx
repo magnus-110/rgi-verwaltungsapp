@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -88,7 +89,12 @@ const ALL_AREAS: AreaDef[] = GROUPS.flatMap((g) => g.items);
 
 export default function RgiIntern() {
   const isAdmin = useIsRgiAdmin();
-  const [area, setArea] = useState<AreaId>("cockpit");
+  // ?bereich=offers|contracts … springt direkt in einen Bereich (z. B. aus „Unterschriften“)
+  const [params] = useSearchParams();
+  const [area, setArea] = useState<AreaId>(() => {
+    const b = params.get("bereich");
+    return ALL_AREAS.some((a) => a.id === b) ? (b as AreaId) : "cockpit";
+  });
 
   if (!isAdmin) {
     return (

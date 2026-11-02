@@ -214,3 +214,9 @@ verify_jwt = false
 
 [functions.antwort-vorschlag]
 verify_jwt = false
+
+[functions.sign-request]
+verify_jwt = false
+
+[functions.sign-public]
+verify_jwt = false

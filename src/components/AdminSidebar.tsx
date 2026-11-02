@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { useBrokerMode } from "@/hooks/useBrokerMode";
 import { abschnittsweise, adminMenu, brokerMenu, istAktiv, menueFuer } from "@/lib/adminNavigation";
 import { useReportCounts, useReportsLive } from "@/hooks/useReports";
+import { useSignOpenCount } from "@/lib/signatur";
 
 interface AdminSidebarProps {
   managementMode: 'weg' | 'rent';
@@ -37,6 +38,9 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
   useReportsLive("sidebar", !isBrokerActive);
   const { data: reportCounts } = useReportCounts(!isBrokerActive);
   const openReportsCount = isBrokerActive ? 0 : reportCounts?.open ?? 0;
+  // Abzeichen an „Unterschriften“: offene Vorgänge.
+  const { data: signCounts } = useSignOpenCount(!isBrokerActive);
+  const openSignCount = isBrokerActive ? 0 : signCounts?.offen ?? 0;
 
   const handleSignOut = async () => { await signOut(); };
 
@@ -99,6 +103,7 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
                       const aktiv = istAktiv(item, currentPath);
                       const showBadge = item.url === "/postfach" && openReportsCount > 0;
                       const badgeLabel = openReportsCount > 99 ? "99+" : String(openReportsCount);
+                      const showSignBadge = item.url === "/unterschriften" && openSignCount > 0;
                       return (
                         <SidebarMenuItem key={item.url}>
                           <NavLink
@@ -115,6 +120,9 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
                               {showBadge && collapsed && (
                                 <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-destructive" />
                               )}
+                              {showSignBadge && collapsed && (
+                                <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-[#ee7202]" />
+                              )}
                             </div>
                             {!collapsed && (
                               <span className={`label-text flex-1 ${aktiv ? "text-white" : ""}`}>
@@ -124,6 +132,15 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
                             {!collapsed && showBadge && (
                               <span className="ml-auto inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-destructive text-white text-xs font-semibold">
                                 {badgeLabel}
+                              </span>
+                            )}
+                            {!collapsed && showSignBadge && (
+                              <span
+                                className={`ml-auto inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full text-xs font-semibold ${
+                                  aktiv ? "bg-transparent text-white" : "bg-[#FFF7ED] text-[#B35300]"
+                                }`}
+                              >
+                                {openSignCount > 99 ? "99+" : openSignCount}
                               </span>
                             )}
                           </NavLink>

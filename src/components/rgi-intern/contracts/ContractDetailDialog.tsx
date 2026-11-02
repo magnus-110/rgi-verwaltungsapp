@@ -23,6 +23,10 @@ import {
   contractWarnings, formatDate, formatEur, isPercentBasis, monthlyNet, monthsUntil, toNet,
 } from "@/types/rgiContracts";
 import { ContractSignButton } from "./ContractSignButton";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { getFileBucket } from "@/components/buildings/documents/types";
+import { UnterschriftenBox } from "@/components/signatur/UnterschriftenBox";
 
 interface Props {
   open: boolean;
@@ -229,18 +233,17 @@ export function ContractDetailDialog({ open, onOpenChange, contract, onEdit }: P
         </Section>
 
         {/* Sonstiges */}
-        {(c.notes || c.template_version || c.dms_file_id) && (
-          <Section icon={StickyNote} title="Sonstiges">
-            {c.template_version && <Row label="Vertragsfassung" value={c.template_version} />}
-            {c.dms_file_id && (
-              <>
-                <Row label="Dokument" value="im DMS des Objekts hinterlegt" icon={FileText} />
-                <ContractSignButton contractId={c.id} dmsFileId={c.dms_file_id} />
-              </>
-            )}
-            {c.notes && <Note>{c.notes}</Note>}
-          </Section>
-        )}
+        <Section icon={StickyNote} title="Sonstiges">
+          {c.template_version && <Row label="Vertragsfassung" value={c.template_version} />}
+          {c.dms_file_id && (
+            <>
+              <Row label="Dokument" value="im DMS des Objekts hinterlegt" icon={FileText} />
+              <ContractSignButton contractId={c.id} dmsFileId={c.dms_file_id} />
+            </>
+          )}
+          {c.notes && <Note>{c.notes}</Note>}
+          <ContractUnterschriften contract={c} />
+        </Section>
 
         <Separator />
         <div className="flex items-center gap-2">
@@ -346,4 +349,50 @@ function limitNotes(f: ContractFee): string[] {
   if (f.max_count) out.push(`höchstens ${f.max_count} ×`);
   if (f.halved_if_supervised) out.push("halbiert bei externer Objektüberwachung");
   return out;
+}
+
+// ---------------------------------------------------------------
+// Elektronische Unterschrift (Box) — Quelle ist das Vertrags-PDF im DMS
+// ---------------------------------------------------------------
+
+function ContractUnterschriften({ contract: c }: { contract: ContractWithDetails }) {
+  const { data: datei, isLoading } = useQuery({
+    queryKey: ["contract-dms-file", c.dms_file_id],
+    enabled: !!c.dms_file_id,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("building_files")
+        .select("id, file_path, display_name, mime_type, source, storage_bucket")
+        .eq("id", c.dms_file_id)
+        .maybeSingle();
+      if (error) throw error;
+      return data as { file_path: string; display_name: string | null; mime_type: string | null; source: string | null; storage_bucket: string | null } | null;
+    },
+    staleTime: 5 * 60_000,
+  });
+  const istPdf = !!datei && ((datei.mime_type || "").includes("pdf") || /\.pdf$/i.test(datei.display_name || datei.file_path));
+  if (c.dms_file_id && isLoading) return null;
+  const objekt = c.building?.name ?? "Ohne Objekt";
+  return (
+    <div className="max-w-[460px] pt-2">
+      <UnterschriftenBox
+        quelleTyp="contract"
+        quelleId={c.id}
+        ohnePdfHinweis="Zuerst Vertrag als PDF erzeugen."
+        startInfo={
+          istPdf && datei
+            ? {
+                titel: `Verwaltervertrag ${objekt}`,
+                building_id: c.building_id,
+                quelle_label: `${objekt} · Verwaltervertrag`,
+                source_bucket: getFileBucket(datei.source, datei.storage_bucket),
+                source_path: datei.file_path,
+                dokumentart: "verwaltervertrag",
+                vorschlagUnterzeichner: "beirat",
+              }
+            : null
+        }
+      />
+    </div>
+  );
 }

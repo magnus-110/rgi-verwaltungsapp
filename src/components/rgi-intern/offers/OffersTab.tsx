@@ -11,7 +11,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Pencil, Trash2, Search, FileText, Download, CalendarClock, ArrowRight, FileBadge, XCircle, RotateCcw } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, FileText, Download, CalendarClock, ArrowRight, FileBadge, XCircle, RotateCcw, PenLine } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -19,6 +19,9 @@ import {
   OFFER_STATUS_LABEL, type Offer, type OfferStatus,
 } from "@/hooks/useOffers";
 import { OfferWizard } from "./OfferWizard";
+import { UnterschriftAnfordernDialog } from "@/components/signatur/UnterschriftAnfordernDialog";
+import { VorgangDetailSheet } from "@/components/signatur/VorgangDetailSheet";
+import { fortschritt, SIG, useSignRequests, type SignRequest } from "@/lib/signatur";
 import { formatDate, formatEur } from "@/types/rgiContracts";
 
 const STATUS_VARIANT: Record<OfferStatus, "default" | "secondary" | "outline" | "destructive"> = {
@@ -46,6 +49,18 @@ export function OffersTab() {
   const [targetBuilding, setTargetBuilding] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"aktuell" | "all" | OfferStatus>("aktuell");
+  // Elektronische Unterschrift: Dialog + neuester Vorgang je Angebot
+  const [signFuer, setSignFuer] = useState<Offer | null>(null);
+  const [signDetail, setSignDetail] = useState<string | null>(null);
+  const { data: signVorgaenge = [] } = useSignRequests({ quelleTyp: "offer" });
+  const signJeAngebot = useMemo(() => {
+    const m = new Map<string, SignRequest>();
+    for (const v of signVorgaenge) {
+      if (!v.quelle_id || (v.status !== "offen" && v.status !== "abgeschlossen")) continue;
+      if (!m.has(v.quelle_id)) m.set(v.quelle_id, v); // Liste ist neueste zuerst
+    }
+    return m;
+  }, [signVorgaenge]);
 
   const rows = useMemo(() => {
     return (offers ?? []).filter((o) => {
@@ -165,6 +180,24 @@ export function OffersTab() {
                   </div>
                 </div>
 
+                {signJeAngebot.get(o.id) && (() => {
+                  const v = signJeAngebot.get(o.id)!;
+                  const f = fortschritt(v);
+                  const fertig = v.status === "abgeschlossen";
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => setSignDetail(v.id)}
+                      className="inline-flex items-center gap-1 rounded-full px-2.5 py-[3px] text-[12px] font-semibold"
+                      style={{ color: fertig ? SIG.gruen : SIG.button, backgroundColor: fertig ? SIG.gruenBg : SIG.orangeBg }}
+                      title={`${v.nummer} – Details`}
+                    >
+                      <PenLine className="h-3 w-3" />
+                      {f.fertig}/{f.gesamt} unterschrieben
+                    </button>
+                  );
+                })()}
+
                 <div className="text-right tabular-nums">
                   <div className="font-medium">{formatEur(Number(o.monthly_net) || 0)}</div>
                   <div className="text-xs text-muted-foreground">im Monat</div>
@@ -179,6 +212,11 @@ export function OffersTab() {
                   {o.pdf_storage_path && (
                     <Button variant="ghost" size="sm" title="PDF öffnen" onClick={() => openFile(o.pdf_storage_path!)}>
                       <Download className="w-4 h-4" />
+                    </Button>
+                  )}
+                  {o.pdf_storage_path && (
+                    <Button variant="ghost" size="sm" title="Unterschrift anfordern" aria-label="Unterschrift anfordern" onClick={() => setSignFuer(o)}>
+                      <PenLine className="w-4 h-4" />
                     </Button>
                   )}
                   {(o.summary_pdf_storage_path || o.summary_docx_storage_path) && (
@@ -218,6 +256,33 @@ export function OffersTab() {
       )}
 
       <OfferWizard open={wizardOpen} onOpenChange={setWizardOpen} offer={editing} />
+
+      {signFuer?.pdf_storage_path && (
+        <UnterschriftAnfordernDialog
+          open={!!signFuer}
+          onOpenChange={(v) => !v && setSignFuer(null)}
+          quelleTyp="offer"
+          quelleId={signFuer.id}
+          startInfo={{
+            titel: `Angebot ${signFuer.offer_no ? signFuer.offer_no + " – " : ""}${signFuer.prospect_name}`,
+            building_id: null,
+            quelle_label: `Angebot · ${signFuer.prospect_name}`,
+            source_bucket: "invoices",
+            source_path: signFuer.pdf_storage_path,
+            dokumentart: "angebot",
+            vorschlagUnterzeichner: signFuer.contact_person || signFuer.contact_email
+              ? [{
+                  name: signFuer.contact_person || signFuer.prospect_name,
+                  email: signFuer.contact_email,
+                  rolle: signFuer.object_representative ? "Vertretung der WEG" : "Auftraggeber",
+                  contact_id: signFuer.prospect_contact_id,
+                  anrede: `Guten Tag ${signFuer.contact_person || signFuer.prospect_name}`,
+                }]
+              : undefined,
+          }}
+        />
+      )}
+      <VorgangDetailSheet requestId={signDetail} onOpenChange={(o) => !o && setSignDetail(null)} />
 
       {/* Zuschlag: Angebot in einen Vertrag überführen */}
       <AlertDialog open={!!convertFor} onOpenChange={(v) => !v && setConvertFor(null)}>

@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Download, Trash2, X, History, Sparkles, ExternalLink, Wrench, RefreshCw, PenLine, Mail } from "lucide-react";
+import { Download, Trash2, X, History, Sparkles, ExternalLink, Wrench, RefreshCw, PenLine, Mail, Send } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
@@ -21,6 +21,9 @@ import { MAINTENANCE_TYPES } from "@/lib/maintenanceTypes";
 import { SignPdfDialog } from "@/components/documents/SignPdfDialog";
 import { saveSignedBuildingFile, type BuildingFileLike } from "@/lib/documentSigning";
 import { useComposeEmail } from "@/contexts/ComposeEmailContext";
+import { UnterschriftenBox } from "@/components/signatur/UnterschriftenBox";
+import { UnterschriftAnfordernDialog, type UnterschriftStartInfo } from "@/components/signatur/UnterschriftAnfordernDialog";
+import { dokumentartAusName, titelAusDateiname } from "@/lib/signatur";
 
 interface DocumentDetailPanelProps {
   file: DocFile | null;
@@ -37,6 +40,17 @@ export function DocumentDetailPanel({ file, buildingId, onClose, onChanged }: Do
   const [reindexing, setReindexing] = useState(false);
   const [signUrl, setSignUrl] = useState<string | null>(null);
   const { openCompose } = useComposeEmail();
+  const [anfordernOffen, setAnfordernOffen] = useState(false);
+
+  // Objektname für „Objekt / Quelle“ in der Unterschriften-Übersicht
+  const { data: objektName } = useQuery({
+    queryKey: ['building-name', buildingId],
+    queryFn: async () => {
+      const { data } = await supabase.from('buildings').select('name').eq('id', buildingId).maybeSingle();
+      return data?.name ?? null;
+    },
+    staleTime: 10 * 60_000,
+  });
 
   useEffect(() => {
     if (file) setEditing({});
@@ -157,6 +171,15 @@ export function DocumentDetailPanel({ file, buildingId, onClose, onChanged }: Do
 
   const isPdfFile =
     (file.mime_type || "").toLowerCase().includes("pdf") || /\.pdf$/i.test(file.display_name || file.file_path);
+
+  const signStart: UnterschriftStartInfo = {
+    titel: titelAusDateiname(file.display_name || file.file_path.split("/").pop() || "Dokument"),
+    building_id: buildingId,
+    quelle_label: objektName ? `${objektName} · DMS` : "DMS",
+    source_bucket: getFileBucket(file.source, file.storage_bucket),
+    source_path: file.file_path,
+    dokumentart: dokumentartAusName(file.display_name || file.file_path),
+  };
 
   const handleOpenSign = async () => {
     const { data, error } = await supabase.storage
@@ -407,9 +430,14 @@ export function DocumentDetailPanel({ file, buildingId, onClose, onChanged }: Do
             </Button>
           )}
           {isPdfFile && (
-            <Button size="sm" className="w-full gap-1.5" onClick={handleOpenSign}>
-              <PenLine className="h-3.5 w-3.5" /> Unterschreiben
-            </Button>
+            <>
+              <Button size="sm" className="w-full gap-1.5" onClick={handleOpenSign}>
+                <PenLine className="h-3.5 w-3.5" /> Unterschreiben
+              </Button>
+              <Button size="sm" variant="outline" className="w-full gap-1.5" onClick={() => setAnfordernOffen(true)}>
+                <Send className="h-3.5 w-3.5" /> Unterschrift anfordern
+              </Button>
+            </>
           )}
           <div className="flex gap-2">
             <Button variant="outline" size="sm" className="flex-1" onClick={handleDownload}>
@@ -423,7 +451,19 @@ export function DocumentDetailPanel({ file, buildingId, onClose, onChanged }: Do
             </Button>
           </div>
         </div>
+        {isPdfFile && (
+          <UnterschriftenBox quelleTyp="building_file" quelleId={file.id} startInfo={signStart} className="pt-2" />
+        )}
       </div>
+      {isPdfFile && (
+        <UnterschriftAnfordernDialog
+          open={anfordernOffen}
+          onOpenChange={setAnfordernOffen}
+          quelleTyp="building_file"
+          quelleId={file.id}
+          startInfo={signStart}
+        />
+      )}
       <SignPdfDialog
         open={!!signUrl}
         onOpenChange={(o) => !o && setSignUrl(null)}

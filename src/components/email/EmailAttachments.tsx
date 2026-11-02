@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Paperclip, Download, FileText, Image, FileSpreadsheet, File, Sparkles, Loader2, Check, FolderArchive, ArrowDownToLine, ChevronDown, Layers, X, ArrowUp, ArrowDown, FileArchive, RefreshCw, Inbox, PenLine, Reply } from "lucide-react";
+import { Paperclip, Download, FileText, Image, FileSpreadsheet, File, Sparkles, Loader2, Check, FolderArchive, ArrowDownToLine, ChevronDown, Layers, X, ArrowUp, ArrowDown, FileArchive, RefreshCw, Inbox, PenLine, Reply, FileSignature } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -16,6 +16,8 @@ import { mergeImagesToPdf } from "./lib/mergeImagesToPdf";
 import { SignPdfDialog } from "@/components/documents/SignPdfDialog";
 import { saveSignedEmailAttachment } from "@/lib/documentSigning";
 import { useComposeEmail } from "@/contexts/ComposeEmailContext";
+import { UnterschriftAnfordernDialog } from "@/components/signatur/UnterschriftAnfordernDialog";
+import { dokumentartAusName, titelAusDateiname } from "@/lib/signatur";
 
 interface EmailAttachmentsProps {
   emailId: string;
@@ -88,6 +90,17 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
   // Unterschreiben
   const [signTarget, setSignTarget] = useState<{ path: string; name: string; url: string } | null>(null);
   const [lastSigned, setLastSigned] = useState<{ path: string; name: string; size: number } | null>(null);
+
+  // Elektronische Unterschrift anfordern (Anhang als Quelle)
+  const [anfordernAnhang, setAnfordernAnhang] = useState<{ id: string; path: string; name: string } | null>(null);
+  const { data: mailKontext } = useQuery({
+    queryKey: ["email-sign-kontext", emailId],
+    queryFn: async () => {
+      const { data } = await supabase.from("emails").select("building_id, subject, buildings(name)").eq("id", emailId).maybeSingle();
+      return data as { building_id: string | null; subject: string | null; buildings: { name: string } | null } | null;
+    },
+    staleTime: 5 * 60_000,
+  });
 
   const { data: attachments = [] } = useQuery({
     queryKey: ["email-attachments", emailId],
@@ -743,6 +756,18 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
                   <PenLine className="h-3.5 w-3.5" />
                 </Button>
               )}
+              {isPdf(att.mime_type, att.file_name) && att.file_path && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-auto py-1.5 px-1.5"
+                  title="Unterschrift anfordern"
+                  aria-label="Unterschrift anfordern"
+                  onClick={() => setAnfordernAnhang({ id: att.id, path: att.file_path!, name: att.file_name })}
+                >
+                  <FileSignature className="h-3.5 w-3.5" />
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="sm"
@@ -828,6 +853,23 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
           if (att?.file_path) handleOpenSign(att.file_path, att.file_name);
         }}
       />
+      {anfordernAnhang && (
+        <UnterschriftAnfordernDialog
+          open={!!anfordernAnhang}
+          onOpenChange={(o) => !o && setAnfordernAnhang(null)}
+          quelleTyp="email_attachment"
+          quelleId={anfordernAnhang.id}
+          startInfo={{
+            titel: titelAusDateiname(anfordernAnhang.name),
+            building_id: mailKontext?.building_id ?? null,
+            quelle_label: [mailKontext?.buildings?.name, `E-Mail${mailKontext?.subject ? ` „${mailKontext.subject}“` : ""}`].filter(Boolean).join(" · "),
+            source_bucket: "email-attachments",
+            source_path: anfordernAnhang.path,
+            dokumentart: dokumentartAusName(anfordernAnhang.name),
+            email_id: emailId,
+          }}
+        />
+      )}
       <SignPdfDialog
         open={!!signTarget}
         onOpenChange={(o) => !o && setSignTarget(null)}

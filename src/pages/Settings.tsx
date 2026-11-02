@@ -8,7 +8,7 @@
 import { useMemo, type ComponentType } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
-  Bell, Bot, BookOpenCheck, Landmark, Mail, Megaphone, ShieldCheck, UserRound, Users, Wallet,
+  Bell, Bot, BookOpenCheck, Landmark, Mail, Megaphone, PenLine, ShieldCheck, UserRound, Users, Wallet,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
@@ -22,6 +22,7 @@ import { EmailSettingsSection } from "@/components/email/EmailSettingsSection";
 import { ReportSettings } from "@/components/reports/ReportSettings";
 import { ChartOfAccountsTab } from "@/components/finance/ChartOfAccountsTab";
 import { Card, CardContent } from "@/components/ui/card";
+import { UnterschriftenBereich } from "@/components/settings/UnterschriftenBereich";
 
 type Gruppe = "Mein Konto" | "Büro";
 
@@ -65,6 +66,11 @@ const BEREICHE: Bereich[] = [
     id: "postfaecher", titel: "E-Mail-Postfächer", icon: Mail, gruppe: "Büro", nurAdmin: true,
     text: "Die Postfächer, die im Postfach der App ankommen, und wer sie sehen darf.",
     inhalt: () => <EmailSettingsSection />,
+  },
+  {
+    id: "unterschriften", titel: "Unterschriften", icon: PenLine, gruppe: "Büro",
+    text: "E-Mail-Vorlagen, Fristen und Erinnerungen für die elektronische Unterschrift je Dokumentart.",
+    inhalt: () => <UnterschriftenBereich />,
   },
   {
     id: "buero-bank", titel: "Kontoauszüge abrufen", icon: Landmark, gruppe: "Büro", nurAdmin: true,

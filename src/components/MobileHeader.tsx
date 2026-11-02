@@ -11,6 +11,7 @@ import {
   type MenuItem,
 } from "@/lib/adminNavigation";
 import { useBrokerModeOptional } from "@/hooks/useBrokerMode";
+import { useSignOpenCount } from "@/lib/signatur";
 import { ModusSchalter } from "@/components/broker/ModusSchalter";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -40,6 +41,8 @@ export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileH
 
   const istVerwaltung = userRole === 'admin' || userRole === 'employee';
   const istMakler = !!broker?.brokerActive;
+  const { data: signCounts } = useSignOpenCount(istVerwaltung && !istMakler);
+  const openSignCount = istVerwaltung && !istMakler ? signCounts?.offen ?? 0 : 0;
   /** Dieselbe Liste wie in der Seitenleiste — es gibt nur eine. */
   const verwaltungsMenue = menueFuer(
     profile?.role,
@@ -202,6 +205,15 @@ export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileH
                                   >
                                     <item.icon className="w-5 h-5" />
                                     {item.title}
+                                    {item.url === "/unterschriften" && openSignCount > 0 && (
+                                      <span
+                                        className={`ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-semibold ${
+                                          aktiv ? "bg-transparent text-white" : "bg-[#FFF7ED] text-[#B35300]"
+                                        }`}
+                                      >
+                                        {openSignCount > 99 ? "99+" : openSignCount}
+                                      </span>
+                                    )}
                                   </Button>
                                 );
                               })}

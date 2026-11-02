@@ -11,6 +11,7 @@ import { DashboardDueList } from "@/components/dashboard/DashboardDueList";
 import { DashboardAppointments } from "@/components/dashboard/DashboardAppointments";
 import { DashboardAnnualCycle } from "@/components/dashboard/DashboardAnnualCycle";
 import { DashboardKeys } from "@/components/dashboard/DashboardKeys";
+import { useSignOpenCount } from "@/lib/signatur";
 
 /**
  * Startseite der Verwaltung.
@@ -137,6 +138,9 @@ export const Dashboard = () => {
     staleTime: 60_000,
   });
 
+  // Unterschriften: offene Vorgänge und davon überfällige
+  const { data: unterschriften, isLoading: unterschriftenLaedt } = useSignOpenCount(!!user?.id);
+
   const stats: GlobalStats = data || {
     open_reports: 0, open_cases: 0, open_invoices: 0, unread_emails: 0,
     building_count: 0, today_tasks: [], week_tasks: [],
@@ -176,7 +180,7 @@ export const Dashboard = () => {
       </header>
 
       {/* Kennzahlen */}
-      <section aria-label="Kennzahlen" className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+      <section aria-label="Kennzahlen" className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 md:gap-4">
         <KpiCard
           label="Offene Meldungen"
           value={stats.open_reports}
@@ -210,6 +214,15 @@ export const Dashboard = () => {
           tone="neutral"
           onClick={() => navigate("/schluessel")}
           isLoading={!schluessel}
+        />
+        <KpiCard
+          label="Unterschriften"
+          value={unterschriften?.offen ?? 0}
+          sub={`${unterschriften?.offen ?? 0} offen, ${unterschriften?.ueberfaellig ?? 0} überfällig`}
+          subWarn={!!unterschriften?.ueberfaellig}
+          tone="orange"
+          onClick={() => navigate("/unterschriften")}
+          isLoading={unterschriftenLaedt}
         />
       </section>
 

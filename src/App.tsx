@@ -59,6 +59,9 @@ const Meetings = lazy(() => import("./pages/Meetings").then(m => ({ default: m.M
 const EtvProxy = lazy(() => import("./pages/EtvProxy").then(m => ({ default: m.EtvProxy })));
 const CashAuditProxy = lazy(() => import("./pages/CashAuditProxy").then(m => ({ default: m.CashAuditProxy })));
 const EtvProtocolSign = lazy(() => import("./pages/EtvProtocolSign").then(m => ({ default: m.EtvProtocolSign })));
+const Unterschreiben = lazy(() => import("./pages/Unterschreiben"));
+const Unterschriften = lazy(() => import("./pages/Unterschriften"));
+const PapierPruefen = lazy(() => import("./pages/PapierPruefen"));
 const Transfers = lazy(() => import("./pages/Transfers").then(m => ({ default: m.Transfers })));
 const MaklerUebersicht = lazy(() => import("./pages/makler/MaklerUebersicht"));
 const MaklerObjekte = lazy(() => import("./pages/makler/MaklerObjekte"));
@@ -181,6 +184,8 @@ const App = () => (
               <Route path="/finanzen/lernsignale" element={<AdminLayout><Lernsignale /></AdminLayout>} />
               <Route path="/finanzen/wirtschaftsplan" element={<Navigate to="/finanzen" replace />} />
               <Route path="/postfach" element={<AdminLayout><Inbox /></AdminLayout>} />
+              <Route path="/unterschriften" element={<AdminLayout><Unterschriften /></AdminLayout>} />
+              <Route path="/unterschriften/:id/papier/:signerId" element={<AdminLayout><PapierPruefen /></AdminLayout>} />
               <Route path="/versammlungen" element={<AdminLayout><Meetings /></AdminLayout>} />
               <Route path="/umfragen" element={<AdminLayout><UmfragenPage /></AdminLayout>} />
               <Route path="/zahlungen" element={<AdminLayout><Transfers /></AdminLayout>} />
@@ -249,6 +254,7 @@ const App = () => (
               <Route path="/etv-proxy/:token" element={<EtvProxy />} />
               <Route path="/kassenpruefung/:token" element={<CashAuditProxy />} />
               <Route path="/protokoll-unterschreiben/:token" element={<EtvProtocolSign />} />
+              <Route path="/unterschreiben/:token" element={<Unterschreiben />} />
               <Route path="/offline" element={<Offline />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
