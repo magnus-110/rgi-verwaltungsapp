@@ -9,6 +9,8 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      // wie in vite.config.ts: gemeinsamer Code mit den Edge Functions
+      "@shared": path.resolve(__dirname, "./supabase/functions/_shared"),
     },
   },
   test: {
