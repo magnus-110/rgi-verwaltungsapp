@@ -4,6 +4,7 @@ import { empfaengerBestimmen, istFloskel, kurzInhalt, verwendungszweck, zweckIst
 import { createClient } from "npm:@supabase/supabase-js@2.52.1";
 import { detectAndParseEInvoice, isEInvoiceComplete, type ParsedEInvoice } from "../_shared/einvoice.ts";
 import { ocrMitCache } from "../_shared/ocr-cache.ts";
+import { erkenneLiegenschaft } from "../_shared/liegenschaft-erkennung.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -30,151 +31,46 @@ function istPlausibleIban(iban: string): boolean {
   return rest === 1;
 }
 
-function normalizeForMatch(s: string): string {
-  if (!s) return "";
-  let n = s.toLowerCase();
-  n = n.replace(/ß/g, "ss");
-  // Vereinheitliche Straßen-Suffixe: "straße"/"strasse"/"str." → "str"
-  n = n.replace(/strasse/g, "str");
-  n = n.replace(/str\./g, "str ");
-  // Sonderzeichen → Space (behält Umlaute)
-  n = n.replace(/[^a-z0-9äöü]/g, " ");
-  // "<wort>str" → "<wort> str" (Ahornstr → Ahorn str)
-  n = n.replace(/([a-zäöü]{2,})str\b/g, "$1 str");
-  n = n.replace(/\s+/g, " ").trim();
-  return n;
-}
-
-function extractPostalCodes(n: string): string[] {
-  return Array.from(n.matchAll(/\b(\d{5})\b/g)).map((m) => m[1]);
-}
-
-function extractHouseNumbers(n: string): string[] {
-  const out = new Set<string>();
-  for (const m of n.matchAll(/\b(\d{1,4}[a-z]?)\b/g)) {
-    const v = m[1];
-    if (v.length === 5 && /^\d+$/.test(v)) continue; // PLZ raus
-    out.add(v);
-  }
-  return Array.from(out);
-}
-
-const SUFFIXES = ["str","weg","platz","allee","gasse","ring","damm","markt","feld","bach","tal","wehr","hof","ufer","berg","winkel","steig","pfad","chaussee","brueck","brücke"];
-
-function extractStreetStems(n: string): string[] {
-  const stems = new Set<string>();
-  const tokens = n.split(/\s+/);
-  for (let i = 0; i < tokens.length; i++) {
-    const t = tokens[i];
-    if (SUFFIXES.includes(t) && i > 0) {
-      const prev = tokens[i - 1];
-      if (prev.length >= 2 && /^[a-zäöü]+$/.test(prev)) {
-        stems.add(`${prev} ${t}`);
-        stems.add(`${prev}${t}`);
-      }
-      continue;
-    }
-    for (const suf of SUFFIXES) {
-      if (t.length > suf.length + 1 && t.endsWith(suf) && /^[a-zäöü]+$/.test(t)) {
-        stems.add(t);
-        const base = t.slice(0, -suf.length);
-        if (base.length >= 2) stems.add(`${base} ${suf}`);
-        break;
-      }
-    }
-    // Mehrteilige Namen wie "Am Wehr", "Im Argental", "Neuer Weg", "Adolf Haff Weg"
-    if (["am","im","an","auf","neuer","neue","alter","alte","zum","zur"].includes(t) && i + 2 < tokens.length) {
-      const w2 = tokens[i + 1];
-      const w3 = tokens[i + 2];
-      if (/^[a-zäöü]+$/.test(w2) && /^\d/.test(w3)) {
-        stems.add(`${t} ${w2}`);
-      }
-    }
-  }
-  return Array.from(stems);
-}
-
-// Schneidet alles ab c/o-Markern weg (z.H., z.Hd., zu Händen, c/o, RGI Immobilien …)
-// damit nur die oberste Empfänger-Zeile (die echte Liegenschaft) gematcht wird.
-function stripCareOf(address: string): string {
-  if (!address) return "";
-  // Normalize line breaks and commas to a single separator we can split on
-  const lines = address
-    .split(/\r?\n|,/)
-    .map((l) => l.trim())
-    .filter(Boolean);
-  const stopRe = /(z\.?\s*h(d)?\.?|zu\s+h[äa]nden|c\/o|c\.o\.|rgi[\s-]*immobilien)/i;
-  const kept: string[] = [];
-  for (const line of lines) {
-    if (stopRe.test(line)) break;
-    kept.push(line);
-  }
-  return (kept.length ? kept : lines.slice(0, 1)).join(", ");
-}
-
-function findBestBuildingMatch(
-  recipientAddress: string,
-  buildings: { id: string; name: string; address: string }[]
-): string | null {
-  if (!recipientAddress) return null;
-  const trimmed = stripCareOf(recipientAddress);
-  const recv = normalizeForMatch(trimmed);
-  if (!recv) return null;
-
-  const recvPostals = new Set(extractPostalCodes(recv));
-  const recvNumbers = new Set(extractHouseNumbers(recv));
-
-  let bestId: string | null = null;
-  let bestScore = 0;
-
-  for (const b of buildings) {
-    const combined = normalizeForMatch(`${b.address || ""} ${b.city || ""} ${b.name || ""}`);
-    const stems = extractStreetStems(combined);
-    if (stems.length === 0) continue;
-    const buildingPostal = extractPostalCodes(combined)[0] || null;
-    const buildingNumbers = extractHouseNumbers(combined);
-
-    // 1) Straßen-Stamm muss treffen (Pflicht)
-    let bestStemLen = 0;
-    for (const stem of stems) {
-      if (stem.length >= 4 && recv.includes(stem) && stem.length > bestStemLen) {
-        bestStemLen = stem.length;
-      }
-    }
-    if (bestStemLen === 0) continue;
-
-    let score = bestStemLen;
-
-    // 2) Hausnummer (exakt oder im Bereich) – Pflicht
-    let hasNumber = false;
-    for (const hn of buildingNumbers) {
-      if (recvNumbers.has(hn)) { score += 25; hasNumber = true; break; }
-    }
-    if (!hasNumber) {
-      const ranges = (b.address || "").match(/(\d{1,4})\s*[-+/]\s*(\d{1,4})/g) || [];
-      for (const r of ranges) {
-        const m = r.match(/(\d{1,4})\s*[-+/]\s*(\d{1,4})/);
-        if (!m) continue;
-        const lo = parseInt(m[1]); const hi = parseInt(m[2]);
-        for (const rn of recvNumbers) {
-          const num = parseInt(rn);
-          if (!isNaN(num) && num >= lo && num <= hi) { score += 18; hasNumber = true; break; }
-        }
-        if (hasNumber) break;
-      }
-    }
-    if (!hasNumber) continue;
-
-    // 3) PLZ als Bonus (gegen Verwechslung gleichnamiger Straßen in anderen Orten)
-    if (buildingPostal && recvPostals.has(buildingPostal)) score += 15;
-
-    if (score > bestScore) {
-      bestScore = score;
-      bestId = b.id;
-    }
+// Liegenschafts-Erkennung: siehe _shared/liegenschaft-erkennung.ts
+async function liegenschaftErmitteln(
+  supabase: any,
+  hinweise: { objektHinweis?: string | null; empfaenger?: string | null; volltext?: string | null; vendorIban?: string | null },
+  invoiceId: string,
+): Promise<string | null> {
+  const [{ data: alle }, { data: firma }] = await Promise.all([
+    supabase.from("buildings").select("id, name, address, postal_code, city"),
+    supabase.from("rgi_company_settings").select("address_line1, zip").limit(1).maybeSingle(),
+  ]);
+  const eigeneAnschriften = [
+    { strasse: firma?.address_line1 || "Vilstalstr. 4", plz: firma?.zip || "87459" },
+  ];
+  const treffer = erkenneLiegenschaft({ ...hinweise, gebaeude: alle || [], eigeneAnschriften });
+  if (treffer) {
+    console.log(`Liegenschaft erkannt (${treffer.quelle}): ${treffer.id}`);
+    return treffer.id;
   }
 
-  return bestScore >= 30 ? bestId : null;
+  // Rückfall: Lieferant (IBAN) hat bisher immer nur für EIN Objekt abgerechnet
+  const iban = (hinweise.vendorIban || "").replace(/\s+/g, "").toUpperCase();
+  if (iban) {
+    const { data: frueher } = await supabase
+      .from("invoices")
+      .select("building_id")
+      .in("vendor_iban", [iban, iban.replace(/(.{4})/g, "$1 ").trim()])
+      .eq("is_company_invoice", false)
+      .not("building_id", "is", null)
+      .neq("id", invoiceId)
+      .order("created_at", { ascending: false })
+      .limit(20);
+    const ids = new Set((frueher || []).map((r: any) => r.building_id));
+    if ((frueher || []).length >= 2 && ids.size === 1) {
+      const id = [...ids][0] as string;
+      console.log(`Liegenschaft aus Lieferanten-Historie (IBAN, ${frueher.length} Rechnungen): ${id}`);
+      return id;
+    }
+  }
+  console.log(`Keine Liegenschaft erkannt (Empfänger: ${hinweise.empfaenger ?? "–"}, Objekt: ${hinweise.objektHinweis ?? "–"})`);
+  return null;
 }
 
 serve(async (req) => {
@@ -303,11 +199,12 @@ serve(async (req) => {
           // Auto-match building from recipient address (skip for company invoices)
           const isCompany = invoice.is_company_invoice || isCompanyInvoice === true;
           let matchedBuildingId: string | null = invoice.building_id || null;
-          if (!isCompany && !matchedBuildingId && eInvoice.recipient_address) {
-            const { data: allBuildings } = await supabase.from("buildings").select("id, name, address, city");
-            if (allBuildings) {
-              matchedBuildingId = findBestBuildingMatch(eInvoice.recipient_address, allBuildings);
-            }
+          if (!isCompany && !matchedBuildingId) {
+            matchedBuildingId = await liegenschaftErmitteln(
+              supabase,
+              { empfaenger: eInvoice.recipient_address, vendorIban: eInvoice.vendor_iban ?? null },
+              invoiceId,
+            );
           }
 
           // Duplicate check
@@ -491,7 +388,8 @@ oder nur ein Angebot, ein Mandat zu erteilen, setze lastschrift=false.`
                   gross_amount: { type: "number", description: "Bruttobetrag" },
                   description: { type: "string", description: "Kurzbeschreibung der Rechnung" },
                   lastschrift: { type: "boolean", description: "true, wenn der Betrag per Lastschrift eingezogen wird und nicht überwiesen werden muss" },
-                  recipient_address: { type: "string", description: "Vollständige Empfängeradresse inkl. Name, Straße, PLZ, Ort" },
+                  recipient_address: { type: "string", description: "Vollständige Empfängeradresse genau wie gedruckt, inkl. aller Namenszeilen (z. B. „WEG …, vertreten durch RGI …“), Straße, PLZ, Ort" },
+                  objekt_hinweis: { type: "string", description: "Liegenschaft/Objekt, für das geleistet oder geliefert wurde (Betreff, „Objekt:“, „Leistungsort“, „Lieferanschrift“, „BV“, „Verbrauchsstelle“, „WEG …“) mit Straße, Hausnr., PLZ, Ort. Niemals die Anschrift der Hausverwaltung RGI (Vilstalstr. 4, Pfronten). null, wenn nicht erkennbar." },
                   line_items: {
                     type: "array",
                     items: {
@@ -687,19 +585,17 @@ oder nur ein Angebot, ein Mandat zu erteilen, setze lastschrift=false.`
     // Skip auto-matching for company invoices (RGI Immobilien itself)
     const isCompany = invoice.is_company_invoice || isCompanyInvoice === true;
     let matchedBuildingId: string | null = invoice.building_id || null;
-    if (!isCompany && !matchedBuildingId && extracted.recipient_address) {
-      const { data: allBuildings } = await supabase
-        .from("buildings")
-        .select("id, name, address, city");
-      
-      if (allBuildings && allBuildings.length > 0) {
-        matchedBuildingId = findBestBuildingMatch(extracted.recipient_address, allBuildings);
-        if (matchedBuildingId) {
-          console.log(`Auto-matched building: ${matchedBuildingId} from recipient: ${extracted.recipient_address}`);
-        } else {
-          console.log(`No building match for recipient: ${extracted.recipient_address}`);
-        }
-      }
+    if (!isCompany && !matchedBuildingId) {
+      matchedBuildingId = await liegenschaftErmitteln(
+        supabase,
+        {
+          objektHinweis: extracted.objekt_hinweis ?? null,
+          empfaenger: extracted.recipient_address ?? null,
+          volltext: extractedText,
+          vendorIban: extracted.vendor_iban ?? null,
+        },
+        invoiceId,
+      );
     } else if (isCompany) {
       console.log(`Skipping building auto-match: invoice ${invoiceId} is a company invoice`);
     }
