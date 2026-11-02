@@ -6,8 +6,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.52.1";
 import { rundmailTools } from "./rundmail.ts";
 import { dokumentTools } from "./dokumente.ts";
-import { rechnungTools } from "./rechnungen.ts";
-import { angebotTools } from "./angebote.ts";
+import { WEITERE_HINWEISE, weitereWerkzeuge } from "./werkzeuge.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -201,26 +200,6 @@ async function mailVersenden(m: {
   return ins.id;
 }
 
-// DMS-Ordner eines Gebäudes mit Pfad. Objektbezogene Ordner unabhängig vom Verwaltungsmodus
-// (wie im Ordnerbaum der App), allgemeine Kategorien passend zum Modus des Gebäudes.
-async function ordnerListe(building_id: string) {
-  const { data: g } = await db.from("buildings").select("management_mode").eq("id", building_id).maybeSingle();
-  const felder = "id, name, parent_id, building_id, slug, sort_order";
-  const { data: eigene, error: e1 } = await db.from("building_file_categories").select(felder).eq("building_id", building_id).is("archived_at", null);
-  if (e1) throw e1;
-  let qa = db.from("building_file_categories").select(felder).is("building_id", null).is("archived_at", null).eq("is_company", false);
-  if (g?.management_mode) qa = qa.or(`management_mode.is.null,management_mode.eq.${g.management_mode}`);
-  const { data: allg, error: e2 } = await qa;
-  if (e2) throw e2;
-  const alle = [...(eigene ?? []), ...(allg ?? [])] as any[];
-  const byId = new Map(alle.map((c) => [c.id, c]));
-  const pfad = (c: any): string[] => { const out: string[] = []; let x = c; let i = 0; while (x && i++ < 10) { out.unshift(x.name); x = x.parent_id ? byId.get(x.parent_id) : null; } return out; };
-  const sortKey = (c: any): string => { const out: string[] = []; let x = c; let i = 0; while (x && i++ < 10) { out.unshift(String(x.sort_order ?? 0).padStart(5, "0") + x.name); x = x.parent_id ? byId.get(x.parent_id) : null; } return (c.building_id ? "0" : "1") + out.join("/"); };
-  return alle.sort((a, b) => sortKey(a).localeCompare(sortKey(b))).map((c) => ({
-    id: c.id, name: c.name, pfad: pfad(c).join(" › "), parent_id: c.parent_id, objektbezogen: !!c.building_id, slug: c.slug,
-  }));
-}
-
 // ---------------------------------------------------------------- Werkzeuge
 type Tool = { name: string; description: string; inputSchema: any; annotations?: any; run: (a: any) => Promise<unknown> };
 const S = (props: Record<string, any>, required: string[] = []) => ({ type: "object", properties: props, required, additionalProperties: false });
@@ -242,87 +221,16 @@ const tools: Tool[] = [
   },
   {
     name: "dms_kategorien",
-    description: "Listet die DMS-Ordner eines Gebäudes mit vollem Pfad (z. B. 'Stammakte › Schließanlage') – objektbezogene Ordner und allgemeine Kategorien. Vor dem Ablegen den passendsten Unterordner wählen; fehlt einer, mit dms_ordner_anlegen anlegen.",
+    description: "Listet die DMS-Kategorien (Ordner) für ein Gebäude – allgemeine und gebäudespezifische.",
     inputSchema: S({ building_id: uuid("Gebäude") }, ["building_id"]),
     annotations: { readOnlyHint: true },
-    run: async ({ building_id }) => ordnerListe(building_id),
-  },
-  {
-    name: "dms_ordner_anlegen",
-    description: "Legt im DMS eines Gebäudes einen neuen Ordner an – als Unterordner (parent_id aus dms_kategorien, nur objektbezogene Ordner) oder auf oberster Ebene. Gibt es unter demselben Ordner schon einen gleichnamigen, wird dieser zurückgegeben statt doppelt angelegt. Symbol und Farbe werden vom übergeordneten Ordner übernommen.",
-    inputSchema: S({
-      building_id: uuid("Gebäude"),
-      name: str("Ordnername, z. B. 'Kontaktlisten / Ansprechpartner'"),
-      parent_id: uuid("Übergeordneter Ordner (optional, sonst oberste Ebene)"),
-      mitarbeiter_email: str("optional, für das Protokoll"),
-    }, ["building_id", "name"]),
-    run: async ({ building_id, name, parent_id, mitarbeiter_email }) => {
-      const n = String(name ?? "").trim().replace(/\s+/g, " ");
-      if (!n) throw new Error("Bitte einen Ordnernamen angeben");
-      if (n.length > 120) throw new Error("Ordnername zu lang (max. 120 Zeichen)");
-      const { data: geb } = await db.from("buildings").select("id, name, management_mode").eq("id", building_id).maybeSingle();
-      if (!geb) throw new Error("Gebäude nicht gefunden");
-      let parent: any = null;
-      if (parent_id) {
-        const { data } = await db.from("building_file_categories").select("id, name, building_id, management_mode, icon, color, archived_at").eq("id", parent_id).maybeSingle();
-        if (!data || data.archived_at) throw new Error("Übergeordneter Ordner nicht gefunden");
-        if (data.building_id !== building_id) throw new Error("Unterordner können nur unter objektbezogenen Ordnern dieses Gebäudes angelegt werden (siehe dms_kategorien, building_id gesetzt)");
-        parent = data;
-      }
-      let gleiche = db.from("building_file_categories").select("id, name").eq("building_id", building_id).is("archived_at", null).ilike("name", n);
-      gleiche = parent ? gleiche.eq("parent_id", parent.id) : gleiche.is("parent_id", null);
-      const { data: vorhanden } = await gleiche.limit(1);
-      const pfadVon = async (id: string) => ((await ordnerListe(building_id)) as any[]).find((o) => o.id === id)?.pfad ?? n;
-      if (vorhanden?.length) return { angelegt: false, hinweis: "Ordner gibt es bereits", id: vorhanden[0].id, name: vorhanden[0].name, pfad: await pfadVon(vorhanden[0].id) };
-      let geschwister = db.from("building_file_categories").select("sort_order").eq("building_id", building_id);
-      geschwister = parent ? geschwister.eq("parent_id", parent.id) : geschwister.is("parent_id", null);
-      const { data: sib } = await geschwister;
-      const nextSort = (sib ?? []).reduce((m: number, c: any) => Math.max(m, c.sort_order || 0), 0) + 10;
-      const row: Record<string, unknown> = {
-        name: n, parent_id: parent?.id ?? null, building_id,
-        management_mode: parent?.management_mode ?? geb.management_mode ?? "weg",
-        sort_order: nextSort, is_recommended: false, auto_rag_enabled: false,
-      };
-      if (parent?.icon) row.icon = parent.icon;
-      if (parent?.color) row.color = parent.color;
-      const { data: neu, error } = await db.from("building_file_categories").insert(row).select("id, name").single();
-      if (error) throw new Error(`Ordner anlegen fehlgeschlagen: ${error.message}`);
-      await log("dms_ordner_anlegen", { building_id, id: neu.id, name: n, parent_id: parent?.id ?? null, mitarbeiter: mitarbeiter_email ?? null });
-      return { angelegt: true, id: neu.id, name: neu.name, gebaeude: geb.name, pfad: await pfadVon(neu.id) };
-    },
-  },
-  {
-    name: "dms_dokumente_verschieben",
-    description: "Verschiebt DMS-Dokumente in einen anderen Ordner (kategorie_id aus dms_kategorien) und kann bei einem einzelnen Dokument zusätzlich Anzeigename und Beschreibung ändern. Nur innerhalb desselben Gebäudes.",
-    inputSchema: S({
-      file_ids: { type: "array", items: { type: "string", format: "uuid" }, minItems: 1, maxItems: 100, description: "building_files.id" },
-      kategorie_id: uuid("Zielordner"),
-      anzeigename: str("optional, nur bei genau einem Dokument"),
-      beschreibung: str("optional, nur bei genau einem Dokument"),
-      mitarbeiter_email: str("optional, für das Protokoll"),
-    }, ["file_ids", "kategorie_id"]),
-    run: async ({ file_ids, kategorie_id, anzeigename, beschreibung, mitarbeiter_email }) => {
-      const ids = [...new Set(file_ids as string[])];
-      if ((anzeigename || beschreibung) && ids.length !== 1) throw new Error("Anzeigename/Beschreibung nur bei genau einem Dokument ändern");
-      const { data: kat } = await db.from("building_file_categories").select("id, name, building_id, archived_at").eq("id", kategorie_id).maybeSingle();
-      if (!kat || kat.archived_at) throw new Error("Zielordner nicht gefunden");
-      const { data: files, error: fErr } = await db.from("building_files").select("id, building_id, display_name, category_id").in("id", ids).is("deleted_at", null);
-      if (fErr) throw fErr;
-      if ((files ?? []).length !== ids.length) throw new Error("Mindestens ein Dokument wurde nicht gefunden");
-      const gebs = new Set((files ?? []).map((f: any) => f.building_id));
-      if (gebs.size !== 1) throw new Error("Bitte nur Dokumente eines Gebäudes gemeinsam verschieben");
-      const building_id = [...gebs][0] as string;
-      if (kat.building_id && kat.building_id !== building_id) throw new Error("Zielordner gehört zu einem anderen Gebäude");
-      const upd: Record<string, unknown> = { category_id: kategorie_id };
-      if (anzeigename) upd.display_name = String(anzeigename).trim();
-      if (beschreibung !== undefined && beschreibung !== null && beschreibung !== "") upd.description = beschreibung;
-      const { error } = await db.from("building_files").update(upd).in("id", ids);
-      if (error) throw new Error(`Verschieben fehlgeschlagen: ${error.message}`);
-      const user_id = await uploaderId(mitarbeiter_email);
-      await db.from("building_file_activity").insert((files ?? []).map((f: any) => ({ file_id: f.id, user_id, action: "move", details: { via: "claude-connector", von: f.category_id, nach: kategorie_id } }))).then(() => {}, () => {});
-      await log("dms_dokumente_verschieben", { building_id, anzahl: ids.length, kategorie_id, mitarbeiter: mitarbeiter_email ?? null });
-      const pfad = ((await ordnerListe(building_id)) as any[]).find((o) => o.id === kategorie_id)?.pfad ?? kat.name;
-      return { verschoben: ids.length, ordner: pfad, dokumente: (files ?? []).map((f: any) => ({ id: f.id, anzeigename: ids.length === 1 && anzeigename ? upd.display_name : f.display_name })) };
+    run: async ({ building_id }) => {
+      const { data: g } = await db.from("buildings").select("management_mode").eq("id", building_id).maybeSingle();
+      let q = db.from("building_file_categories").select("id, name, parent_id, building_id, slug").is("archived_at", null).or(`building_id.is.null,building_id.eq.${building_id}`).order("sort_order");
+      if (g?.management_mode) q = q.or(`management_mode.is.null,management_mode.eq.${g.management_mode}`);
+      const { data, error } = await q;
+      if (error) throw error;
+      return data;
     },
   },
   {
@@ -657,8 +565,7 @@ const tools: Tool[] = [
   },
   ...rundmailTools({ db, defaultUser: DEFAULT_UPLOADER, log, objektGroesse, mimeVon }),
   ...dokumentTools({ db, log, dmsEintragAnlegen, mimeVon, uploaderId }),
-  ...rechnungTools({ db, log, uploaderId, objektGroesse }),
-  ...angebotTools({ db, log, uploaderId }),
+  ...weitereWerkzeuge({ db, log, uploaderId, objektGroesse }),
 ];
 
 // ---------------------------------------------------------------- MCP
@@ -674,7 +581,7 @@ async function mcp(msg: any): Promise<any | null> {
         protocolVersion: params?.protocolVersion ?? "2025-06-18",
         capabilities: { tools: { listChanged: false } },
         serverInfo: SERVER_INFO,
-        instructions: "Zugriff auf DMS und E-Mails der RGI-VerwaltungsApp. DMS-Ablage: mit dms_kategorien den passenden Unterordner wählen (Pfad beachten, nicht im Hauptordner ablegen); fehlt ein passender Ordner, mit dms_ordner_anlegen anlegen; falsch abgelegte Dokumente mit dms_dokumente_verschieben umsortieren. Dateien nie als Text durch den Chat schicken: über upload_url/download_url mit curl übertragen. E-Mails erst nach ausdrücklicher Zustimmung des Nutzers senden (mail_senden zuerst mit bestaetigt=false). Soll der Nutzer die Mail selbst prüfen und versenden, mail_entwurf_anlegen verwenden – das speichert nur einen Entwurf in der App. Rundmails an mehrere Eigentümer/Mieter eines Objekts: rundmail_entwurf_anlegen, persönliche Anhänge (z. B. Einladung je Einheit, Dateiname beginnt mit der Einheitennummer) mit rundmail_anhaenge_vorbereiten + rundmail_anhaenge_zuordnen – versendet wird die Rundmail vom Mitarbeiter in der App. Dokumente (Briefe aus Vorlagen, ETV-Einladungen, Protokolle, TOP-Berichte, Angebote, RGI-Rechnungen, Jahresabrechnungen, Wirtschaftspläne, §35a-Bescheinigungen) mit dokument_erstellen – gleiche Vorlagen und Berechnung wie in der App; Ergebnis als Download-Link, optional ins DMS, als Mail-Anhang (dateien[].anhang) oder an eine Rundmail. Ab 50 Dokumenten erst den Nutzer fragen. RGI-Rechnungen schreiben: rechnung_entwurf_anlegen (Entwurf + Vorschau-PDF, Beträge nur nach Vorgabe des Nutzers), dann rechnung_festschreiben – zuerst ohne bestaetigt, Nummer erst nach ausdrücklicher Zustimmung. Verwalter-Angebote: angebote_suchen, angebot_lesen, angebot_speichern (anlegen/ändern, Sätze nur nach Vorgabe des Nutzers); gewonnenes Angebot mit angebot_gebaeude_anlegen in Gebäude + Verwaltervertrag übernehmen – zuerst ohne bestaetigt, dann nur nach ausdrücklicher Zustimmung.",
+        instructions: "Zugriff auf DMS und E-Mails der RGI-VerwaltungsApp. Dateien nie als Text durch den Chat schicken: über upload_url/download_url mit curl übertragen. E-Mails erst nach ausdrücklicher Zustimmung des Nutzers senden (mail_senden zuerst mit bestaetigt=false). Soll der Nutzer die Mail selbst prüfen und versenden, mail_entwurf_anlegen verwenden – das speichert nur einen Entwurf in der App. Rundmails an mehrere Eigentümer/Mieter eines Objekts: rundmail_entwurf_anlegen, persönliche Anhänge (z. B. Einladung je Einheit, Dateiname beginnt mit der Einheitennummer) mit rundmail_anhaenge_vorbereiten + rundmail_anhaenge_zuordnen – versendet wird die Rundmail vom Mitarbeiter in der App. Dokumente (Briefe aus Vorlagen, ETV-Einladungen, Protokolle, TOP-Berichte, Angebote, RGI-Rechnungen, Jahresabrechnungen, Wirtschaftspläne, §35a-Bescheinigungen) mit dokument_erstellen – gleiche Vorlagen und Berechnung wie in der App; Ergebnis als Download-Link, optional ins DMS, als Mail-Anhang (dateien[].anhang) oder an eine Rundmail. Ab 50 Dokumenten erst den Nutzer fragen. " + WEITERE_HINWEISE,
       });
     case "ping":
       return ok({});
