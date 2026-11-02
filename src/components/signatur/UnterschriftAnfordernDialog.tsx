@@ -480,7 +480,8 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
         mail_betreff: betreff,
         mail_text: text,
         erinnerung,
-        kopie_dms: kopieDms,
+        // Spalte bleibt aus Kompatibilität; wirkt nur noch bei ETV-Protokollen
+        kopie_dms: etv ? kopieDms : false,
         signers,
       });
       const nurLinks = externe.every((s) => s.methode === "intern" || s.versand === "link");
@@ -917,14 +918,18 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
                     <Checkbox checked={erinnerung} onCheckedChange={(v) => setErinnerung(!!v)} className="data-[state=checked]:border-[#B35300] data-[state=checked]:bg-[#B35300]" />
                     Automatisch erinnern
                   </label>
-                  {startInfo.building_id ? (
+                  {/* ETV-Protokolle legen sich weiter selbst ab. Alles andere legt das Büro nach Abschluss
+                      unter Unterschriften › Abgeschlossen selbst im DMS ab (mit Vorschlag). */}
+                  {etv && startInfo.building_id ? (
                   <label className="flex items-center gap-2.5 text-[14px] text-[#2B2B2B]">
                     <Checkbox checked={kopieDms} onCheckedChange={(v) => setKopieDms(!!v)} className="data-[state=checked]:border-[#B35300] data-[state=checked]:bg-[#B35300]" />
-                    {etv ? "Ablage im DMS" : "Kopie an alle + Ablage im DMS"}
+                    Ablage im DMS
                   </label>
                   ) : (
                     <p className="text-[12.5px] leading-snug text-[#6B6B6B]">
-                      Ohne Objekt keine Ablage im DMS – die Endfassung bleibt im Vorgang abrufbar.
+                      {etv
+                        ? "Ohne Objekt keine Ablage im DMS – die Endfassung bleibt im Vorgang abrufbar."
+                        : "Nach dem Unterschreiben bekommen alle eine Kopie. Die Endfassung legen Sie danach selbst im DMS ab – mit Vorschlag für Objekt und Ordner."}
                     </p>
                   )}
                 </div>

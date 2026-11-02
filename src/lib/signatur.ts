@@ -96,7 +96,10 @@ export interface SignRequest {
   mail_betreff: string | null;
   mail_text: string | null;
   erinnerung: boolean;
+  /** Nur noch für ETV-Protokolle wirksam (ausgehende Vorgänge werden von Hand abgelegt). */
   kopie_dms: boolean;
+  /** Vorschlag für „Im DMS ablegen“ (dms-vorschlag), beim ersten Öffnen des Dialogs berechnet. */
+  dms_vorschlag: DmsVorschlag | null;
   final_bucket: string | null;
   final_path: string | null;
   final_file_id: string | null;
@@ -110,6 +113,23 @@ export interface SignRequest {
   updated_at: string;
   signers: SignSigner[];
   building: { id: string; name: string; address: string | null; city: string | null } | null;
+}
+
+/** Vorschlag für die DMS-Ablage der Endfassung (sign_requests.dms_vorschlag). */
+export interface DmsVorschlag {
+  /** objekt = Liegenschafts-DMS, firma = Firmen-DMS von RGI (nur Administratoren), null = unklar */
+  ziel: "objekt" | "firma" | null;
+  building_id: string | null;
+  /** Ordner im Objekt (building_file_categories.slug) */
+  category_slug: string | null;
+  /** Ordner im Firmen-DMS (building_file_categories.id) */
+  category_id: string | null;
+  dateiname: string;
+  dokumentart?: string | null;
+  quelle: string;
+  erstellt_am: string;
+  abgelegt_am?: string | null;
+  geaendert?: boolean | null;
 }
 
 export interface SignEvent {
@@ -435,10 +455,15 @@ export const protokollEintraege = (r: SignRequest, events: SignEvent[]) => {
 // Wohin führt die Quelle?
 // ---------------------------------------------------------------
 
+/** Quelle ist eine Datei aus dem Firmen-DMS von RGI (DMS-Datei ohne Objekt). */
+export const istFirmenQuelle = (r: Pick<SignRequest, "quelle_typ" | "building_id">) =>
+  r.quelle_typ === "building_file" && !r.building_id;
+
 export const quellePfad = async (r: Pick<SignRequest, "quelle_typ" | "quelle_id" | "building_id" | "email_id">): Promise<string | null> => {
   switch (r.quelle_typ) {
     case "building_file":
-      return r.building_id ? `/buildings/${r.building_id}?tab=documents` : null;
+      if (!r.building_id) return r.quelle_id ? `/rgi-intern?bereich=documents&datei=${r.quelle_id}` : "/rgi-intern?bereich=documents";
+      return `/buildings/${r.building_id}?tab=documents`;
     case "offer":
       return "/rgi-intern?bereich=offers";
     case "contract":
@@ -604,7 +629,14 @@ export const useBueroMitarbeiter = () =>
 export type SignActionName =
   | "create" | "preview_mail" | "sign_internal" | "remind" | "withdraw"
   | "accept_paper" | "reject_paper" | "assign_paper_email" | "urls" | "nachweis"
-  | "create_incoming" | "complete_incoming" | "neuer_link";
+  | "create_incoming" | "complete_incoming" | "neuer_link" | "dms_ablegen";
+
+/**
+ * Abgeschlossener ausgehender Vorgang, dessen Endfassung noch nicht im DMS liegt
+ * (seit 02.11.2026 legt der Abschluss nicht mehr selbst ab).
+ */
+export const nochNichtImDms = (r: Pick<SignRequest, "typ" | "status" | "final_file_id" | "final_path">) =>
+  r.typ === "ausgehend" && r.status === "abgeschlossen" && !r.final_file_id && !!r.final_path;
 
 /** Antwort von `create`: bei „Nur Link“-Unterzeichnern die Links (nur jetzt sichtbar). */
 export interface CreateErgebnis {

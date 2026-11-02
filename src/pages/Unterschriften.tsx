@@ -7,12 +7,15 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Loader2, Plus } from "lucide-react";
+import { FolderInput, Loader2, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
-  formatDate, fortschritt, oeffneQuellePdf, quellePfad, SIG, tageBisFrist, todayIso, useSignRequests, type SignRequest,
+  formatDate, fortschritt, istFirmenQuelle, nochNichtImDms, oeffneQuellePdf, quellePfad, SIG, tageBisFrist, todayIso,
+  useSignRequests, type SignRequest,
 } from "@/lib/signatur";
+import { useIsRgiAdmin } from "@/hooks/useRgiAdmin";
+import { Pill } from "@/components/signatur/SignaturStatusBadge";
 import { NeueUnterschriftDialog } from "@/components/signatur/NeueUnterschriftDialog";
 import { SignaturStatusBadge } from "@/components/signatur/SignaturStatusBadge";
 import { VorgangDetail, VorgangDetailSheet } from "@/components/signatur/VorgangDetailSheet";
@@ -61,6 +64,7 @@ export default function Unterschriften() {
   const [auswahl, setAuswahl] = useState<string | null>(params.get("vorgang"));
   const breit = useBreit();
   const [neuOffen, setNeuOffen] = useState(false);
+  const istAdmin = useIsRgiAdmin();
 
   const { data: alle = [], isLoading } = useSignRequests({});
 
@@ -93,7 +97,13 @@ export default function Unterschriften() {
 
   const zaehler = useMemo(() => {
     const offen = (t: SignRequest["typ"]) => gefiltert.filter((r) => r.typ === t && r.status === "offen").length;
-    return { ausgehend: offen("ausgehend"), eingehend: offen("eingehend"), etv: offen("etv_protokoll") };
+    return {
+      ausgehend: offen("ausgehend"),
+      eingehend: offen("eingehend"),
+      etv: offen("etv_protokoll"),
+      // Abgeschlossen, Endfassung aber noch nicht im DMS (wird seit 02.11.2026 von Hand abgelegt)
+      nichtImDms: gefiltert.filter(nochNichtImDms).length,
+    };
   }, [gefiltert]);
 
   const kacheln = useMemo(() => {
@@ -121,7 +131,7 @@ export default function Unterschriften() {
   }, [breit, zeilen, auswahl, isLoading]);
 
   const zurQuelle = async (r: SignRequest) => {
-    if (r.quelle_typ === "upload") {
+    if (r.quelle_typ === "upload" || (istFirmenQuelle(r) && !istAdmin)) {
       // Hochgeladene PDFs haben keine eigene Seite → Datei öffnen
       try {
         await oeffneQuellePdf(r.id);
@@ -177,6 +187,15 @@ export default function Unterschriften() {
               >
                 {t.titel}
                 {n !== null && ` (${n})`}
+                {t.id === "abgeschlossen" && zaehler.nichtImDms > 0 && (
+                  <span
+                    className="ml-1.5 inline-flex h-[19px] min-w-[19px] items-center justify-center rounded-full bg-[#ee7202] px-1.5 align-[1px] text-[11.5px] font-bold text-white"
+                    title={`${zaehler.nichtImDms} noch nicht im DMS abgelegt`}
+                    aria-label={`${zaehler.nichtImDms} noch nicht im DMS abgelegt`}
+                  >
+                    {zaehler.nichtImDms}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -199,6 +218,16 @@ export default function Unterschriften() {
             <Kachel label="Abgeschlossen (30 Tage)" wert={kacheln.abgeschlossen} farbe={SIG.gruen} />
             <Kachel label="Abgelaufen" wert={kacheln.abgelaufen} />
           </div>
+
+          {reiter === "abgeschlossen" && zaehler.nichtImDms > 0 && (
+            <div className="flex items-start gap-2.5 rounded-xl border border-[#F5C79A] bg-[#FFF7ED] px-4 py-3 text-[13.5px] leading-snug text-[#2B2B2B]">
+              <FolderInput className="mt-0.5 h-4 w-4 shrink-0 text-[#B35300]" />
+              <span>
+                {zaehler.nichtImDms === 1 ? "1 Endfassung ist" : `${zaehler.nichtImDms} Endfassungen sind`} noch nicht im DMS.
+                Vorgang anklicken und „Im DMS ablegen“ wählen – Objekt, Ordner und Dateiname werden vorgeschlagen.
+              </span>
+            </div>
+          )}
 
           {/* Tabelle */}
           <Karte className="overflow-hidden">
@@ -255,7 +284,12 @@ export default function Unterschriften() {
                             {f.fertig} / {f.gesamt}
                           </td>
                           <td className="px-3 py-3.5 align-middle">
-                            <SignaturStatusBadge request={r} />
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <SignaturStatusBadge request={r} />
+                              {nochNichtImDms(r) && (
+                                <Pill color={SIG.button} bg="#FDEBD8" className="border border-[#F5C79A]">Noch nicht im DMS</Pill>
+                              )}
+                            </div>
                           </td>
                           <td className={cn("px-5 py-3.5 align-middle tabular-nums", ueberfaellig ? "font-semibold text-[#B35300]" : "text-[#595959]")}>
                             {formatDate(r.frist)}

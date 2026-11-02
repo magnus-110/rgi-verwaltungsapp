@@ -42,7 +42,7 @@ const FELD_SCHEMA = {
     h: { type: "number", description: `Höhe in pt (Standard ${FELD_HOEHE})` },
   },
 };
-const DOKUMENTART_SCHEMA = { type: "string", enum: DOKUMENTARTEN, description: "Bestimmt Mailvorlage, Standardfrist und DMS-Ordner der Endfassung" };
+const DOKUMENTART_SCHEMA = { type: "string", enum: DOKUMENTARTEN, description: "Bestimmt Mailvorlage, Standardfrist und den vorgeschlagenen DMS-Ordner der Endfassung" };
 
 const SIGNER_STATUS: Record<string, string> = {
   wartet: "wartet (noch nicht an der Reihe)",
@@ -272,13 +272,13 @@ export function unterschriftTools({ db, log, uploaderId }: Deps) {
         quelle: QUELLE_SCHEMA,
         titel: str("Titel des Vorgangs (Standard: aus Dateiname/Angebot/Vertrag)"),
         dokumentart: DOKUMENTART_SCHEMA,
-        building_id: uuid("Objekt (Standard: Objekt der Quelle) – bestimmt die DMS-Ablage der Endfassung"),
+        building_id: uuid("Objekt (Standard: Objekt der Quelle) – Vorschläge für Unterzeichner und für die spätere DMS-Ablage"),
         frist: str("JJJJ-MM-TT (Standard: Frist der Vorlage, meist 14 Tage)"),
         reihenfolge: { type: "string", enum: ["gleichzeitig", "nacheinander"], description: "Standard gleichzeitig; nacheinander = in der angegebenen Reihenfolge" },
         mail_betreff: str("optional, Platzhalter {Dokument} {Objekt} {Frist} {Anrede}; Standard aus Vorlage"),
         mail_text: str("optional, Text ohne Button/Link (wird automatisch angefügt); Standard aus Vorlage"),
         erinnerung: { type: "boolean", description: "Automatische Erinnerungen (Standard true)" },
-        kopie_dms: { type: "boolean", description: "Endfassung ins DMS des Objekts (Standard true)" },
+        kopie_dms: { type: "boolean", description: "Ohne Wirkung (nur noch aus Kompatibilität): Die Endfassung wird nach Abschluss in der App unter Unterschriften von Hand im DMS abgelegt" },
         unterzeichner: {
           type: "array", minItems: 1, maxItems: 40,
           items: {
@@ -351,7 +351,7 @@ export function unterschriftTools({ db, log, uploaderId }: Deps) {
           signers: signers.map(({ _hinweis, _email, ...s }) => s),
         };
         const hinweise = signers.map((s) => s._hinweis).filter(Boolean);
-        if (!buildingId && body.kopie_dms) hinweise.push("Kein Objekt angegeben – die Endfassung wird nicht im DMS abgelegt (building_id angeben, falls gewünscht).");
+        hinweise.push("Die Endfassung wird nach Abschluss NICHT automatisch im DMS abgelegt – das Büro legt sie in der App unter Unterschriften › Abgeschlossen › „Im DMS ablegen“ ab (mit Vorschlag).");
         if (!signers.some((s) => s.placements?.length)) hinweise.push("Keine Unterschriftsfelder angegeben – an die Endfassung wird ein Prüfblatt angehängt.");
 
         if (a.testlauf === true || (mitMail.length && a.bestaetigt !== true)) {

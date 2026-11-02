@@ -5,7 +5,8 @@
 //
 // Aktionen: create · preview_mail · sign_internal · remind · withdraw · accept_paper ·
 //           reject_paper · assign_paper_email · urls · nachweis · neuer_link · cron ·
-//           create_incoming · complete_incoming (Fall B, eingehende Dokumente selbst unterschreiben)
+//           create_incoming · complete_incoming (Fall B, eingehende Dokumente selbst unterschreiben) ·
+//           dms_ablegen (Endfassung eines ausgehenden Vorgangs von Hand im DMS ablegen, _shared/signatur/ablage.ts)
 //
 // Testmodus (nur mit x-cron-secret): body.test_user_id handelt als dieser Mitarbeiter,
 // body.test = true liefert bei create/remind/reject_paper die Klartext-Links zurück.
@@ -52,6 +53,7 @@ import {
 import { absenderKontoId, einladungMail } from "../_shared/signatur/mail.ts";
 import { anlegen, erinnern, neuerLink, selbstErinnern } from "../_shared/signatur/vorgang.ts";
 import { eingehendAbschliessen, eingehendAnlegen } from "../_shared/signatur/eingehend.ts";
+import { dmsAblegen } from "../_shared/signatur/ablage.ts";
 import { istHeic, istJpg, istPdf, istPng, nachweisPdf } from "../_shared/signatur/pdf.ts";
 
 type Db = ReturnType<typeof adminClient>;
@@ -97,6 +99,8 @@ Deno.serve(async (req) => {
         return json(await eingehendAnlegen(db, body, userId));
       case "complete_incoming":
         return json(await eingehendAbschliessen(db, body, userId));
+      case "dms_ablegen":
+        return json(await dmsAblegen(db, body, userId));
       case "cron":
         if (!istCron) return json({ error: "Nur für den Zeitplan." }, 403);
         return json(await zeitplan(db));

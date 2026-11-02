@@ -3,6 +3,9 @@
  * (PDF hochladen oder aus den Dokumenten eines Objekts), dann öffnet sich der
  * bekannte Dialog „Unterschrift anfordern“.
  *
+ * „Aus Dokumenten wählen“: Objekt-DMS; Administratoren zusätzlich das Firmen-DMS von RGI
+ * (building_files.is_company, Eintrag „RGI Immobilien (Firmen-DMS)“ oben in der Objektauswahl).
+ *
  * Upload: direkt in den Bucket building-files unter `_signaturen/_uploads/{uuid}.pdf`
  * (Büro-Nutzer dürfen dort laut Storage-RLS hochladen: user_has_admin_access).
  * Die Edge-Funktion kopiert die Datei beim Anlegen nach `_signaturen/{id}/quelle.pdf`.
@@ -16,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { dokumentartAusName, formatDate, titelAusDateiname, type QuelleTyp } from "@/lib/signatur";
 import { getFileBucket } from "@/components/buildings/documents/types";
 import { eingabeKlasse, FeldLabel, SigButton } from "./ui";
+import { useIsRgiAdmin } from "@/hooks/useRgiAdmin";
 import { UnterschriftAnfordernDialog, type UnterschriftStartInfo } from "./UnterschriftAnfordernDialog";
 import { DokumentVorschauDialog, PdfAnsicht } from "@/components/shared/PdfAnsicht";
 
@@ -23,8 +27,11 @@ import { DokumentVorschauDialog, PdfAnsicht } from "@/components/shared/PdfAnsic
 const db = supabase as any;
 
 const MAX_BYTES = 20 * 1024 * 1024;
-/** Nur aus diesen Speicherorten darf sign-request die Quelle lesen. */
-const ERLAUBTE_BUCKETS = ["building-files", "email-attachments"];
+/** Nur aus diesen Speicherorten darf sign-request die Quelle lesen (wie ERLAUBTE_BUCKETS in _shared/signatur/vorgang.ts). */
+const ERLAUBTE_BUCKETS = ["building-files", "email-attachments", "invoices"];
+/** Auswahlwert für das Firmen-DMS von RGI (nur Administratoren). */
+const FIRMA = "__rgi__";
+const FIRMA_NAME = "RGI Immobilien (Firmen-DMS)";
 
 type Schritt = "wahl" | "upload" | "dms";
 
@@ -43,6 +50,8 @@ interface DmsDatei {
   source: string | null;
   storage_bucket: string | null;
   created_at: string;
+  /** Ordner (nur im Firmen-DMS angezeigt) */
+  ordner?: { name: string } | null;
 }
 
 const istPdfDatei = (f: Pick<DmsDatei, "mime_type" | "display_name" | "file_path">) =>
@@ -75,6 +84,7 @@ function useObjekte(enabled: boolean) {
 }
 
 export function NeueUnterschriftDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
+  const istAdmin = useIsRgiAdmin();
   const [schritt, setSchritt] = useState<Schritt>("wahl");
   const [start, setStart] = useState<{ quelleTyp: QuelleTyp; quelleId: string | null; info: UnterschriftStartInfo } | null>(null);
   const [anfordernOffen, setAnfordernOffen] = useState(false);
@@ -125,7 +135,9 @@ export function NeueUnterschriftDialog({ open, onOpenChange }: { open: boolean; 
                   ? "PDF vom Computer hochladen (höchstens 20 MB)."
                   : dmsVorschau
                     ? "Bitte prüfen, ob das das richtige Dokument ist."
-                    : "PDF aus den Dokumenten eines Objekts wählen."}
+                    : istAdmin
+                      ? "PDF aus den Dokumenten eines Objekts oder aus dem Firmen-DMS von RGI wählen."
+                      : "PDF aus den Dokumenten eines Objekts wählen."}
             </DialogDescription>
           </div>
           {schritt === "wahl" && (
@@ -139,7 +151,7 @@ export function NeueUnterschriftDialog({ open, onOpenChange }: { open: boolean; 
               <WahlKarte
                 icon={<FolderOpen className="h-5 w-5" />}
                 titel="Aus Dokumenten wählen"
-                text="PDF aus dem DMS eines Objekts"
+                text={istAdmin ? "PDF aus dem DMS eines Objekts oder von RGI" : "PDF aus dem DMS eines Objekts"}
                 onClick={() => setSchritt("dms")}
               />
             </div>
@@ -148,6 +160,7 @@ export function NeueUnterschriftDialog({ open, onOpenChange }: { open: boolean; 
           {schritt === "dms" && (
             <DmsSchritt
               aktiv={open}
+              istAdmin={istAdmin}
               objekt={dmsObjekt}
               setObjekt={setDmsObjekt}
               suche={dmsSuche}
@@ -193,15 +206,17 @@ function WahlKarte({ icon, titel, text, onClick }: { icon: ReactNode; titel: str
 }
 
 function ObjektAuswahl({
-  id, value, onChange, optional, objekte, laedt,
-}: { id: string; value: string; onChange: (v: string) => void; optional?: boolean; objekte: Objekt[]; laedt: boolean }) {
+  id, value, onChange, optional, objekte, laedt, mitFirma,
+}: { id: string; value: string; onChange: (v: string) => void; optional?: boolean; objekte: Objekt[]; laedt: boolean; mitFirma?: boolean }) {
   return (
     <div>
       <FeldLabel htmlFor={id}>
-        Objekt {optional && <span className="font-normal text-[#6B6B6B]">(optional)</span>}
+        {mitFirma ? "Ablage" : "Objekt"} {optional && <span className="font-normal text-[#6B6B6B]">(optional)</span>}
       </FeldLabel>
       <select id={id} className={eingabeKlasse} value={value} onChange={(e) => onChange(e.target.value)} disabled={laedt}>
-        <option value="">{laedt ? "Lädt …" : optional ? "Ohne Objekt" : "Objekt wählen …"}</option>
+        <option value="">{laedt ? "Lädt …" : optional ? "Ohne Objekt" : mitFirma ? "Objekt oder RGI wählen …" : "Objekt wählen …"}</option>
+        {mitFirma && <option value={FIRMA}>{FIRMA_NAME}</option>}
+        {mitFirma && <option disabled>──────────</option>}
         {objekte.map((o) => (
           <option key={o.id} value={o.id}>{o.name}{o.city && !o.name.includes(o.city) ? `, ${o.city}` : ""}</option>
         ))}
@@ -330,7 +345,7 @@ function UploadSchritt({
         </div>
         <ObjektAuswahl id="neu-objekt-upload" value={objekt} onChange={setObjekt} optional objekte={objekte} laedt={isLoading} />
         <p className="-mt-2 text-[12px] leading-snug text-[#6B6B6B]">
-          Mit Objekt: Vorschläge aus Eigentümern/Beirat und Ablage der Endfassung im DMS. Ohne Objekt bleibt die Endfassung nur im Vorgang.
+          Mit Objekt: Vorschläge aus Eigentümern/Beirat. Die Endfassung legen Sie nach Abschluss selbst im DMS ab – mit Vorschlag für Objekt und Ordner.
         </p>
         {fehler && <Fehler text={fehler} />}
       </div>
@@ -362,9 +377,10 @@ async function signierteUrl(f: DmsDatei) {
 }
 
 function DmsSchritt({
-  aktiv, objekt, setObjekt, suche, setSuche, vorschau, setVorschau, onZurueck, onWeiter,
+  aktiv, istAdmin, objekt, setObjekt, suche, setSuche, vorschau, setVorschau, onZurueck, onWeiter,
 }: {
   aktiv: boolean;
+  istAdmin: boolean;
   objekt: string;
   setObjekt: (v: string) => void;
   suche: string;
@@ -375,18 +391,24 @@ function DmsSchritt({
   onWeiter: (t: QuelleTyp, id: string | null, info: UnterschriftStartInfo) => void;
 }) {
   const { data: objekte = [], isLoading: objLaedt } = useObjekte(aktiv);
+  // Firmen-DMS nur für Administratoren (RLS erlaubt es ohnehin nur ihnen)
+  const firma = istAdmin && objekt === FIRMA;
+  useEffect(() => {
+    if (!istAdmin && objekt === FIRMA) setObjekt("");
+  }, [istAdmin, objekt, setObjekt]);
   const [ansehen, setAnsehen] = useState<{ datei: DmsDatei; url: string } | null>(null);
   const [ansehenLaedt, setAnsehenLaedt] = useState<string | null>(null);
   const [ansehenFehler, setAnsehenFehler] = useState<string | null>(null);
 
   const { data: dateien = [], isLoading, error } = useQuery({
     queryKey: ["signatur", "dms-pdfs", objekt],
-    enabled: aktiv && !!objekt,
+    enabled: aktiv && !!objekt && (objekt !== FIRMA || istAdmin),
     queryFn: async (): Promise<DmsDatei[]> => {
-      const { data, error } = await db
+      let q = db
         .from("building_files")
-        .select("id, display_name, file_path, file_size, mime_type, source, storage_bucket, created_at")
-        .eq("building_id", objekt)
+        .select("id, display_name, file_path, file_size, mime_type, source, storage_bucket, created_at, ordner:building_file_categories(name)");
+      q = objekt === FIRMA ? q.eq("is_company", true).is("archived_at", null) : q.eq("building_id", objekt);
+      const { data, error } = await q
         .is("deleted_at", null)
         .eq("is_current_version", true)
         .order("created_at", { ascending: false })
@@ -409,7 +431,9 @@ function DmsSchritt({
 
   const gefiltert = useMemo(() => {
     const q = suche.trim().toLowerCase();
-    return q ? dateien.filter((f) => (f.display_name || f.file_path).toLowerCase().includes(q)) : dateien;
+    return q
+      ? dateien.filter((f) => `${f.display_name || f.file_path} ${f.ordner?.name ?? ""}`.toLowerCase().includes(q))
+      : dateien;
   }, [dateien, suche]);
 
   const verwenden = (f: DmsDatei) => {
@@ -417,8 +441,8 @@ function DmsSchritt({
     const name = dateiName(f);
     onWeiter("building_file", f.id, {
       titel: titelAusDateiname(name),
-      building_id: objekt,
-      quelle_label: o ? `${o.name} · DMS` : "DMS",
+      building_id: firma ? null : objekt,
+      quelle_label: firma ? "RGI Immobilien · Firmen-DMS" : o ? `${o.name} · DMS` : "DMS",
       source_bucket: getFileBucket(f.source, f.storage_bucket),
       source_path: f.file_path,
       dokumentart: dokumentartAusName(name),
@@ -472,7 +496,14 @@ function DmsSchritt({
   return (
     <>
       <div className="space-y-3 px-6 pt-5">
-        <ObjektAuswahl id="neu-objekt-dms" value={objekt} onChange={(v) => { setObjekt(v); setSuche(""); }} objekte={objekte} laedt={objLaedt} />
+        <ObjektAuswahl
+          id="neu-objekt-dms"
+          value={objekt}
+          onChange={(v) => { setObjekt(v); setSuche(""); }}
+          objekte={objekte}
+          laedt={objLaedt}
+          mitFirma={istAdmin}
+        />
         {objekt && (
           <div className="flex h-11 items-center gap-2 rounded-lg border border-[#D6D6D6] bg-white px-3 focus-within:border-[#ee7202] focus-within:ring-1 focus-within:ring-[#ee7202]">
             <Search className="h-4 w-4 text-[#6B6B6B]" />
@@ -489,14 +520,18 @@ function DmsSchritt({
       </div>
       <div className="max-h-[46vh] min-h-[120px] overflow-y-auto px-6 py-3">
         {!objekt ? (
-          <p className="py-6 text-center text-[13.5px] text-[#6B6B6B]">Bitte zuerst ein Objekt wählen.</p>
+          <p className="py-6 text-center text-[13.5px] text-[#6B6B6B]">
+            {istAdmin ? "Bitte zuerst ein Objekt oder das Firmen-DMS von RGI wählen." : "Bitte zuerst ein Objekt wählen."}
+          </p>
         ) : isLoading ? (
           <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-[#6B6B6B]" /></div>
         ) : error ? (
           <Fehler text={(error as Error).message || "Dokumente konnten nicht geladen werden."} />
         ) : gefiltert.length === 0 ? (
           <p className="py-6 text-center text-[13.5px] text-[#6B6B6B]">
-            {dateien.length === 0 ? "Bei diesem Objekt liegen keine PDF-Dokumente." : "Nichts gefunden."}
+            {dateien.length === 0
+              ? firma ? "Im Firmen-DMS liegen keine PDF-Dokumente." : "Bei diesem Objekt liegen keine PDF-Dokumente."
+              : "Nichts gefunden."}
           </p>
         ) : (
           <ul className="space-y-1.5">
@@ -511,6 +546,7 @@ function DmsSchritt({
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[14px] font-semibold text-[#2B2B2B]">{dateiName(f)}</span>
                     <span className="block text-[12px] text-[#6B6B6B]">
+                      {firma && f.ordner?.name ? `${f.ordner.name} · ` : ""}
                       {formatDate(f.created_at)}{f.file_size ? ` · ${groesse(f.file_size)}` : ""}
                     </span>
                   </span>

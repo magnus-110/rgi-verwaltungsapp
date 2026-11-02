@@ -1,10 +1,13 @@
 /**
  * Seitenleiste „Vorgangsdetail“ (Mockup v02 rechts): Stand je
- * Unterzeichner, Protokoll-Zeitleiste und Aktionen.
+ * Unterzeichner, Ablage im DMS, Protokoll-Zeitleiste und Aktionen.
  */
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Check, ExternalLink, Link2, Loader2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Check, ExternalLink, FolderInput, FolderOpen, Link2, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useIsRgiAdmin } from "@/hooks/useRgiAdmin";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import {
@@ -14,8 +17,10 @@ import {
 import {
   formatDate, formatDateTime, fortschritt, oeffneSignUrl, protokollEintraege, quellePfad, signAction,
   signerName, signerStatusLang, SIG, TON_FARBE, useSignEvents, useSignInvalidate, useSignRequest,
-  aktiveSigner, erinnernMeldung, istNurLink, kannNeuenLink, oeffneQuellePdf, type SignSigner,
+  aktiveSigner, erinnernMeldung, istNurLink, kannNeuenLink, oeffneQuellePdf, istFirmenQuelle, nochNichtImDms,
+  type SignEvent, type SignRequest, type SignSigner,
 } from "@/lib/signatur";
+import { DmsAblegenDialog, FIRMA_NAME } from "./DmsAblegenDialog";
 import { NeuerLinkDialog } from "./LinkKopieren";
 import { InternUnterschreibenDialog } from "./UnterschriftenBox";
 import { useAuth } from "@/hooks/useAuth";
@@ -50,6 +55,10 @@ export function VorgangDetail({ requestId, onClose, imSheet }: { requestId: stri
   const [linkSigner, setLinkSigner] = useState<SignSigner | null>(null);
   const [internSigner, setInternSigner] = useState<SignSigner | null>(null);
   const { user } = useAuth();
+  const istAdmin = useIsRgiAdmin();
+  const [ablegenOffen, setAblegenOffen] = useState(false);
+  const [erneutFrage, setErneutFrage] = useState(false);
+  const [erneut, setErneut] = useState(false);
 
   if (isLoading || !r) {
     return (
@@ -99,8 +108,8 @@ export function VorgangDetail({ requestId, onClose, imSheet }: { requestId: stri
 
   const quelle = () =>
     ausfuehren("quelle", async () => {
-      // Hochgeladene PDFs haben keine eigene Seite → Datei öffnen
-      if (r.quelle_typ === "upload") return oeffneQuellePdf(r.id);
+      // Hochgeladene PDFs haben keine eigene Seite → Datei öffnen; Firmen-DMS nur für Administratoren
+      if (r.quelle_typ === "upload" || (istFirmenQuelle(r) && !istAdmin)) return oeffneQuellePdf(r.id);
       const pfad = await quellePfad(r);
       if (!pfad) throw new Error("Zu diesem Vorgang ist keine Quelle hinterlegt.");
       onClose?.();
@@ -182,6 +191,25 @@ export function VorgangDetail({ requestId, onClose, imSheet }: { requestId: stri
           </div>
         </div>
 
+        {/* ABLAGE IM DMS (Endfassung) */}
+        {fertig && r.final_path && (r.typ === "ausgehend" || r.final_file_id) && (
+          <DmsAblage
+            request={r}
+            events={events}
+            istAdmin={istAdmin}
+            onAblegen={() => {
+              setErneut(false);
+              setAblegenOffen(true);
+            }}
+            onErneut={() => setErneutFrage(true)}
+            onOeffnen={(pfad) => {
+              onClose?.();
+              navigate(pfad);
+            }}
+            onEndfassung={endfassung}
+          />
+        )}
+
         {/* PROTOKOLL */}
         <div>
           <Abschnitt className="mb-2.5">Protokoll</Abschnitt>
@@ -225,6 +253,33 @@ export function VorgangDetail({ requestId, onClose, imSheet }: { requestId: stri
       </div>
 
       <InternUnterschreibenDialog signer={internSigner} request={r} onClose={() => setInternSigner(null)} />
+      {r.typ === "ausgehend" && fertig && (
+        <DmsAblegenDialog request={r} open={ablegenOffen} onOpenChange={setAblegenOffen} erneut={erneut} />
+      )}
+
+      <AlertDialog open={erneutFrage} onOpenChange={setErneutFrage}>
+        <AlertDialogContent className="font-sans">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-display font-normal">Erneut im DMS ablegen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Die Endfassung von {r.nummer} liegt bereits im DMS. Es wird eine weitere Datei angelegt, die bisherige bleibt
+              unverändert. Nur nötig, wenn sie an einem anderen Ort zusätzlich gebraucht wird.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-[#B35300] text-white hover:bg-[#9A4700]"
+              onClick={() => {
+                setErneut(true);
+                setAblegenOffen(true);
+              }}
+            >
+              Weiter
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <NeuerLinkDialog request={r} signer={linkSigner} onClose={() => setLinkSigner(null)} />
 
       <AlertDialog open={zurueckFrage} onOpenChange={setZurueckFrage}>
@@ -253,5 +308,131 @@ export function VorgangDetail({ requestId, onClose, imSheet }: { requestId: stri
         </AlertDialogContent>
       </AlertDialog>
     </>
+  );
+}
+
+/** Wo liegt die Endfassung im DMS? (Datei lesen; im Firmen-DMS ohne Adminrechte: aus dem Protokoll) */
+function useDmsOrt(r: SignRequest, events: SignEvent[]) {
+  const { data: datei, isLoading } = useQuery({
+    queryKey: ["signatur", "dms-ort", r.final_file_id],
+    enabled: !!r.final_file_id,
+    queryFn: async () => {
+      const { data } = await (supabase as any)
+        .from("building_files")
+        .select("id, building_id, is_company, deleted_at, building:buildings(name), ordner:building_file_categories(name)")
+        .eq("id", r.final_file_id)
+        .maybeSingle();
+      return (data ?? null) as {
+        id: string; building_id: string | null; is_company: boolean; deleted_at: string | null;
+        building: { name: string } | null; ordner: { name: string } | null;
+      } | null;
+    },
+    staleTime: 60_000,
+  });
+  const ev = events.find((e) => e.ereignis === "dms_abgelegt" && e.details?.file_id === r.final_file_id);
+  if (!r.final_file_id) return { laedt: false, ort: null };
+  if (datei) {
+    return {
+      laedt: false,
+      ort: {
+        firma: datei.is_company,
+        building_id: datei.building_id,
+        ziel: datei.is_company ? FIRMA_NAME : datei.building?.name ?? "Objekt",
+        ordner: datei.ordner?.name ?? null,
+        geloescht: !!datei.deleted_at,
+      },
+    };
+  }
+  if (isLoading) return { laedt: true, ort: null };
+  return {
+    laedt: false,
+    ort: {
+      firma: ev?.details?.firma === true || !r.building_id,
+      building_id: (ev?.details?.building_id as string | null) ?? r.building_id,
+      ziel: (ev?.details?.ziel as string) || (r.building_id ? "Objekt" : FIRMA_NAME),
+      ordner: (ev?.details?.ordner as string | null) ?? null,
+      geloescht: false,
+    },
+  };
+}
+
+function DmsAblage({
+  request: r, events, istAdmin, onAblegen, onErneut, onOeffnen, onEndfassung,
+}: {
+  request: SignRequest;
+  events: SignEvent[];
+  istAdmin: boolean;
+  onAblegen: () => void;
+  onErneut: () => void;
+  onOeffnen: (pfad: string) => void;
+  onEndfassung: () => void;
+}) {
+  const { laedt, ort } = useDmsOrt(r, events);
+  const offen = r.typ === "ausgehend" && (nochNichtImDms(r) || !!ort?.geloescht);
+
+  if (offen) {
+    return (
+      <div>
+        <Abschnitt className="mb-2">Ablage im DMS</Abschnitt>
+        <div className="rounded-[10px] border border-[#E5E5E5] px-3.5 py-3">
+          <div className="flex items-center gap-2">
+            <Pill>Noch nicht im DMS</Pill>
+          </div>
+          <p className="mt-1.5 text-[13px] leading-snug text-[#595959]">
+            {ort?.geloescht
+              ? "Die abgelegte Datei wurde im DMS gelöscht. Die Endfassung liegt weiter im Vorgang."
+              : "Die Endfassung liegt bisher nur im Vorgang. Objekt, Ordner und Dateiname werden vorgeschlagen."}
+          </p>
+          <SigButton variante="primaer" className="mt-2.5 w-full" onClick={onAblegen}>
+            <FolderInput className="h-4 w-4" /> Im DMS ablegen
+          </SigButton>
+        </div>
+      </div>
+    );
+  }
+
+  const oeffnen = () => {
+    if (!ort) return;
+    if (ort.firma) {
+      if (istAdmin) onOeffnen(`/rgi-intern?bereich=documents&datei=${r.final_file_id}`);
+      else onEndfassung();
+      return;
+    }
+    if (ort.building_id) onOeffnen(`/buildings/${ort.building_id}?tab=documents`);
+  };
+
+  return (
+    <div>
+      <Abschnitt className="mb-2">Ablage im DMS</Abschnitt>
+      {laedt || !ort ? (
+        <Loader2 className="h-4 w-4 animate-spin text-[#6B6B6B]" />
+      ) : (
+        <div className="rounded-[10px] border border-[#E5E5E5] px-3.5 py-3 text-[13.5px] leading-snug">
+          <div className="flex items-start gap-2">
+            <Check className="mt-0.5 h-4 w-4 shrink-0" style={{ color: SIG.gruen }} strokeWidth={2.5} />
+            <div className="min-w-0">
+              <span className="text-[#2B2B2B]">Im DMS: {ort.ziel}{ort.ordner ? ` › ${ort.ordner}` : ""}</span>
+              {" – "}
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 font-semibold text-[#B35300] underline-offset-2 hover:underline"
+                onClick={oeffnen}
+              >
+                <FolderOpen className="h-3.5 w-3.5" /> öffnen
+              </button>
+            </div>
+          </div>
+          {r.typ === "ausgehend" && (
+            <button
+              type="button"
+              className="mt-1.5 text-[12.5px] text-[#595959] underline-offset-2 hover:text-[#B35300] hover:underline"
+              onClick={onErneut}
+            >
+              Erneut ablegen …
+            </button>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -31,6 +33,29 @@ export function DocumentsTab() {
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [mobileView, setMobileView] = useState<"tree" | "list" | "detail">("tree");
+
+  // ?datei=<id> (z. B. aus „Unterschriften“ › Im DMS: RGI Immobilien › … – öffnen): Ordner und Datei vorwählen
+  const [params] = useSearchParams();
+  const dateiParam = params.get("datei");
+  useEffect(() => {
+    if (!dateiParam) return;
+    let abbruch = false;
+    (async () => {
+      const { data } = await (supabase as any)
+        .from("building_files")
+        .select("id, display_name, description, file_path, file_size, mime_type, category_id, source, storage_bucket, tags, created_at, updated_at, deleted_at")
+        .eq("id", dateiParam)
+        .eq("is_company", true)
+        .maybeSingle();
+      if (abbruch || !data) return;
+      setCategoryId(data.category_id ?? null);
+      setSelectedFile(data as CompanyFile);
+      setMobileView("detail");
+    })();
+    return () => {
+      abbruch = true;
+    };
+  }, [dateiParam]);
 
   // Die beiden Rechnungsordner halten keine eigenen Dateien, sie zeigen direkt
   // die Rechnungen aus der App. Deshalb entfaellt dort der Detailbereich.

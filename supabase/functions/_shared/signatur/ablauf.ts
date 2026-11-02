@@ -442,7 +442,7 @@ export async function nachUnterschrift(db: Db, requestId: string, userId?: strin
 }
 
 /**
- * Abschluss: Gesamt-PDF → SHA-256 → RFC-3161-Zeitstempel → final.pdf → DMS → (ETV-Tabellen)
+ * Abschluss: Gesamt-PDF → SHA-256 → RFC-3161-Zeitstempel → final.pdf → (nur ETV: DMS + Protokoll-Tabellen)
  * → Endfassung an externe Unterzeichner (nicht bei ETV) → Meldung an Ersteller → Status abgeschlossen.
  * Gegen doppelten Abschluss gesperrt über completed_at (bedingtes Update).
  */
@@ -472,12 +472,14 @@ export async function abschliessen(db: Db, requestId: string, userId?: string | 
     }
     const zsOk = "token" in zs ? zs : null;
 
-    // DMS-Ablage (und bei ETV die Protokoll-Tabellen)
+    // DMS-Ablage nur noch bei ETV-Protokollen automatisch (mit den Protokoll-Tabellen).
+    // Ausgehende Vorgänge legt das Büro selbst ab: /unterschriften → „Im DMS ablegen“
+    // (sign-request dms_ablegen, Vorschlag über dms-vorschlag). final.pdf bleibt im Vorgang.
     const finalName = dateiname(`${req.titel} (unterschrieben)`);
     let finalFileId: string | null = null;
     const etv = istEtv(req);
     const e = etv ? await etvDaten(db, req) : null;
-    if (req.building_id && req.kopie_dms) {
+    if (etv && req.building_id && req.kopie_dms) {
       const uploader = uuidOderNull(req.created_by) ||
         signers.map((s: Signer) => uuidOderNull(s.signed_by)).find(Boolean) || uuidOderNull(userId) ||
         uuidOderNull(e?.meeting?.created_by);
@@ -590,6 +592,7 @@ async function imDmsAblegen(
 ): Promise<string> {
   const b = req.buildings;
   await db.rpc("ensure_stammakte_categories", { p_building_id: req.building_id });
+  // Seit der manuellen Ablage nur noch für ETV-Protokolle (DMS_SLUG als Rückfall)
   const slug = istEtv(req) ? "versammlung-protokolle" : DMS_SLUG[req.dokumentart] || "schriftverkehr";
   const { data: cat } = await db.from("building_file_categories").select("id")
     .eq("building_id", req.building_id).eq("slug", slug).maybeSingle();

@@ -44,6 +44,28 @@ export const ERLAUBTE_BUCKETS = ["building-files", "email-attachments", "invoice
 
 // ================================================================ create
 
+/** Ist der handelnde Mitarbeiter Administrator (rgi_is_admin)? */
+export async function istAdmin(db: Db, userId: string | null): Promise<boolean> {
+  if (!uuidOderNull(userId)) return false;
+  const { data } = await db.rpc("rgi_is_admin", { _user_id: userId });
+  return data === true;
+}
+
+/** Stammt die Quelle aus dem Firmen-DMS von RGI (is_company bzw. Speicherpfad „rgi/…“)? */
+export async function istFirmenQuelle(db: Db, quelleTyp: string | null, quelleId: unknown, sourcePath: string): Promise<boolean> {
+  if (sourcePath.startsWith("rgi/")) return true;
+  const id = uuidOderNull(quelleId);
+  if (quelleTyp === "building_file" && id) {
+    const { data } = await db.from("building_files").select("is_company").eq("id", id).maybeSingle();
+    if (data?.is_company === true) return true;
+  }
+  // Angebote/Verwalterverträge haben eigene Freigaben (RGI intern) – nicht über den Pfad prüfen
+  if (quelleTyp === "offer" || quelleTyp === "contract") return false;
+  // Auch ohne quelle_id: liegt unter diesem Pfad eine Firmendatei (z. B. Rechnungen im Bucket „invoices“)?
+  const { data: gleich } = await db.from("building_files").select("id").eq("file_path", sourcePath).eq("is_company", true).limit(1);
+  return !!gleich?.length;
+}
+
 // deno-lint-ignore no-explicit-any
 export function platzierungenPruefen(roh: any, seiten: number, name: string) {
   if (roh == null) return null;
@@ -88,6 +110,10 @@ export async function anlegen(db: Db, b: Body, userId: string | null, test: bool
   const sourcePath = String(b.source_path || "");
   if (!sourcePath || sourcePath.includes("..") || sourcePath.startsWith("/") || sourcePath.length > 500) {
     throw new Fehler(400, "Ungültiger Pfad der Quelldatei.");
+  }
+  // Firmen-DMS von RGI (building_files.is_company, Pfad „rgi/…“): nur für Administratoren
+  if (await istFirmenQuelle(db, quelleTyp, b.quelle_id, sourcePath)) {
+    if (!(await istAdmin(db, userId))) throw new Fehler(403, "Dokumente aus dem Firmen-DMS dürfen nur Administratoren verwenden.");
   }
   const reihenfolge = b.reihenfolge === "nacheinander" ? "nacheinander" : "gleichzeitig";
   const vorlage = await vorlageLaden(db, dokumentart);
