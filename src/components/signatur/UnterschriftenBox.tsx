@@ -304,7 +304,7 @@ const leseOrt = () => {
 };
 
 /** „Jetzt unterschreiben“: zeigt die hinterlegte Unterschrift und setzt sie über sign_internal ein. */
-function InternUnterschreibenDialog({
+export function InternUnterschreibenDialog({
   signer, request, onClose,
 }: { signer: SignSigner | null; request: SignRequest; onClose: () => void }) {
   const { data: meineUnterschrift, isLoading } = useMySignature();

@@ -17,6 +17,8 @@ import {
   aktiveSigner, erinnernMeldung, istNurLink, kannNeuenLink, oeffneQuellePdf, type SignSigner,
 } from "@/lib/signatur";
 import { NeuerLinkDialog } from "./LinkKopieren";
+import { InternUnterschreibenDialog } from "./UnterschriftenBox";
+import { useAuth } from "@/hooks/useAuth";
 import { Pill } from "./SignaturStatusBadge";
 import { Abschnitt, SigButton } from "./ui";
 
@@ -46,6 +48,8 @@ export function VorgangDetail({ requestId, onClose, imSheet }: { requestId: stri
   const [busy, setBusy] = useState<string | null>(null);
   const [zurueckFrage, setZurueckFrage] = useState(false);
   const [linkSigner, setLinkSigner] = useState<SignSigner | null>(null);
+  const [internSigner, setInternSigner] = useState<SignSigner | null>(null);
+  const { user } = useAuth();
 
   if (isLoading || !r) {
     return (
@@ -135,6 +139,7 @@ export function VorgangDetail({ requestId, onClose, imSheet }: { requestId: stri
                 <div className="flex items-baseline justify-between gap-3 text-[14px]">
                   <span className="min-w-0 truncate text-[#2B2B2B]">
                     {signerName(s)}
+                    {s.methode === "intern" && s.name && s.name !== signerName(s) && <span className="text-[#6B6B6B]"> · {s.name}</span>}
                     {istNurLink(s) && <span className="ml-1.5 text-[12px] text-[#6B6B6B]">· Link selbst verschickt{s.email ? "" : ", ohne E-Mail"}</span>}
                   </span>
                   {pruefen ? (
@@ -158,6 +163,14 @@ export function VorgangDetail({ requestId, onClose, imSheet }: { requestId: stri
                     </span>
                   )}
                 </div>
+                {s.methode === "intern" && s.status === "offen" && r.status === "offen" && (!s.user_id || s.user_id === user?.id) && (
+                  <SigButton variante="primaer" klein className="mt-1.5" onClick={() => setInternSigner(s)}>
+                    Jetzt unterschreiben
+                  </SigButton>
+                )}
+                {s.methode === "intern" && s.status === "offen" && r.status === "offen" && s.user_id && s.user_id !== user?.id && (
+                  <div className="mt-0.5 text-[12px] text-[#6B6B6B]">Unterschreibt {s.name} selbst in der App</div>
+                )}
                 {kannNeuenLink(r, s) && (
                   <SigButton klein className="mt-1.5" onClick={() => setLinkSigner(s)}>
                     <Link2 className="h-3.5 w-3.5" /> {s.token_hash ? "Neuen Link erstellen" : "Link erstellen"}
@@ -211,6 +224,7 @@ export function VorgangDetail({ requestId, onClose, imSheet }: { requestId: stri
         )}
       </div>
 
+      <InternUnterschreibenDialog signer={internSigner} request={r} onClose={() => setInternSigner(null)} />
       <NeuerLinkDialog request={r} signer={linkSigner} onClose={() => setLinkSigner(null)} />
 
       <AlertDialog open={zurueckFrage} onOpenChange={setZurueckFrage}>
