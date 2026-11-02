@@ -19,6 +19,7 @@ import {
   contractEndDate, formatDate, formatEur, isPercentBasis, parseTermYears,
   termYearsShort, termYearsWord, toIsoDate, type FeeBasis,
 } from "@/types/rgiContracts";
+import { ANGEBOT_VERTRAGSWERTE } from "@shared/angebot-vorgaben.ts";
 
 interface Props {
   open: boolean;
@@ -32,28 +33,8 @@ interface Props {
 
 const STEPS = ["Anfrage", "Fragen zum Objekt", "Honorar", "Vertragsentwurf"];
 
-/**
- * Standardwerte des aktuellen RGI-Verwaltervertrags, die nicht als
- * Position geführt werden. Landen in offers.contract_defaults und
- * von dort in die Platzhalter der Word-Vorlage.
- */
-const CONTRACT_DEFAULTS: Record<string, string> = {
-  // Laufzeit der Bestellung in Jahren. Daraus entstehen der Vertragstext
-  // ('laufzeit.jahre'), die Angabe auf dem Uebersichtsblatt
-  // ('uebersicht.laufzeit') und das Enddatum ('bestellung.bis').
-  "laufzeit.jahre_anzahl": String(DEFAULT_TERM_YEARS),
-  "freigabe.grenze": "1.500,00",
-  "freigabe.beirat_ab": "750,00",
-  "zuschlag.ohne_sepa": "5,00",
-  "entnahme.werktag": "3",
-  "beirat.sitzungen_inklusive": "vier",
-  "index.basisjahr": "2020",
-  "ort": "Pfronten",
-  "extrakosten":
-    "Zusatzkosten entstehen nur bei Sonderfällen wie z. B. Eigentümerwechsel, außerordentliche " +
-    "Versammlungen, aufwendige Versicherungsschäden, Bauprojekte ab 5000€ oder Rechtsangelegenheiten. " +
-    "Abgerechnet wird pauschal, prozentual oder nach Zeitaufwand – je nach Sonderfall.",
-};
+/** Standardwerte des RGI-Verwaltervertrags – Quelle: supabase/functions/_shared/angebot-vorgaben.ts */
+const CONTRACT_DEFAULTS = ANGEBOT_VERTRAGSWERTE;
 
 /** Werte, die als mehrzeiliges Feld bearbeitet werden. */
 const DEFAULT_MULTILINE = new Set(["extrakosten"]);
