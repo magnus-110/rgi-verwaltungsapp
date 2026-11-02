@@ -36,12 +36,15 @@ export function useQuestrial() {
   }, []);
 }
 
-/** Heller Hintergrund, weiße Karte max. 430 px; auf dem Handy volle Breite. */
+/**
+ * Heller Hintergrund, weiße Karte max. 430 px; auf dem Handy volle Breite.
+ * Ab 641 px (Tablet/Computer) deutlich breiter (max. 980 px).
+ */
 export function Rahmen({ children }: { children: ReactNode }) {
   useQuestrial();
   return (
     <div className="min-h-[100dvh] bg-[#F4F2EE] font-sans text-[#2B2B2B] [letter-spacing:0]">
-      <div className="mx-auto flex min-h-[100dvh] w-full max-w-[430px] flex-col bg-white min-[431px]:shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
+      <div className="mx-auto flex min-h-[100dvh] w-full max-w-[430px] flex-col bg-white min-[431px]:shadow-[0_1px_3px_rgba(0,0,0,0.08)] min-[641px]:max-w-[980px]">
         {children}
       </div>
     </div>
@@ -51,15 +54,15 @@ export function Rahmen({ children }: { children: ReactNode }) {
 export function Kopf({ links, onZurueck }: { links?: "sicher" | "zurueck" | null; onZurueck?: () => void }) {
   return (
     <header className="shrink-0 border-b-[3px] border-[#F08C1F] bg-white">
-      <div className="flex h-[60px] items-center justify-between pl-5 pr-5">
-        {links === "sicher" && <span className="text-[12px] leading-none text-[#595959]">Sichere Unterschrift</span>}
+      <div className="flex h-[60px] items-center justify-between pl-5 pr-5 min-[641px]:h-[72px] min-[641px]:px-10 [@media(orientation:landscape)_and_(max-height:500px)]:h-[54px]">
+        {links === "sicher" && <span className="text-[12px] leading-none text-[#595959] min-[641px]:text-[13.5px]">Sichere Unterschrift</span>}
         {links === "zurueck" && (
-          <button type="button" onClick={onZurueck} className="-ml-1 px-1 py-2 text-[13.5px] leading-none text-[#B35300] hover:underline">
+          <button type="button" onClick={onZurueck} className="-ml-1 px-1 py-2 text-[13.5px] leading-none text-[#B35300] hover:underline min-[641px]:text-[15px]">
             ‹ Zurück
           </button>
         )}
         {!links && <span />}
-        <img src={LOGO} alt="RGI Immobilien" className="h-[38px] w-auto select-none object-contain" draggable={false} />
+        <img src={LOGO} alt="RGI Immobilien" className="h-[38px] w-auto select-none object-contain min-[641px]:h-[44px] [@media(orientation:landscape)_and_(max-height:500px)]:h-[34px]" draggable={false} />
       </div>
     </header>
   );
@@ -68,13 +71,13 @@ export function Kopf({ links, onZurueck }: { links?: "sicher" | "zurueck" | null
 export function Fortschritt({ schritt }: { schritt: 1 | 2 | 3 }) {
   const labels = ["1 Lesen", "2 Unterschreiben", "3 Fertig"];
   return (
-    <div className="grid grid-cols-3 gap-1.5 px-5 pt-[14px]">
+    <div className="grid grid-cols-3 gap-1.5 px-5 pt-[14px] min-[641px]:gap-3 min-[641px]:px-10 min-[641px]:pt-5">
       {labels.map((l, i) => {
         const nr = i + 1;
         return (
           <div key={l}>
             <div className={cn("h-1 rounded-full", nr <= schritt ? "bg-[#ee7202]" : "bg-[#E5E5E5]")} />
-            <div className={cn("mt-[7px] text-[12px] leading-[14px]", nr === schritt ? "font-bold text-[#B35300]" : "text-[#6B6B6B]")}>{l}</div>
+            <div className={cn("mt-[7px] text-[12px] leading-[14px] min-[641px]:text-[13px]", nr === schritt ? "font-bold text-[#B35300]" : "text-[#6B6B6B]")}>{l}</div>
           </div>
         );
       })}
@@ -121,8 +124,8 @@ export function SekundaerButton({ className, busy, children, disabled, ...p }: B
 /** Unten fixierte Leiste mit Button (klebt am unteren Rand des Bildschirms). */
 export function UntenLeiste({ children }: { children: ReactNode }) {
   return (
-    <div className="sticky bottom-0 z-10 shrink-0 border-t border-[#EEEEEE] bg-white px-5 pb-[max(22px,env(safe-area-inset-bottom))] pt-[15px]">
-      {children}
+    <div className="sticky bottom-0 z-10 shrink-0 border-t border-[#EEEEEE] bg-white px-5 pb-[max(22px,env(safe-area-inset-bottom))] pt-[15px] min-[641px]:pb-6 [@media(orientation:landscape)_and_(max-height:500px)]:static">
+      <div className="min-[641px]:mx-auto min-[641px]:max-w-[480px]">{children}</div>
     </div>
   );
 }
@@ -152,3 +155,15 @@ export function Haken({ className, strich = 3 }: { className?: string; strich?: 
     </svg>
   );
 }
+
+/** Inhalts-Spalte: am Handy unverändert, ab 641 px mittig mit lesbarer Breite. */
+export function Spalte({ children, className, breit }: { children: ReactNode; className?: string; breit?: boolean }) {
+  return (
+    <div className={cn("min-[641px]:mx-auto min-[641px]:w-full", breit ? "min-[641px]:max-w-[720px]" : "min-[641px]:max-w-[640px]", className)}>
+      {children}
+    </div>
+  );
+}
+
+/** Knöpfe am Computer höchstens 480 px breit und mittig. */
+export const knopfSpalte = "min-[641px]:mx-auto min-[641px]:max-w-[480px]";

@@ -92,8 +92,8 @@ export default function PapierSeite({ token, info, onZurueck, onDownload, downlo
     <>
       <Kopf links="zurueck" onZurueck={onZurueck} />
       <div className="flex flex-1 flex-col">
-        <div className="px-5 pt-[14px]">
-          <h1 className={`${ueberschrift} text-[20px] leading-[26px]`}>Auf Papier unterschreiben</h1>
+        <div className="px-5 pt-[14px] min-[641px]:mx-auto min-[641px]:w-full min-[641px]:max-w-[640px] min-[641px]:pt-8">
+          <h1 className={`${ueberschrift} text-[20px] leading-[26px] min-[641px]:text-[26px] min-[641px]:leading-[32px]`}>Auf Papier unterschreiben</h1>
           <p className="mt-[1px] text-[13px] leading-[17px] text-[#6B6B6B]">{titelZeile}</p>
 
           <div className="mt-[13px] space-y-[14px]">
@@ -203,7 +203,7 @@ export function PapierDanke({ seiten }: { seiten: number }) {
     <>
       <Kopf links={null} />
       <div className="flex flex-1 flex-col">
-        <div className="px-5 pt-[48px] text-center">
+        <div className="px-5 pt-[48px] text-center min-[641px]:mx-auto min-[641px]:w-full min-[641px]:max-w-[520px] min-[641px]:pt-20">
           <div className="mx-auto flex h-[88px] w-[88px] items-center justify-center rounded-full bg-[#D4EDDA] text-[#1E6B34]">
             <Haken className="h-[44px] w-[44px]" strich={2.2} />
           </div>

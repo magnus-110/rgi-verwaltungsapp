@@ -24,11 +24,11 @@ export default function SchrittFertig({ info, ergebnis, name, onDownload, busy, 
       <Kopf links={null} />
       <div className="flex flex-1 flex-col">
         <Fortschritt schritt={3} />
-        <div className="px-2 pt-[45px] text-center">
+        <div className="px-2 pt-[45px] text-center min-[641px]:mx-auto min-[641px]:w-full min-[641px]:max-w-[560px] min-[641px]:pt-16">
           <div className="mx-auto flex h-[88px] w-[88px] items-center justify-center rounded-full bg-[#D4EDDA] text-[#1E6B34]">
             <Haken className="h-[44px] w-[44px]" strich={2.2} />
           </div>
-          <h1 className={`${ueberschrift} mt-[17px] px-3 text-[24px] leading-[30px]`}>Vielen Dank, {grussName(name || info.name, info.anrede)}!</h1>
+          <h1 className={`${ueberschrift} mt-[17px] px-3 text-[24px] leading-[30px] min-[641px]:text-[28px] min-[641px]:leading-[36px]`}>Vielen Dank, {grussName(name || info.name, info.anrede)}!</h1>
           <p className="mx-auto mt-[15px] px-4 text-[15px] leading-[23.5px] text-[#2B2B2B]">
             {kopie ? (
               <>

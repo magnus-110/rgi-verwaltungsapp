@@ -1,10 +1,25 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import { ArrowDown, Loader2 } from "lucide-react";
-import { Fortschritt, Haken, Kopf, PrimaerButton, SekundaerButton, ueberschrift, Fusszeile, FehlerHinweis } from "./ui";
+import { Fortschritt, Haken, Kopf, PrimaerButton, SekundaerButton, ueberschrift, Fusszeile, FehlerHinweis, knopfSpalte } from "./ui";
+import { PdfAnsicht } from "@/components/shared/PdfAnsicht";
 import { datum, type SignInfo } from "./api";
 
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+
+/** Ab 641 px: große PDF-Anzeige; darunter die Handy-Ansicht laut Mockup. */
+function useGrosseAnsicht() {
+  const abfrage = "(min-width: 641px)";
+  const [gross, setGross] = useState(() => typeof window !== "undefined" && window.matchMedia(abfrage).matches);
+  useEffect(() => {
+    const m = window.matchMedia(abfrage);
+    const f = () => setGross(m.matches);
+    m.addEventListener("change", f);
+    f();
+    return () => m.removeEventListener("change", f);
+  }, []);
+  return gross;
+}
 
 type Props = {
   info: SignInfo;
@@ -25,17 +40,23 @@ export default function SchrittLesen({ info, gelesen, setGelesen, onWeiter, onPa
   const [gerendert, setGerendert] = useState(0);
   const [ladeFehler, setLadeFehler] = useState(false);
   const [hinweis, setHinweis] = useState(false);
+  const gross = useGrosseAnsicht();
+  const [grossFehler, setGrossFehler] = useState(false);
+  const endeErreicht = useCallback(() => {
+    setGelesen(true);
+    setHinweis(false);
+  }, [setGelesen]);
 
   useEffect(() => {
     if (!box.current) return;
     const ro = new ResizeObserver(([e]) => setBreite(Math.max(240, Math.floor(e.contentRect.width))));
     ro.observe(box.current);
     return () => ro.disconnect();
-  }, []);
+  }, [gross, grossFehler]);
 
   // „Bis zum Ende gelesen“, sobald das Ende der letzten Seite sichtbar war.
   useEffect(() => {
-    if (gelesen || !ende.current || !box.current || seiten === 0 || gerendert < seiten) return;
+    if ((gross && !grossFehler) || gelesen || !ende.current || !box.current || seiten === 0 || gerendert < seiten) return;
     const io = new IntersectionObserver(
       (es) => {
         if (es.some((e) => e.isIntersecting)) {
@@ -48,7 +69,7 @@ export default function SchrittLesen({ info, gelesen, setGelesen, onWeiter, onPa
     );
     io.observe(ende.current);
     return () => io.disconnect();
-  }, [seiten, gerendert, gelesen, setGelesen]);
+  }, [seiten, gerendert, gelesen, setGelesen, gross, grossFehler]);
 
   const n = info.seitenzahl || seiten;
   const zeile = [info.objekt, n ? `${n} ${n === 1 ? "Seite" : "Seiten"}` : null, info.frist ? `Frist ${datum(info.frist)}` : null].filter(Boolean).join(" · ");
@@ -67,12 +88,24 @@ export default function SchrittLesen({ info, gelesen, setGelesen, onWeiter, onPa
       <Kopf links="sicher" />
       <div className="flex flex-1 flex-col">
         <Fortschritt schritt={1} />
-        <div className="px-5 pb-[11px] pt-[11px]">
-          <h1 className={`${ueberschrift} text-[20px] leading-[25px]`}>{info.titel}</h1>
-          <p className="mt-0 text-[13px] leading-[17px] text-[#6B6B6B]">{zeile}</p>
+        <div className="px-5 pb-[11px] pt-[11px] min-[641px]:px-10 min-[641px]:pb-4 min-[641px]:pt-5">
+          <h1 className={`${ueberschrift} text-[20px] leading-[25px] min-[641px]:text-[26px] min-[641px]:leading-[32px]`}>{info.titel}</h1>
+          <p className="mt-0 text-[13px] leading-[17px] text-[#6B6B6B] min-[641px]:mt-1 min-[641px]:text-[14px]">{zeile}</p>
         </div>
 
-        <div className="border-b border-[#EEEEEE] bg-[#E9E9E7] px-4 pt-4">
+        <div className="border-b border-[#EEEEEE] bg-[#E9E9E7] px-4 pt-4 min-[641px]:px-6">
+          {gross && info.pdf_url && !grossFehler ? (
+            <div className="h-[max(600px,calc(100dvh-260px))] overflow-hidden rounded-[6px]" aria-label="Dokument">
+              <PdfAnsicht
+                quelle={info.pdf_url}
+                dateiName={`${info.titel || "Dokument"}.pdf`}
+                download={false}
+                onEndeErreicht={endeErreicht}
+                onFehler={() => setGrossFehler(true)}
+                className="bg-[#E9E9E7]"
+              />
+            </div>
+          ) : (
           <div className="h-[min(420px,58dvh)] overflow-y-auto overscroll-contain [scrollbar-width:thin]" aria-label="Dokument">
             <div ref={box} className="w-full">
               {info.pdf_url && !ladeFehler ? (
@@ -116,7 +149,8 @@ export default function SchrittLesen({ info, gelesen, setGelesen, onWeiter, onPa
               )}
             </div>
           </div>
-          <div className="flex items-center justify-between gap-3 pb-[20px] pt-[11px] text-[13px] leading-[18px]">
+          )}
+          <div className="flex items-center justify-between gap-3 pb-[20px] pt-[11px] text-[13px] leading-[18px] min-[641px]:text-[14px]">
             {gelesen ? (
               <span className="flex items-center gap-1 font-semibold text-[#1E6B34]">
                 <Haken className="h-[13px] w-[13px]" strich={3} /> Bis zum Ende gelesen
@@ -132,7 +166,7 @@ export default function SchrittLesen({ info, gelesen, setGelesen, onWeiter, onPa
           </div>
         </div>
 
-        <div className="space-y-2 px-5 pt-[15px]">
+        <div className={`space-y-2 px-5 pt-[15px] min-[641px]:w-full min-[641px]:pt-6 ${knopfSpalte}`}>
           {downloadFehler && <FehlerHinweis>{downloadFehler}</FehlerHinweis>}
           <PrimaerButton
             onClick={weiter}

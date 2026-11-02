@@ -44,7 +44,7 @@ function Huelle({ children }: { children: ReactNode }) {
     <>
       <Kopf links="sicher" />
       <div className="flex flex-1 flex-col">
-        <div className="px-5 pt-[48px] text-center">{children}</div>
+        <div className="px-5 pt-[48px] text-center min-[641px]:mx-auto min-[641px]:w-full min-[641px]:max-w-[520px] min-[641px]:pt-20">{children}</div>
         <Fusszeile className="mt-auto pt-10" />
       </div>
     </>

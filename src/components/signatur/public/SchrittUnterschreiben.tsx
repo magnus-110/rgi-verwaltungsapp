@@ -1,6 +1,7 @@
-import { useRef } from "react";
-import { SignaturePad } from "@/components/buildings/keys/SignaturePad";
-import { FehlerHinweis, Fortschritt, Fusszeile, Haken, Kopf, PrimaerButton, UntenLeiste, ueberschrift } from "./ui";
+import { useRef, useState } from "react";
+import { RotateCw, X } from "lucide-react";
+import { FehlerHinweis, Fortschritt, Fusszeile, Haken, Kopf, PrimaerButton, Spalte, UntenLeiste, ueberschrift } from "./ui";
+import { Zeichenflaeche, type ZeichenflaecheRef } from "./Zeichenflaeche";
 import type { SignInfo } from "./api";
 
 type Props = {
@@ -19,13 +20,12 @@ type Props = {
 
 /** Schritt 2 · Online unterschreiben (Mockup v05). */
 export default function SchrittUnterschreiben(p: Props) {
-  const pad = useRef<HTMLDivElement>(null);
+  const pad = useRef<ZeichenflaecheRef>(null);
   const bereit = p.name.trim().length >= 2 && p.zustimmung;
+  const [tippZu, setTippZu] = useState(false);
 
-  // Das Zeichenfeld bringt seinen eigenen „Löschen“-Knopf mit; der ist ausgeblendet
-  // und wird über den Link oben rechts ausgelöst (Layout laut Mockup).
   const loeschen = () => {
-    pad.current?.querySelector<HTMLButtonElement>("button")?.click();
+    pad.current?.loeschen();
     p.setPng(null);
   };
 
@@ -33,9 +33,9 @@ export default function SchrittUnterschreiben(p: Props) {
     <>
       <Kopf links="zurueck" onZurueck={p.onZurueck} />
       <div className="flex flex-1 flex-col">
-        <Fortschritt schritt={2} />
-        <div className="px-5 pt-[15px]">
-          <h1 className={`${ueberschrift} text-[21px] leading-[24px]`}>Ihre Unterschrift</h1>
+        <div className="[@media(orientation:landscape)_and_(max-height:500px)]:hidden"><Fortschritt schritt={2} /></div>
+        <Spalte className="flex flex-col px-5 pt-[15px] min-[641px]:pt-7 [@media(orientation:landscape)_and_(max-height:500px)]:pt-3">
+          <h1 className={`${ueberschrift} text-[21px] leading-[24px] min-[641px]:text-[26px] min-[641px]:leading-[32px] [@media(orientation:landscape)_and_(max-height:500px)]:hidden`}>Ihre Unterschrift</h1>
 
           <label htmlFor="sig-name" className="mt-[14px] block text-[14px] font-semibold leading-[18px] text-[#2B2B2B]">
             Vollständiger Name
@@ -49,7 +49,8 @@ export default function SchrittUnterschreiben(p: Props) {
           />
           <p className="mt-[5px] text-[12px] leading-[16px] text-[#6B6B6B]">Bitte genau so, wie Sie im Dokument genannt sind.</p>
 
-          <div className="mt-[19px] flex items-baseline justify-between">
+          <div className="[@media(orientation:landscape)_and_(max-height:500px)]:order-first">
+          <div className="mt-[19px] flex items-baseline justify-between [@media(orientation:landscape)_and_(max-height:500px)]:mt-0">
             <span className="text-[14px] leading-[18px] text-[#2B2B2B]">
               <b className="font-semibold">Unterschrift zeichnen</b> <span className="text-[#6B6B6B]">(freiwillig)</span>
             </span>
@@ -57,14 +58,29 @@ export default function SchrittUnterschreiben(p: Props) {
               Löschen
             </button>
           </div>
-          <div className="relative mt-[11px] overflow-hidden rounded-[8px] border border-dashed border-[#B5B5B5] bg-[#FAFAFA]">
-            <div className="pointer-events-none absolute inset-x-5 bottom-[22px] h-px bg-[#CCCCCC]" />
+          {!tippZu && (
             <div
-              ref={pad}
-              className="relative [&>div>button]:hidden [&>div>div]:rounded-none [&>div>div]:border-0 [&>div>div]:bg-transparent [&>div>div>span]:pb-6 [&>div]:space-y-0"
+              role="note"
+              className="mt-[11px] hidden items-start gap-2.5 rounded-[10px] border border-[#F6D3AE] bg-[#FFF7ED] py-2.5 pl-3 pr-1.5 text-[13px] leading-[18px] text-[#2B2B2B] [@media(orientation:portrait)_and_(max-width:640px)]:flex"
             >
-              <SignaturePad value={p.png} onChange={p.setPng} height={118} />
+              <RotateCw className="mt-[1px] h-[18px] w-[18px] shrink-0 text-[#B35300]" strokeWidth={2.2} aria-hidden />
+              <span className="flex-1">
+                <b className="font-semibold">Tipp:</b> Drehen Sie Ihr Handy quer – dann haben Sie mehr Platz zum Unterschreiben.
+              </span>
+              <button
+                type="button"
+                onClick={() => setTippZu(true)}
+                aria-label="Hinweis schließen"
+                className="-my-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[#595959] hover:bg-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
+          )}
+          <div className="relative mt-[11px] h-[118px] overflow-hidden rounded-[8px] border border-dashed border-[#B5B5B5] bg-[#FAFAFA] min-[641px]:h-[200px] [@media(orientation:landscape)_and_(max-height:500px)]:h-[max(150px,calc(100dvh-125px))]">
+            <div className="pointer-events-none absolute inset-x-5 bottom-[22px] h-px bg-[#CCCCCC]" />
+            <Zeichenflaeche ref={pad} value={p.png} onChange={p.setPng} />
+          </div>
           </div>
 
           <label className="mt-4 flex cursor-pointer gap-[12px] rounded-[10px] bg-[#FFF7ED] px-[14px] py-[14px]">
@@ -92,7 +108,7 @@ export default function SchrittUnterschreiben(p: Props) {
               <FehlerHinweis>{p.fehler}</FehlerHinweis>
             </div>
           )}
-        </div>
+        </Spalte>
         <Fusszeile className="mt-auto pt-10" />
       </div>
       <UntenLeiste>

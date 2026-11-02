@@ -45,6 +45,31 @@ export default function Unterschreiben() {
     return () => { meta.remove(); };
   }, []);
 
+  // Kein versehentliches Neuladen durch Herunterziehen (nur auf dieser Seite)
+  useEffect(() => {
+    const html = document.documentElement;
+    const alt = { html: html.style.overscrollBehaviorY, body: document.body.style.overscrollBehaviorY };
+    html.style.overscrollBehaviorY = "contain";
+    document.body.style.overscrollBehaviorY = "contain";
+    return () => {
+      html.style.overscrollBehaviorY = alt.html;
+      document.body.style.overscrollBehaviorY = alt.body;
+    };
+  }, []);
+
+  // Warnung beim Verlassen, solange gezeichnet, aber noch nicht abgeschickt
+  const ungesendet = !!png && schritt === "unterschreiben" && !ergebnis;
+  useEffect(() => {
+    if (!ungesendet) return;
+    const warnen = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+      return "";
+    };
+    window.addEventListener("beforeunload", warnen);
+    return () => window.removeEventListener("beforeunload", warnen);
+  }, [ungesendet]);
+
   useEffect(() => {
     let aktiv = true;
     setLadeFehler(null);
