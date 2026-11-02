@@ -7,8 +7,11 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { SignaturePad } from "@/components/buildings/keys/SignaturePad";
-import { Archive, CheckCircle2, Loader2, Maximize2 } from "lucide-react";
+import { Archive, Check, CheckCircle2, Loader2, Maximize2 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  aktiveSigner, formatDate, fortschrittText, signerKopf, signerStatusKurz, TON_FARBE, useSignRequestsForQuelle,
+} from "@/lib/signatur";
 
 const ROLES = [
   { key: "eigentuemer", label: "Eigentümer" },
@@ -132,7 +135,50 @@ function SignatureColumn({
   );
 }
 
+/**
+ * Unterschriften unter dem Protokoll in der Lesansicht.
+ * Läuft für die Versammlung ein Vorgang der elektronischen Unterschrift (neu, sign_requests),
+ * wird nur dessen Stand angezeigt – unterschrieben wird dann ausschließlich über die
+ * Unterschriften-Box auf der Versammlungsseite (Reiter „Protokoll“). Sonst bisheriges Verfahren.
+ */
 export function ProtocolSignaturesInline({ meetingId }: { meetingId: string }) {
+  const { data: vorgaenge = [], isLoading } = useSignRequestsForQuelle("etv_meeting", meetingId);
+  const v = vorgaenge.find((x) => x.status === "offen" || x.status === "abgeschlossen");
+  if (isLoading) return null;
+  if (!v) return <BisherigeUnterschriften meetingId={meetingId} />;
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-sm font-medium">Unterschriften</div>
+        <Badge variant={v.status === "abgeschlossen" ? "default" : "outline"} className="text-[10px]">
+          {fortschrittText(v)} · {v.nummer}
+        </Badge>
+      </div>
+      <div className="divide-y rounded-lg border bg-card">
+        {aktiveSigner(v).map((s) => {
+          const st = signerStatusKurz(s);
+          return (
+            <div key={s.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+              <span className="min-w-0 truncate font-medium">{signerKopf(s)}</span>
+              <span className="flex shrink-0 items-center gap-1 text-xs font-semibold" style={{ color: TON_FARBE[st.ton] }}>
+                {st.check && <Check className="h-3 w-3" strokeWidth={2.5} />}
+                {st.text}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      <p className="text-[11px] text-muted-foreground">
+        {v.status === "abgeschlossen"
+          ? `Elektronisch unterschrieben, abgeschlossen am ${formatDate(v.completed_at)}.`
+          : "Läuft über die elektronische Unterschrift – unterschreiben und erinnern auf der Versammlungsseite unter „Protokoll“."}
+      </p>
+    </div>
+  );
+}
+
+/** Bisheriges Verfahren (etv_protocol_signatures) – für Versammlungen ohne neuen Vorgang. */
+function BisherigeUnterschriften({ meetingId }: { meetingId: string }) {
   const qc = useQueryClient();
 
   // Versammlungsleiter / Protokollführer aus der Versammlung vorbelegen

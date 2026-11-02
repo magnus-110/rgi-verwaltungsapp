@@ -416,7 +416,7 @@ export const quellePfad = async (r: Pick<SignRequest, "quelle_typ" | "quelle_id"
     case "contract":
       return "/rgi-intern?bereich=contracts";
     case "etv_meeting":
-      return r.quelle_id ? `/versammlungen?m=${r.quelle_id}` : "/versammlungen";
+      return r.quelle_id ? `/versammlungen?m=${r.quelle_id}&phase=protokoll` : "/versammlungen";
     case "email_attachment": {
       if (r.email_id) return `/postfach?email=${r.email_id}`;
       if (!r.quelle_id) return "/postfach";
@@ -508,17 +508,31 @@ export const useSignRequestsForQuelle = (quelleTyp: QuelleTyp, quelleId: string 
     staleTime: 15_000,
   });
 
-/** Zähler für Menü und Startseite: offene Vorgänge und davon überfällige. */
+/**
+ * Zähler für Menü und Startseite: offene Vorgänge und davon überfällige.
+ * „Von uns zu unterschreiben“ (typ eingehend) zählt nur, wenn es dem angemeldeten
+ * Nutzer zugewiesen ist (`vonMir`); alle anderen offenen Vorgänge zählen immer.
+ */
 export const useSignOpenCount = (enabled = true) =>
   useQuery({
     queryKey: [...SIGNATUR_KEY, "zaehler"],
     enabled,
-    queryFn: async (): Promise<{ offen: number; ueberfaellig: number }> => {
-      const { data, error } = await db.from("sign_requests").select("id, frist").eq("status", "offen");
+    queryFn: async (): Promise<{ offen: number; ueberfaellig: number; vonMir: number }> => {
+      const [{ data: auth }, { data, error }] = await Promise.all([
+        supabase.auth.getUser(),
+        db.from("sign_requests").select("id, frist, typ, zugewiesen_an").eq("status", "offen"),
+      ]);
       if (error) throw error;
+      const ich = auth?.user?.id ?? null;
       const heute = todayIso();
-      const rows = (data ?? []) as { frist: string | null }[];
-      return { offen: rows.length, ueberfaellig: rows.filter((r) => r.frist && r.frist < heute).length };
+      const rows = ((data ?? []) as { frist: string | null; typ: SignTyp; zugewiesen_an: string | null }[]).filter(
+        (r) => r.typ !== "eingehend" || (!!ich && r.zugewiesen_an === ich),
+      );
+      return {
+        offen: rows.length,
+        ueberfaellig: rows.filter((r) => r.frist && r.frist < heute).length,
+        vonMir: rows.filter((r) => r.typ === "eingehend").length,
+      };
     },
     staleTime: 60_000,
     refetchInterval: 120_000,
@@ -561,7 +575,8 @@ export const useBueroMitarbeiter = () =>
 
 export type SignActionName =
   | "create" | "preview_mail" | "sign_internal" | "remind" | "withdraw"
-  | "accept_paper" | "reject_paper" | "assign_paper_email" | "urls" | "nachweis";
+  | "accept_paper" | "reject_paper" | "assign_paper_email" | "urls" | "nachweis"
+  | "create_incoming" | "complete_incoming";
 
 /** Ruft `sign-request` auf und liefert die Antwort; Fehlertexte kommen deutsch vom Server. */
 export async function signAction<T = any>(action: SignActionName, payload: Record<string, unknown> = {}): Promise<T> {

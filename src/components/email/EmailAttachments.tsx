@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Paperclip, Download, FileText, Image, FileSpreadsheet, File, Sparkles, Loader2, Check, FolderArchive, ArrowDownToLine, ChevronDown, Layers, X, ArrowUp, ArrowDown, FileArchive, RefreshCw, Inbox, PenLine, Reply, FileSignature } from "lucide-react";
+import { Paperclip, Download, FileText, Image, FileSpreadsheet, File, Sparkles, Loader2, Check, FolderArchive, ArrowDownToLine, ChevronDown, Layers, X, ArrowUp, ArrowDown, FileArchive, RefreshCw, Inbox, PenLine, Reply, FileSignature, Stamp } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -17,6 +17,7 @@ import { SignPdfDialog } from "@/components/documents/SignPdfDialog";
 import { saveSignedEmailAttachment } from "@/lib/documentSigning";
 import { useComposeEmail } from "@/contexts/ComposeEmailContext";
 import { UnterschriftAnfordernDialog } from "@/components/signatur/UnterschriftAnfordernDialog";
+import { ZurUnterschriftDialog } from "@/components/signatur/ZurUnterschriftDialog";
 import { dokumentartAusName, titelAusDateiname } from "@/lib/signatur";
 
 interface EmailAttachmentsProps {
@@ -93,6 +94,8 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
 
   // Elektronische Unterschrift anfordern (Anhang als Quelle)
   const [anfordernAnhang, setAnfordernAnhang] = useState<{ id: string; path: string; name: string } | null>(null);
+  // „Zur Unterschrift“: eingehendes Dokument, das wir selbst unterschreiben sollen
+  const [zurUnterschrift, setZurUnterschrift] = useState(false);
   const { data: mailKontext } = useQuery({
     queryKey: ["email-sign-kontext", emailId],
     queryFn: async () => {
@@ -577,6 +580,18 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
             Alle als ZIP
           </Button>
         )}
+        {attachments.some((a: any) => a.file_path && isPdf(a.mime_type, a.file_name)) && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 ml-1 px-2 text-xs"
+            onClick={() => setZurUnterschrift(true)}
+            title="PDF einem Mitarbeiter zur Unterschrift zuweisen (Unterschriften › Von uns zu unterschreiben)"
+          >
+            <Stamp className="h-3.5 w-3.5 mr-1" />
+            Zur Unterschrift
+          </Button>
+        )}
         {attachments.length > 1 && (
           <Button
             variant="ghost"
@@ -852,6 +867,15 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
           const att = attachments.find((a) => a.file_name === previewMeta.name && !!a.file_path);
           if (att?.file_path) handleOpenSign(att.file_path, att.file_name);
         }}
+      />
+      <ZurUnterschriftDialog
+        open={zurUnterschrift}
+        onOpenChange={setZurUnterschrift}
+        emailId={emailId}
+        anhaenge={attachments
+          .filter((a: any) => a.file_path && isPdf(a.mime_type, a.file_name))
+          .map((a: any) => ({ id: a.id as string, file_name: a.file_name as string }))}
+        buildingId={mailKontext?.building_id ?? null}
       />
       {anfordernAnhang && (
         <UnterschriftAnfordernDialog

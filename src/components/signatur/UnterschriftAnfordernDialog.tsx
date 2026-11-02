@@ -18,7 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import {
   addDaysIso, DOKUMENTART_LABEL, signAction, todayIso, useBueroMitarbeiter, useMailTemplates,
-  useSignInvalidate, type Dokumentart, type QuelleTyp, type SignPlacement,
+  useSignInvalidate, type Dokumentart, type QuelleTyp, type SignPlacement, type SignTyp,
 } from "@/lib/signatur";
 import { Abschnitt, eingabeKlasse, FeldLabel, NummerKreis, SigButton, SIGNER_FARBEN } from "./ui";
 import { LazySeite, PdfDocument, PdfPage, seitenGroessen, useElementBreite } from "./pdf";
@@ -26,12 +26,28 @@ import { LazySeite, PdfDocument, PdfPage, seitenGroessen, useElementBreite } fro
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
+export interface VorschlagOption {
+  name: string;
+  email: string | null;
+  contact_id?: string | null;
+  anrede?: string | null;
+  /** Zusatz in der Auswahl, z. B. „war anwesend“ */
+  hinweis?: string | null;
+}
+
 export interface VorschlagSigner {
   name: string;
   email?: string | null;
   rolle?: string | null;
   contact_id?: string | null;
   anrede?: string | null;
+  /** „intern“ = RGI-Mitarbeiter unterschreibt in der App (user_id); Standard „online“. */
+  methode?: "online" | "intern";
+  user_id?: string | null;
+  /** Fester Rollenschlüssel (ETV: leiter · protokollant · eigentuemer · beirat). */
+  rolle_key?: string | null;
+  /** Auswahlliste, solange noch niemand feststeht (z. B. Eigentümer aus den Teilnehmern). */
+  optionen?: VorschlagOption[];
 }
 
 export interface UnterschriftStartInfo {
@@ -45,6 +61,10 @@ export interface UnterschriftStartInfo {
   vorschlagUnterzeichner?: VorschlagSigner[] | "beirat";
   /** Optional: zugehörige E-Mail (Mail-Anhang) */
   email_id?: string | null;
+  /** Vorgangsart; Standard „ausgehend“. Bei „etv_protokoll“ keine Kopien, Rollen aus der Versammlung. */
+  typ?: SignTyp;
+  /** Zeile „RGI Immobilien (Verwaltung) unterschreibt auch“ anzeigen (Standard: ja). */
+  rgiZeile?: boolean;
 }
 
 interface Props {
@@ -63,7 +83,20 @@ interface EntwurfSigner {
   rolle: string;
   contact_id?: string | null;
   anrede?: string | null;
+  methode: "online" | "intern";
+  user_id?: string | null;
+  rolle_key?: string | null;
+  optionen?: VorschlagOption[];
 }
+
+/** ETV: Rollenschlüssel aus der angezeigten Rolle ableiten (Kontakte aus der Auswahl). */
+const etvRolleKey = (rolle: string): string => {
+  const r = rolle.toLowerCase();
+  if (r.includes("beirat")) return "beirat";
+  if (r.includes("leit")) return "leiter";
+  if (r.includes("protokoll")) return "protokollant";
+  return "eigentuemer";
+};
 
 interface KontaktTreffer {
   contact_id: string;
@@ -103,6 +136,9 @@ const RGI_STANDARD: Dokumentart[] = ["verwaltervertrag", "dienstleistervertrag",
 
 export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, quelleId, startInfo, onSent }: Props) {
   const { user, profile } = useAuth();
+  const typ: SignTyp = startInfo.typ ?? "ausgehend";
+  const etv = typ === "etv_protokoll";
+  const mitRgiZeile = startInfo.rgiZeile !== false;
   const invalidate = useSignInvalidate();
   const { data: vorlagen = [] } = useMailTemplates();
   const { data: mitarbeiter = [] } = useBueroMitarbeiter();
@@ -133,7 +169,7 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
     vorbelegt.current = false;
     setDokumentart(startInfo.dokumentart);
     setVorlage(startInfo.dokumentart);
-    setRgiAuch(RGI_STANDARD.includes(startInfo.dokumentart));
+    setRgiAuch(startInfo.rgiZeile !== false && RGI_STANDARD.includes(startInfo.dokumentart));
     setReihenfolge("gleichzeitig");
     setErinnerung(true);
     setKopieDms(true);
@@ -144,10 +180,12 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
     setSigner(
       Array.isArray(startInfo.vorschlagUnterzeichner)
         ? startInfo.vorschlagUnterzeichner
-            .filter((v) => v.name)
+            .filter((v) => v.name || v.optionen?.length || v.rolle)
             .map((v) => ({
               key: neuerKey(), name: v.name, email: v.email ?? "", rolle: v.rolle ?? "",
               contact_id: v.contact_id ?? null, anrede: v.anrede ?? null,
+              methode: v.methode === "intern" ? "intern" : "online",
+              user_id: v.user_id ?? null, rolle_key: v.rolle_key ?? null, optionen: v.optionen,
             }))
         : [],
     );
@@ -218,6 +256,7 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
     setSigner(
       beirat.map((k) => ({
         key: neuerKey(), name: k.name, email: k.email ?? "", rolle: k.rolle, contact_id: k.contact_id, anrede: k.anrede,
+        methode: "online" as const,
       })),
     );
   }, [open, objektKontakte, startInfo.vorschlagUnterzeichner]);
@@ -248,8 +287,8 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
   const rgiName = mitarbeiter.find((m) => m.user_id === rgiUser)?.name
     || [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") || "RGI Immobilien";
   const feldSigner = [
-    ...externe.map((s, i) => ({ key: s.key, nr: i + 1, name: s.name || "Unterzeichner" })),
-    ...(rgiAuch ? [{ key: INTERN_KEY, nr: externe.length + 1, name: "RGI Immobilien" }] : []),
+    ...externe.map((s, i) => ({ key: s.key, nr: i + 1, name: s.name || s.rolle || "Unterzeichner" })),
+    ...(rgiAuch && mitRgiZeile ? [{ key: INTERN_KEY, nr: externe.length + 1, name: "RGI Immobilien" }] : []),
   ];
   const farbeFuer = (key: string) => {
     const i = feldSigner.findIndex((f) => f.key === key);
@@ -261,7 +300,7 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
     setSigner((prev) => {
       // Ehepaare mit gleicher Mail sind zwei Unterzeichner → nur exakt gleiche Person (Kontakt + Name) überspringen
       if (prev.some((p) => p.contact_id && p.contact_id === t.contact_id && p.name === t.name)) return prev;
-      return [...prev, { key: neuerKey(), ...t }];
+      return [...prev, { key: neuerKey(), ...t, methode: "online" as const, rolle_key: etv ? etvRolleKey(t.rolle) : null }];
     });
     setFehler(null);
   };
@@ -336,14 +375,19 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
 
   // ---------- Prüfen & Senden ----------
   const pruefen = (): string | null => {
-    if (externe.length === 0 && !rgiAuch) return "Bitte mindestens einen Unterzeichner hinzufügen.";
-    if (externe.length === 0) return "Bitte mindestens einen Unterzeichner außer RGI hinzufügen.";
+    const rgiZaehlt = rgiAuch && mitRgiZeile;
+    if (externe.length === 0 && !rgiZaehlt) return "Bitte mindestens einen Unterzeichner hinzufügen.";
+    if (!etv && externe.filter((s) => s.methode !== "intern").length === 0) return "Bitte mindestens einen Unterzeichner außer RGI hinzufügen.";
     for (const s of externe) {
-      if (!s.name.trim()) return "Bitte bei jedem Unterzeichner einen Namen angeben.";
+      if (!s.name.trim()) return s.rolle ? `Bitte für „${s.rolle}“ eine Person auswählen.` : "Bitte bei jedem Unterzeichner einen Namen angeben.";
+      if (s.methode === "intern") {
+        if (!s.user_id) return `Bitte für „${s.rolle || s.name}“ einen Mitarbeiter auswählen.`;
+        continue;
+      }
       if (!s.email.trim()) return `Für ${s.name} fehlt die E-Mail-Adresse.`;
       if (!EMAIL_RE.test(s.email.trim())) return `Die E-Mail-Adresse von ${s.name} ist ungültig.`;
     }
-    if (rgiAuch && !rgiUser) return "Bitte auswählen, wer bei RGI unterschreibt.";
+    if (rgiZaehlt && !rgiUser) return "Bitte auswählen, wer bei RGI unterschreibt.";
     if (!frist || frist <= todayIso()) return "Die Frist muss in der Zukunft liegen.";
     if (!betreff.trim()) return "Bitte einen Betreff eingeben.";
     if (!text.trim()) return "Bitte einen E-Mail-Text eingeben.";
@@ -357,16 +401,28 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
     setSenden(true);
     try {
       const signers = [
-        ...externe.map((s) => ({
-          name: s.name.trim(),
-          email: s.email.trim(),
-          contact_id: s.contact_id ?? undefined,
-          rolle: s.rolle || undefined,
-          methode: "online" as const,
-          anrede: s.anrede || undefined,
-          placements: placements[s.key]?.length ? placements[s.key] : undefined,
-        })),
-        ...(rgiAuch
+        ...externe.map((s) =>
+          s.methode === "intern"
+            ? {
+                name: s.name.trim(),
+                user_id: s.user_id!,
+                rolle: s.rolle || "RGI Immobilien",
+                rolle_key: s.rolle_key || (etv ? etvRolleKey(s.rolle) : "verwaltung"),
+                methode: "intern" as const,
+                placements: placements[s.key]?.length ? placements[s.key] : undefined,
+              }
+            : {
+                name: s.name.trim(),
+                email: s.email.trim(),
+                contact_id: s.contact_id ?? undefined,
+                rolle: s.rolle || undefined,
+                rolle_key: s.rolle_key || (etv ? etvRolleKey(s.rolle) : undefined),
+                methode: "online" as const,
+                anrede: s.anrede || undefined,
+                placements: placements[s.key]?.length ? placements[s.key] : undefined,
+              },
+        ),
+        ...(rgiAuch && mitRgiZeile
           ? [{
               name: rgiName,
               user_id: rgiUser,
@@ -378,7 +434,7 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
           : []),
       ];
       const res = await signAction<{ id: string; nummer: string }>("create", {
-        typ: "ausgehend",
+        typ,
         dokumentart,
         titel: startInfo.titel,
         building_id: startInfo.building_id ?? undefined,
@@ -411,8 +467,9 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
   const zeigeVorschau = async () => {
     setVorschauLaedt(true);
     try {
-      const erster = externe[0];
+      const erster = externe.find((s) => s.methode !== "intern" && s.name) ?? externe[0];
       const r = await signAction<{ subject: string; html: string }>("preview_mail", {
+        typ,
         dokumentart,
         titel: startInfo.titel,
         objekt: startInfo.quelle_label ?? "",
@@ -613,6 +670,7 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
                       key={s.key}
                       nr={i + 1}
                       signer={s}
+                      mitarbeiter={mitarbeiter}
                       farbe={platzieren ? farbeFuer(s.key) : undefined}
                       felder={placements[s.key]?.length ?? 0}
                       onRemove={() => entfernen(s.key)}
@@ -621,6 +679,7 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
                   ))}
 
                   {/* RGI intern */}
+                  {mitRgiZeile && (
                   <div className={`rounded-lg border border-[#E5E5E5] px-3 py-2.5 ${rgiAuch ? "bg-[#FAFAFA]" : "bg-white"}`}>
                     <div className="flex items-center gap-3">
                       {rgiAuch ? <NummerKreis n={externe.length + 1} dunkel /> : <span className="h-7 w-7 shrink-0" />}
@@ -653,6 +712,7 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
                     )}
                     </div>
                   </div>
+                  )}
 
                   <KontaktAuswahl
                     objektKontakte={objektKontakte}
@@ -760,7 +820,7 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
                   </label>
                   <label className="flex items-center gap-2.5 text-[14px] text-[#2B2B2B]">
                     <Checkbox checked={kopieDms} onCheckedChange={(v) => setKopieDms(!!v)} className="data-[state=checked]:border-[#B35300] data-[state=checked]:bg-[#B35300]" />
-                    Kopie an alle + Ablage im DMS
+                    {etv ? "Ablage im DMS" : "Kopie an alle + Ablage im DMS"}
                   </label>
                 </div>
               </div>
@@ -808,43 +868,108 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
 // ---------------------------------------------------------------
 
 function SignerKarte({
-  nr, signer, farbe, felder, onRemove, onChange,
+  nr, signer, mitarbeiter, farbe, felder, onRemove, onChange,
 }: {
   nr: number;
   signer: EntwurfSigner;
+  mitarbeiter: { user_id: string; name: string }[];
   farbe?: string;
   felder: number;
   onRemove: () => void;
   onChange: (p: Partial<EntwurfSigner>) => void;
 }) {
-  const [bearbeiten, setBearbeiten] = useState(!signer.email);
-  const unterzeile = [signer.rolle, signer.email].filter(Boolean).join(" · ");
+  const intern = signer.methode === "intern";
+  const auswahl = !intern && !!signer.optionen?.length;
+  const [bearbeiten, setBearbeiten] = useState(intern ? !signer.user_id : !signer.email && !auswahl);
+  const kopf = signer.rolle && signer.name ? `${signer.rolle} · ${signer.name}` : signer.name || signer.rolle || "Ohne Namen";
+  const unterzeile = intern
+    ? "RGI · in der App mit hinterlegter Unterschrift"
+    : signer.rolle && signer.name
+      ? signer.email
+      : [signer.rolle, signer.email].filter(Boolean).join(" · ");
+  const fehlt = intern ? !signer.user_id : !signer.email;
   return (
-    <div className="rounded-lg border border-[#E5E5E5] bg-white px-3 py-2.5">
+    <div className={`rounded-lg border border-[#E5E5E5] px-3 py-2.5 ${intern ? "bg-[#FAFAFA]" : "bg-white"}`}>
       <div className="flex items-center gap-3">
-        <NummerKreis n={nr} farbe={farbe} />
+        <NummerKreis n={nr} farbe={farbe} dunkel={intern && !farbe} />
         <button type="button" className="min-w-0 flex-1 text-left" onClick={() => setBearbeiten((v) => !v)} title="Angaben ändern">
-          <div className="truncate text-[14px] font-semibold text-[#2B2B2B]">{signer.name || "Ohne Namen"}</div>
+          <div className="truncate text-[14px] font-semibold text-[#2B2B2B]">{kopf}</div>
           <div className="truncate text-[12.5px] text-[#6B6B6B]">
-            {unterzeile || <span className="text-[#B35300]">E-Mail-Adresse fehlt</span>}
+            {fehlt && !auswahl ? (
+              <span className="text-[#B35300]">{intern ? "Mitarbeiter auswählen" : "E-Mail-Adresse fehlt"}</span>
+            ) : !signer.name && auswahl ? (
+              <span className="text-[#B35300]">Bitte auswählen</span>
+            ) : (
+              unterzeile
+            )}
             {felder > 0 && <span> · {felder} Feld{felder === 1 ? "" : "er"}</span>}
           </div>
         </button>
-        <button type="button" onClick={onRemove} className="rounded p-1 text-[#595959] hover:bg-[#FAFAFA]" title="Entfernen" aria-label={`${signer.name} entfernen`}>
+        <button type="button" onClick={onRemove} className="rounded p-1 text-[#595959] hover:bg-[#FAFAFA]" title="Entfernen" aria-label={`${signer.name || signer.rolle} entfernen`}>
           <X className="h-4 w-4" />
         </button>
       </div>
+      {auswahl && (
+        <div className="mt-2.5 pl-10">
+          <select
+            className={`${eingabeKlasse} h-9 text-[13px]`}
+            value={signer.contact_id && signer.name ? `${signer.contact_id}|${signer.email}` : ""}
+            aria-label={`${signer.rolle || "Unterzeichner"} auswählen`}
+            onChange={(e) => {
+              const o = signer.optionen!.find((x) => `${x.contact_id}|${x.email ?? ""}` === e.target.value);
+              if (o) onChange({ name: o.name, email: o.email ?? "", contact_id: o.contact_id ?? null, anrede: o.anrede ?? null });
+            }}
+          >
+            <option value="">{signer.rolle ? `${signer.rolle} auswählen …` : "Auswählen …"}</option>
+            {signer.optionen!.map((o) => (
+              <option key={`${o.contact_id}|${o.email ?? ""}`} value={`${o.contact_id}|${o.email ?? ""}`} disabled={!o.email}>
+                {o.name}
+                {o.hinweis ? ` · ${o.hinweis}` : ""}
+                {o.email ? "" : " · keine E-Mail"}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       {bearbeiten && (
         <div className="mt-2.5 grid grid-cols-1 gap-2 pl-10 sm:grid-cols-2">
-          <input className={`${eingabeKlasse} h-9 text-[13px]`} placeholder="Name" value={signer.name} onChange={(e) => onChange({ name: e.target.value })} />
-          <input className={`${eingabeKlasse} h-9 text-[13px]`} placeholder="Rolle (z. B. Beirat)" value={signer.rolle} onChange={(e) => onChange({ rolle: e.target.value })} />
-          <input
+          <select
             className={`${eingabeKlasse} h-9 text-[13px] sm:col-span-2`}
-            placeholder="E-Mail-Adresse"
-            type="email"
-            value={signer.email}
-            onChange={(e) => onChange({ email: e.target.value })}
-          />
+            value={signer.methode}
+            aria-label="Wie wird unterschrieben?"
+            onChange={(e) => onChange({ methode: e.target.value as "online" | "intern", optionen: undefined })}
+          >
+            <option value="online">per E-Mail-Link (online oder Papier)</option>
+            <option value="intern">RGI-Mitarbeiter in der App</option>
+          </select>
+          {intern ? (
+            <select
+              className={`${eingabeKlasse} h-9 text-[13px] sm:col-span-2`}
+              value={signer.user_id ?? ""}
+              aria-label="Mitarbeiter"
+              onChange={(e) => {
+                const m = mitarbeiter.find((x) => x.user_id === e.target.value);
+                onChange({ user_id: e.target.value || null, name: m?.name ?? signer.name });
+              }}
+            >
+              <option value="">Mitarbeiter auswählen …</option>
+              {mitarbeiter.map((m) => (
+                <option key={m.user_id} value={m.user_id}>{m.name}</option>
+              ))}
+            </select>
+          ) : (
+            <>
+              <input className={`${eingabeKlasse} h-9 text-[13px]`} placeholder="Name" value={signer.name} onChange={(e) => onChange({ name: e.target.value })} />
+              <input className={`${eingabeKlasse} h-9 text-[13px]`} placeholder="Rolle (z. B. Beirat)" value={signer.rolle} onChange={(e) => onChange({ rolle: e.target.value })} />
+              <input
+                className={`${eingabeKlasse} h-9 text-[13px] sm:col-span-2`}
+                placeholder="E-Mail-Adresse"
+                type="email"
+                value={signer.email}
+                onChange={(e) => onChange({ email: e.target.value })}
+              />
+            </>
+          )}
         </div>
       )}
     </div>

@@ -15,6 +15,7 @@ import {
 import { SignaturStatusBadge } from "@/components/signatur/SignaturStatusBadge";
 import { VorgangDetail, VorgangDetailSheet } from "@/components/signatur/VorgangDetailSheet";
 import { Karte } from "@/components/signatur/ui";
+import { EingehendAnsicht } from "@/components/signatur/EingehendAnsicht";
 
 type Reiter = "ausgehend" | "eingehend" | "etv" | "abgeschlossen";
 
@@ -60,6 +61,18 @@ export default function Unterschriften() {
 
   const { data: alle = [], isLoading } = useSignRequests({});
 
+  // Link aus einer Meldung (/unterschriften?vorgang=…): passenden Reiter wählen
+  const vorgangParam = params.get("vorgang");
+  useEffect(() => {
+    if (!vorgangParam || params.get("reiter") || isLoading) return;
+    const r = alle.find((x) => x.id === vorgangParam);
+    if (!r) return;
+    const ziel: Reiter | null =
+      r.status !== "offen" ? "abgeschlossen" : r.typ === "eingehend" ? "eingehend" : r.typ === "etv_protokoll" ? "etv" : null;
+    if (ziel) setParam({ reiter: ziel });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vorgangParam, alle, isLoading]);
+
   const setParam = (patch: Record<string, string | null>) => {
     const next = new URLSearchParams(params);
     Object.entries(patch).forEach(([k, v]) => (v === null ? next.delete(k) : next.set(k, v)));
@@ -100,7 +113,7 @@ export default function Unterschriften() {
 
   // Auf breiten Bildschirmen steht der erste Vorgang gleich rechts (wie im Mockup)
   useEffect(() => {
-    if (!breit || isLoading) return;
+    if (!breit || isLoading || reiter === "eingehend") return;
     if (!auswahl || !zeilen.some((z) => z.id === auswahl)) setAuswahl(zeilen[0]?.id ?? null);
   }, [breit, zeilen, auswahl, isLoading]);
 
@@ -153,6 +166,13 @@ export default function Unterschriften() {
         </nav>
       </div>
 
+      {reiter === "eingehend" ? (
+        isLoading ? (
+          <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-[#6B6B6B]" /></div>
+        ) : (
+          <EingehendAnsicht vorgaenge={zeilen} auswahl={auswahl} onAuswahl={setAuswahl} />
+        )
+      ) : (
       <div className={cn("grid gap-6", breit && auswahl ? "grid-cols-[minmax(0,1fr)_400px]" : "grid-cols-1")}>
         <div className="min-w-0 space-y-5">
           {/* Kacheln */}
@@ -162,12 +182,6 @@ export default function Unterschriften() {
             <Kachel label="Abgeschlossen (30 Tage)" wert={kacheln.abgeschlossen} farbe={SIG.gruen} />
             <Kachel label="Abgelaufen" wert={kacheln.abgelaufen} />
           </div>
-
-          {reiter === "eingehend" && (
-            <div className="rounded-xl border border-[#E5E5E5] bg-[#FFF7ED] px-4 py-3 text-[13.5px] text-[#2B2B2B]">
-              Neue Einträge entstehen über „Zur Unterschrift“ in der E-Mail-Ansicht.
-            </div>
-          )}
 
           {/* Tabelle */}
           <Karte className="overflow-hidden">
@@ -245,8 +259,9 @@ export default function Unterschriften() {
           </Karte>
         )}
       </div>
+      )}
 
-      {!breit && <VorgangDetailSheet requestId={auswahl} onOpenChange={(o) => !o && setAuswahl(null)} />}
+      {!breit && reiter !== "eingehend" && <VorgangDetailSheet requestId={auswahl} onOpenChange={(o) => !o && setAuswahl(null)} />}
     </div>
   );
 }

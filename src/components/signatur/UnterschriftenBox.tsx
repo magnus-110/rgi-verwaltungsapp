@@ -4,7 +4,7 @@
  * Zeigt den neuesten Vorgang zur Quelle, ältere einklappbar, und startet
  * neue Anforderungen über den Dialog.
  */
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Check, ChevronDown, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -28,14 +28,47 @@ interface Props {
   /** Angaben zum Start; `null` = (noch) kein PDF vorhanden → `ohnePdfHinweis` zeigen. */
   startInfo: UnterschriftStartInfo | null;
   ohnePdfHinweis?: string;
+  /**
+   * Optional: Angaben erst beim Klick ermitteln (z. B. ETV-Protokoll als PDF erzeugen).
+   * Hat Vorrang vor `startInfo`; der Knopf zeigt solange einen Ladezustand.
+   */
+  vorbereiten?: () => Promise<UnterschriftStartInfo>;
+  /** Beschriftung des Startknopfs (Standard „Unterschrift anfordern“). */
+  startText?: string;
+  /** Inhalt, wenn es noch keinen Vorgang gibt (statt „Noch keine Unterschriften angefordert.“). */
+  ohneVorgang?: ReactNode;
+  /** Hinweis unter den Unterzeichnern, sobald der aktuelle Vorgang abgeschlossen ist. */
+  abgeschlossenHinweis?: ReactNode;
   className?: string;
 }
 
-export function UnterschriftenBox({ quelleTyp, quelleId, startInfo, ohnePdfHinweis, className }: Props) {
+export function UnterschriftenBox({
+  quelleTyp, quelleId, startInfo, ohnePdfHinweis, vorbereiten, startText, ohneVorgang, abgeschlossenHinweis, className,
+}: Props) {
   const { data: vorgaenge = [], isLoading } = useSignRequestsForQuelle(quelleTyp, quelleId);
   const [dialogOffen, setDialogOffen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [aeltereOffen, setAeltereOffen] = useState(false);
+  const [vorbereitet, setVorbereitet] = useState<UnterschriftStartInfo | null>(null);
+  const [bereitet, setBereitet] = useState(false);
+  const info = vorbereitet ?? startInfo;
+  const kannStarten = !!startInfo || !!vorbereiten;
+
+  const starten = async () => {
+    if (!vorbereiten) {
+      setDialogOffen(true);
+      return;
+    }
+    setBereitet(true);
+    try {
+      setVorbereitet(await vorbereiten());
+      setDialogOffen(true);
+    } catch (e: any) {
+      toast.error(e?.message || "Dokument konnte nicht vorbereitet werden");
+    } finally {
+      setBereitet(false);
+    }
+  };
 
   const relevant = vorgaenge.filter((v) => v.status === "offen" || v.status === "abgeschlossen");
   const aktuell = relevant[0] ?? null;
@@ -54,7 +87,8 @@ export function UnterschriftenBox({ quelleTyp, quelleId, startInfo, ohnePdfHinwe
           <VorgangInhalt
             r={aktuell}
             onDetails={() => setDetailId(aktuell.id)}
-            onNeu={startInfo ? () => setDialogOffen(true) : undefined}
+            onNeu={kannStarten ? starten : undefined}
+            abgeschlossenHinweis={abgeschlossenHinweis}
           />
         ) : (
           <>
@@ -62,12 +96,14 @@ export function UnterschriftenBox({ quelleTyp, quelleId, startInfo, ohnePdfHinwe
               <h3 className="font-display text-[18px] font-normal leading-tight text-[#2B2B2B]">Unterschriften</h3>
             </div>
             <div className="border-t border-[#E5E5E5] px-5 py-4">
-              <p className="text-[14px] text-[#595959]">
-                {startInfo ? "Noch keine Unterschriften angefordert." : ohnePdfHinweis || "Noch kein PDF vorhanden."}
-              </p>
-              {startInfo && (
-                <SigButton variante="primaer" className="mt-3 w-full" onClick={() => setDialogOffen(true)}>
-                  Unterschrift anfordern
+              {ohneVorgang ?? (
+                <p className="text-[14px] text-[#595959]">
+                  {kannStarten ? "Noch keine Unterschriften angefordert." : ohnePdfHinweis || "Noch kein PDF vorhanden."}
+                </p>
+              )}
+              {kannStarten && (
+                <SigButton variante="primaer" className="mt-3 w-full" onClick={starten} loading={bereitet}>
+                  {startText || "Unterschrift anfordern"}
                 </SigButton>
               )}
             </div>
@@ -111,13 +147,13 @@ export function UnterschriftenBox({ quelleTyp, quelleId, startInfo, ohnePdfHinwe
         </div>
       )}
 
-      {startInfo && (
+      {info && (
         <UnterschriftAnfordernDialog
           open={dialogOffen}
           onOpenChange={setDialogOffen}
           quelleTyp={quelleTyp}
           quelleId={quelleId ?? null}
-          startInfo={startInfo}
+          startInfo={info}
         />
       )}
       <VorgangDetailSheet requestId={detailId} onOpenChange={(o) => !o && setDetailId(null)} />
@@ -128,7 +164,9 @@ export function UnterschriftenBox({ quelleTyp, quelleId, startInfo, ohnePdfHinwe
 const statusWort = (v: SignRequest) =>
   ({ offen: "offen", abgeschlossen: "abgeschlossen", zurueckgezogen: "zurückgezogen", abgelaufen: "abgelaufen", entwurf: "Entwurf" })[v.status];
 
-function VorgangInhalt({ r, onDetails, onNeu }: { r: SignRequest; onDetails: () => void; onNeu?: () => void }) {
+function VorgangInhalt({
+  r, onDetails, onNeu, abgeschlossenHinweis,
+}: { r: SignRequest; onDetails: () => void; onNeu?: () => void; abgeschlossenHinweis?: ReactNode }) {
   const navigate = useNavigate();
   const invalidate = useSignInvalidate();
   const { user, profile } = useAuth();
@@ -220,6 +258,12 @@ function VorgangInhalt({ r, onDetails, onNeu }: { r: SignRequest; onDetails: () 
           );
         })}
       </div>
+
+      {fertig && abgeschlossenHinweis && (
+        <div className="mx-5 mb-3.5 rounded-lg bg-[#D4EDDA] px-3.5 py-2.5 text-[13px] leading-snug text-[#1E6B34]">
+          {abgeschlossenHinweis}
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-2.5 border-t border-[#E5E5E5] px-5 py-3.5">
         {fertig ? (

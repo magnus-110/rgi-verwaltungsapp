@@ -12,7 +12,7 @@ import { bisherigeUmsetzungen, umsetzungFelder } from "@/lib/beschlussUebertragu
 import { ProtocolDownloadButtons } from "../../ProtocolDownloadButtons";
 import { EmailCampaignWizard } from "@/components/communication/EmailCampaignWizard";
 import { EtvCard, EtvSectionTitle } from "../ui";
-import { SignaturePanel } from "../SignaturePanel";
+import { EtvUnterschriften } from "../EtvUnterschriften";
 
 interface Props { meeting: any }
 
@@ -117,10 +117,7 @@ export const ProtocolPhase = ({ meeting }: Props) => {
       </EtvCard>
 
       <div className="space-y-5 xl:sticky xl:top-4">
-        <EtvCard className="space-y-3.5 p-5">
-          <EtvSectionTitle title="Unterschriften" sub="Versammlungsleitung, Protokollführung und ein Eigentümer (§ 24 Abs. 6 WEG). Sobald alle unterschrieben haben, wird das Protokoll automatisch abgelegt." />
-          <SignaturePanel meeting={meeting} />
-        </EtvCard>
+        <EtvUnterschriften meeting={meeting} onRundmail={() => setMailOpen(true)} />
 
         <EtvCard className="p-5">
           <EtvSectionTitle title="Abschluss" />

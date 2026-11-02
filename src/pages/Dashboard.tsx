@@ -218,10 +218,13 @@ export const Dashboard = () => {
         <KpiCard
           label="Unterschriften"
           value={unterschriften?.offen ?? 0}
-          sub={`${unterschriften?.offen ?? 0} offen, ${unterschriften?.ueberfaellig ?? 0} überfällig`}
+          sub={
+            `${unterschriften?.offen ?? 0} offen, ${unterschriften?.ueberfaellig ?? 0} überfällig` +
+            (unterschriften?.vonMir ? `, ${unterschriften.vonMir} von mir` : "")
+          }
           subWarn={!!unterschriften?.ueberfaellig}
           tone="orange"
-          onClick={() => navigate("/unterschriften")}
+          onClick={() => navigate(unterschriften?.vonMir ? "/unterschriften?reiter=eingehend" : "/unterschriften")}
           isLoading={unterschriftenLaedt}
         />
       </section>

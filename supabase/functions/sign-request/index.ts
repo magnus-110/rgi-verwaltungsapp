@@ -3,7 +3,8 @@
 // (sign_request_events) immer zusammenpassen. Vertrag: /home/claude/esig/API.md
 //
 // Aktionen: create · preview_mail · sign_internal · remind · withdraw · accept_paper ·
-//           reject_paper · assign_paper_email · urls · nachweis · cron
+//           reject_paper · assign_paper_email · urls · nachweis · cron ·
+//           create_incoming · complete_incoming (Fall B, eingehende Dokumente selbst unterschreiben)
 //
 // Testmodus (nur mit x-cron-secret): body.test_user_id handelt als dieser Mitarbeiter,
 // body.test = true liefert bei create/remind/reject_paper die Klartext-Links zurück.
@@ -53,6 +54,7 @@ import {
   vorlageLaden,
 } from "../_shared/signatur/ablauf.ts";
 import { absenderKontoId, einladungMail } from "../_shared/signatur/mail.ts";
+import { eingehendAbschliessen, eingehendAnlegen } from "../_shared/signatur/eingehend.ts";
 import { istHeic, istJpg, istPdf, istPng, nachweisPdf, seitenZaehlen } from "../_shared/signatur/pdf.ts";
 
 type Db = ReturnType<typeof adminClient>;
@@ -94,6 +96,10 @@ Deno.serve(async (req) => {
         return json(await urls(db, body));
       case "nachweis":
         return json(await nachweis(db, body, userId));
+      case "create_incoming":
+        return json(await eingehendAnlegen(db, body, userId));
+      case "complete_incoming":
+        return json(await eingehendAbschliessen(db, body, userId));
       case "cron":
         if (!istCron) return json({ error: "Nur für den Zeitplan." }, 403);
         return json(await zeitplan(db));
@@ -319,6 +325,7 @@ async function internUnterschreiben(db: Db, b: Body, userId: string | null) {
     const { req: v, signer: s } = await signerLaden(db, b.signer_id);
     if (v.status !== "offen") throw new Fehler(409, "Der Vorgang ist nicht mehr offen.");
     if (s.methode !== "intern") throw new Fehler(400, "Dieser Unterzeichner unterschreibt nicht in der App.");
+    if (v.typ === "eingehend") throw new Fehler(400, "Eingehende Dokumente bitte unter „Von uns zu unterschreiben“ unterschreiben.");
     // Nur die zugewiesene Person darf mit ihrer hinterlegten Unterschrift unterschreiben.
     if (s.user_id && s.user_id !== userId) throw new Fehler(403, `Diese Unterschrift ist ${s.name} zugewiesen.`);
     if (s.status === "wartet") throw new Fehler(409, "Die Unterschrift ist erst an der Reihe, wenn die vorherigen Unterzeichner unterschrieben haben.");
