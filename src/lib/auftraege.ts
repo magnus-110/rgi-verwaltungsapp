@@ -102,11 +102,21 @@ export async function ladeAuftraege(nurAktive = true): Promise<Auftrag[]> {
 /** Welche Auftragsposten stecken schon in einem Zahllauf (je Fälligkeitstag)? */
 async function ladeVerplant(itemIds: string[]): Promise<Map<string, Set<string>>> {
   const m = new Map<string, Set<string>>();
-  for (let i = 0; i < itemIds.length; i += 100) {
-    const { data } = await (supabase as any)
-      .from("payment_run_items")
-      .select("order_item_id, einzel_status, run:payment_runs!inner(status, faellig_am, ausfuehrung_am)")
-      .in("order_item_id", itemIds.slice(i, i + 100));
+  // Alle Blöcke gleichzeitig abfragen (statt nacheinander) – spart viele Wartezeiten.
+  const bloecke: string[][] = [];
+  for (let i = 0; i < itemIds.length; i += 100) bloecke.push(itemIds.slice(i, i + 100));
+  const antworten = await Promise.all(
+    bloecke.map((ids) =>
+      Promise.all([
+        (supabase as any)
+          .from("payment_run_items")
+          .select("order_item_id, einzel_status, run:payment_runs!inner(status, faellig_am, ausfuehrung_am)")
+          .in("order_item_id", ids),
+        (supabase as any).from("payment_order_skips").select("order_item_id, faellig_am").in("order_item_id", ids),
+      ]),
+    ),
+  );
+  for (const [{ data }, { data: aus }] of antworten) {
     (data ?? []).forEach((r: any) => {
       // Abgebrochene/fehlerhafte Läufe geben den Posten wieder frei – außer er
       // ist einzeln schon gesendet oder ungeklärt (sonst droht doppelter Einzug).
@@ -116,10 +126,6 @@ async function ladeVerplant(itemIds: string[]): Promise<Map<string, Set<string>>
       m.set(r.order_item_id, s);
     });
     // in der Freigabe ausgelassene Termine zählen wie erledigt
-    const { data: aus } = await (supabase as any)
-      .from("payment_order_skips")
-      .select("order_item_id, faellig_am")
-      .in("order_item_id", itemIds.slice(i, i + 100));
     (aus ?? []).forEach((r: any) => {
       const s = m.get(r.order_item_id) ?? new Set<string>();
       // eigenes Kennzeichen: zählt nicht als „zuletzt verplant“ für die übrigen Eigentümer
@@ -148,17 +154,16 @@ export async function faelligeAuftragsposten(auftraege?: Auftrag[]): Promise<Fae
   const liste = auftraege ?? (await ladeAuftraege(true));
   const alleItems = liste.flatMap((a) => a.payment_order_items.filter((i) => i.aktiv));
   if (!alleItems.length) return [];
-  const verplant = await ladeVerplant(alleItems.map((i) => i.id));
-
-  // Eigentümer (Mandate, Hausgeld) je Liegenschaft – nur wo Einzüge vorkommen
-  const eigentuemer = new Map<string, Eigentuemer[]>();
-  for (const b of new Set(liste.filter((a) => a.art !== "ueberweisung").map((a) => a.building_id))) {
-    eigentuemer.set(b, await ladeEigentuemer(b));
-  }
-  const { data: mandateDirekt } = await (supabase as any)
-    .from("sepa_mandates")
-    .select("*")
-    .in("id", alleItems.map((i) => i.mandate_id).filter(Boolean));
+  // Alles gleichzeitig laden: verplante Termine, Eigentümer (Mandate, Hausgeld)
+  // je Liegenschaft mit Einzügen und fest hinterlegte Mandate.
+  const gebaeudeMitEinzug = [...new Set(liste.filter((a) => a.art !== "ueberweisung").map((a) => a.building_id))];
+  const mandatIds = alleItems.map((i) => i.mandate_id).filter(Boolean);
+  const [verplant, eigentuemerListen, { data: mandateDirekt }] = await Promise.all([
+    ladeVerplant(alleItems.map((i) => i.id)),
+    Promise.all(gebaeudeMitEinzug.map((b) => ladeEigentuemer(b))),
+    mandatIds.length ? (supabase as any).from("sepa_mandates").select("*").in("id", mandatIds) : Promise.resolve({ data: [] }),
+  ]);
+  const eigentuemer = new Map<string, Eigentuemer[]>(gebaeudeMitEinzug.map((b, i) => [b, eigentuemerListen[i]]));
 
   const heute = heuteIso();
   const horizont = plusMonate(heute, 0).slice(0, 10);

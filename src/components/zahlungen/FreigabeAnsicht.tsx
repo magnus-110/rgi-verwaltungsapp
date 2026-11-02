@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { AlertTriangle, ArrowDown, ArrowUp, Check, ChevronLeft, Download, Loader2, Lock, Pencil, ShieldCheck, Smartphone, X } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, Check, ChevronDown, ChevronLeft, ChevronsDownUp, ChevronsUpDown, Download, Loader2, Lock, Pencil, ShieldCheck, Smartphone, X } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -93,6 +93,22 @@ export function FreigabeAnsicht({ onZurueck }: { onZurueck: () => void }) {
   const [rausnehmen, setRausnehmen] = useState<Zeile | null>(null);
   const [nimmtRaus, setNimmtRaus] = useState(false);
   const [bezahlt, setBezahlt] = useState<Zeile | null>(null);
+  // Zugeklappte Gebäude – bleibt im Browser gespeichert, damit es beim nächsten Öffnen gleich ist.
+  const [zu, setZu] = useState<Record<string, boolean>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("freigabe-zugeklappt") ?? "{}");
+    } catch {
+      return {};
+    }
+  });
+  const zuSetzen = (neu: Record<string, boolean>) => {
+    setZu(neu);
+    try {
+      localStorage.setItem("freigabe-zugeklappt", JSON.stringify(neu));
+    } catch {
+      /* egal */
+    }
+  };
   const [bezahltAm, setBezahltAm] = useState(() => new Date().toISOString().slice(0, 10));
   const istAdmin = profile?.role === "admin";
 
@@ -547,11 +563,33 @@ export function FreigabeAnsicht({ onZurueck }: { onZurueck: () => void }) {
         <div className="rounded-xl border bg-card px-4 py-12 text-center text-sm text-muted-foreground">Nichts zur Freigabe. Rechnungen erst bestätigen oder einen Auftrag anlegen.</div>
       ) : (
         <div className="space-y-4">
+          {gruppen.length > 1 && (
+            <div className="flex justify-end gap-3 text-sm">
+              <button type="button" className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground" onClick={() => zuSetzen(Object.fromEntries(gruppen.map((g) => [g.key, true])))}>
+                <ChevronsDownUp className="h-4 w-4" /> Alle zuklappen
+              </button>
+              <button type="button" className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground" onClick={() => zuSetzen({})}>
+                <ChevronsUpDown className="h-4 w-4" /> Alle aufklappen
+              </button>
+            </div>
+          )}
           {gruppen.map((g) => {
             const vor = vorschlag(g);
+            const zugeklappt = !!zu[g.key];
             return (
               <section key={g.key} className="overflow-hidden rounded-xl border bg-card">
                 <div className="flex flex-wrap justify-between gap-x-6 gap-y-3 px-4 pb-3 pt-4">
+                  <div className="flex min-w-0 items-start gap-1">
+                    <button
+                      type="button"
+                      onClick={() => zuSetzen({ ...zu, [g.key]: !zugeklappt })}
+                      className="-ml-2 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                      aria-expanded={!zugeklappt}
+                      aria-label={`${g.name} ${zugeklappt ? "aufklappen" : "zuklappen"}`}
+                      title={zugeklappt ? "Aufklappen" : "Zuklappen"}
+                    >
+                      <ChevronDown className={cn("h-5 w-5 transition-transform", zugeklappt && "-rotate-90")} />
+                    </button>
                   <div className="min-w-0">
                     {(() => {
                       const waehlbar = g.zeilen.filter((z) => !z.hinweis);
@@ -591,6 +629,12 @@ export function FreigabeAnsicht({ onZurueck }: { onZurueck: () => void }) {
                         {g.konto?.display_name || "Konto"} · {bankName(g.iban, null)} · {ibanFormatiert(g.iban)}
                       </div>
                     )}
+                    {zugeklappt && (
+                      <button type="button" onClick={() => zuSetzen({ ...zu, [g.key]: false })} className="mt-1.5 text-xs text-muted-foreground underline-offset-2 hover:underline">
+                        {g.zeilen.length === 1 ? "1 Posten" : `${g.zeilen.length} Posten`} zugeklappt – anzeigen
+                      </button>
+                    )}
+                  </div>
                   </div>
                   <div className="min-w-[280px] text-sm">
                     <Linie label="Kontostand heute" wert={g.saldo == null ? "unbekannt" : euro(g.saldo)} hinweis={g.konto?.saldo_stand ? `Stand ${format(new Date(g.konto.saldo_stand), "dd.MM.")}` : undefined} />
@@ -645,7 +689,7 @@ export function FreigabeAnsicht({ onZurueck }: { onZurueck: () => void }) {
                   </div>
                 )}
 
-                <ul className="divide-y border-t">
+                <ul className={cn("divide-y border-t", zugeklappt && "hidden")}>
                   {g.zeilen.map((z) => {
                     const an = !z.hinweis && !ab[z.key];
                     const ueberfaellig = z.richtung === "aus" && z.faellig && z.faellig < new Date().toISOString().slice(0, 10);
