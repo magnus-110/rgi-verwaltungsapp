@@ -71,6 +71,20 @@ export default function SchrittLesen({ info, gelesen, setGelesen, onWeiter, onPa
     return () => io.disconnect();
   }, [seiten, gerendert, gelesen, setGelesen, gross, grossFehler]);
 
+  // Sobald zu Ende gelesen: „Weiter zur Unterschrift“ sanft ins Bild holen,
+  // falls jemand nicht merkt, dass nur im Dokument-Kasten gescrollt wurde.
+  const knoepfe = useRef<HTMLDivElement>(null);
+  const warGelesen = useRef(gelesen);
+  useEffect(() => {
+    if (gelesen && !warGelesen.current && knoepfe.current) {
+      const r = knoepfe.current.getBoundingClientRect();
+      if (r.bottom > window.innerHeight) {
+        window.setTimeout(() => knoepfe.current?.scrollIntoView({ behavior: "smooth", block: "end" }), 350);
+      }
+    }
+    warGelesen.current = gelesen;
+  }, [gelesen]);
+
   const n = info.seitenzahl || seiten;
   const zeile = [info.objekt, n ? `${n} ${n === 1 ? "Seite" : "Seiten"}` : null, info.frist ? `Frist ${datum(info.frist)}` : null].filter(Boolean).join(" · ");
 
@@ -101,12 +115,13 @@ export default function SchrittLesen({ info, gelesen, setGelesen, onWeiter, onPa
                 dateiName={`${info.titel || "Dokument"}.pdf`}
                 download={false}
                 onEndeErreicht={endeErreicht}
+                scrollWeitergeben
                 onFehler={() => setGrossFehler(true)}
                 className="bg-[#E9E9E7]"
               />
             </div>
           ) : (
-          <div className="h-[min(420px,58dvh)] overflow-y-auto overscroll-contain [scrollbar-width:thin]" aria-label="Dokument">
+          <div className="h-[min(420px,58dvh)] overflow-y-auto overscroll-auto [scrollbar-width:thin]" aria-label="Dokument">
             <div ref={box} className="w-full">
               {info.pdf_url && !ladeFehler ? (
                 <Document
@@ -166,7 +181,7 @@ export default function SchrittLesen({ info, gelesen, setGelesen, onWeiter, onPa
           </div>
         </div>
 
-        <div className={`space-y-2 px-5 pt-[15px] min-[641px]:w-full min-[641px]:pt-6 ${knopfSpalte}`}>
+        <div ref={knoepfe} className={`space-y-2 px-5 pt-[15px] min-[641px]:w-full min-[641px]:pt-6 ${knopfSpalte}`}>
           {downloadFehler && <FehlerHinweis>{downloadFehler}</FehlerHinweis>}
           <PrimaerButton
             onClick={weiter}

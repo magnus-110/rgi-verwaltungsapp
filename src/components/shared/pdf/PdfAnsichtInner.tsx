@@ -50,6 +50,8 @@ export interface PdfAnsichtProps {
   onFehler?: (meldung: string) => void;
   /** Wird einmal aufgerufen, sobald bis zum Ende gescrollt wurde (oder alles auf einmal sichtbar ist). */
   onEndeErreicht?: () => void;
+  /** Am Ende des PDFs einfach mit der Seite weiterscrollen (statt im Kasten „hängen zu bleiben“). */
+  scrollWeitergeben?: boolean;
 }
 
 function Laden({ text = "PDF wird geladen …" }: { text?: string }) {
@@ -62,7 +64,7 @@ function Laden({ text = "PDF wird geladen …" }: { text?: string }) {
 }
 
 export default function PdfAnsichtInner({
-  quelle, dateiName, startSeite, className, leiste = true, download = true, onFehler, onEndeErreicht,
+  quelle, dateiName, startSeite, className, leiste = true, download = true, onFehler, onEndeErreicht, scrollWeitergeben,
 }: PdfAnsichtProps) {
   const datei = useDateiBlob(quelle, { dateiName, mimeType: "application/pdf" });
   const name = dateiName || (quelle instanceof File ? quelle.name : "") || "Dokument.pdf";
@@ -213,7 +215,7 @@ export default function PdfAnsichtInner({
       <div
         ref={scrollBox}
         onScroll={onScroll}
-        className="relative min-h-0 flex-1 overflow-auto overscroll-contain"
+        className={cn("relative min-h-0 flex-1 overflow-auto", scrollWeitergeben ? "overscroll-auto" : "overscroll-contain")}
         style={{ WebkitOverflowScrolling: "touch" }}
       >
         {zeigeFehler ? (
