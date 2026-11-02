@@ -58,8 +58,10 @@ export async function dmsAblegen(db: Db, b: Body, userId: string | null) {
   const sichtbarkeit = firma ? "intern" : SICHTBARKEIT.includes(b.sichtbarkeit) ? b.sichtbarkeit : "intern";
   const bytes = await laden(db, v.final_bucket || BUCKET, v.final_path);
 
-  const ziel = `${firma ? "rgi" : buildingId}/unterschriften/${pfadSegment(v.nummer)}/${pfadSegment(name)}`;
-  const { error: upErr } = await db.storage.from(BUCKET).upload(ziel, bytes, { contentType: "application/pdf", upsert: true });
+  // Erneute Ablage: eigener Dateipfad, damit die bisherige Datei nicht überschrieben wird
+  const zusatz = v.final_file_id ? `${Date.now()}-` : "";
+  const ziel = `${firma ? "rgi" : buildingId}/unterschriften/${pfadSegment(v.nummer)}/${zusatz}${pfadSegment(name)}`;
+  const { error: upErr } = await db.storage.from(BUCKET).upload(ziel, bytes, { contentType: "application/pdf", upsert: !zusatz });
   if (upErr) throw new Fehler(500, `Datei konnte nicht gespeichert werden: ${upErr.message}`);
 
   const { data: bf, error } = await db.from("building_files").insert({
