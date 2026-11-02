@@ -4,6 +4,7 @@ import { Paperclip, Upload, FileText, Image, X, ExternalLink, Loader2 } from "lu
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useUpdateTodo, Todo } from "@/hooks/useTodos";
+import { kannVorschau, useDokumentVorschau } from "@/components/shared/PdfAnsicht";
 
 interface Attachment {
   name: string;
@@ -21,6 +22,7 @@ export function TodoAttachments({ todo, readOnly = false }: TodoAttachmentsProps
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const updateTodo = useUpdateTodo();
+  const vorschau = useDokumentVorschau();
 
   const attachments: Attachment[] = Array.isArray(todo.attachments) ? todo.attachments : [];
 
@@ -93,7 +95,11 @@ export function TodoAttachments({ todo, readOnly = false }: TodoAttachmentsProps
         .createSignedUrl(attachment.path, 3600); // 1 hour
 
       if (error) throw error;
-      window.open(data.signedUrl, '_blank');
+      if (kannVorschau(attachment.type, attachment.name)) {
+        vorschau.oeffnen({ quelle: data.signedUrl, dateiName: attachment.name, mimeType: attachment.type });
+      } else {
+        window.open(data.signedUrl, '_blank');
+      }
     } catch (error: any) {
       toast({ title: 'Fehler', description: error.message, variant: 'destructive' });
     }
@@ -185,6 +191,7 @@ export function TodoAttachments({ todo, readOnly = false }: TodoAttachmentsProps
           Keine Anhänge
         </p>
       )}
+      {vorschau.dialog}
     </div>
   );
 }

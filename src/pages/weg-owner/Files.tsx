@@ -12,6 +12,7 @@ import { de } from "date-fns/locale";
 import { BuildingFilterChips, BuildingChip } from "@/components/shared/BuildingFilterChips";
 import { PortalSeitenkopf } from "@/components/weg-owner/PortalListe";
 import { DokumentInhaltSuche } from "@/components/weg-owner/DokumentInhaltSuche";
+import { kannVorschau, useDokumentVorschau } from "@/components/shared/PdfAnsicht";
 
 interface FileItem {
   id: string;
@@ -162,6 +163,7 @@ function FolderNode({ node, depth, onOpenFile, downloading }: {
 function FilesBrowser({ files, categories, search }: { files: FileItem[]; categories: Category[]; search: string }) {
   const [downloading, setDownloading] = useState<string | null>(null);
   const [yearFilter, setYearFilter] = useState<string>(ALL_YEARS);
+  const vorschau = useDokumentVorschau();
 
   const yearOptions = useMemo(() => {
     const years = new Set<number>();
@@ -192,7 +194,12 @@ function FilesBrowser({ files, categories, search }: { files: FileItem[]; catego
         body: { filePath: file.file_path },
       });
       if (error) throw error;
-      window.open(data.signedUrl as string, "_blank", "noopener,noreferrer");
+      // PDFs und Bilder direkt in der App zeigen (auch am Handy), sonst wie bisher
+      if (kannVorschau(file.mime_type, file.display_name || file.file_path)) {
+        vorschau.oeffnen({ quelle: data.signedUrl as string, dateiName: file.display_name, mimeType: file.mime_type });
+      } else {
+        window.open(data.signedUrl as string, "_blank", "noopener,noreferrer");
+      }
     } catch {
       toast.error("Öffnen fehlgeschlagen");
     } finally {
@@ -232,6 +239,7 @@ function FilesBrowser({ files, categories, search }: { files: FileItem[]; catego
           ))}
         </div>
       )}
+      {vorschau.dialog}
     </div>
   );
 }

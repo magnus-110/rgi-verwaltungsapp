@@ -22,6 +22,7 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { EditBookingDialog } from "./EditBookingDialog";
+import { DokumentAnsicht } from "@/components/shared/PdfAnsicht";
 
 type AccountOption = { id: string; account_number: string | number; account_name: string };
 
@@ -540,7 +541,7 @@ export function AccountInspectorDialog({
               {/* Beleg */}
               <div className="bg-muted/20 min-h-0 flex flex-col">
                 {pdfUrl ? (
-                  <iframe src={pdfUrl} className="w-full h-full border-0" title="Beleg" />
+                  <div className="h-full min-h-0 w-full flex-1"><DokumentAnsicht quelle={pdfUrl} dateiName="Beleg.pdf" /></div>
                 ) : booking?.invoices ? (
                   <div className="p-6 space-y-3">
                     <div className="flex items-center gap-2">

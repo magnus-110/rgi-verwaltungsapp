@@ -30,7 +30,7 @@ const PDF_OPTIONEN = {
 const MIN_SCALE = 0.25;
 const MAX_SCALE = 5;
 /** Obergrenze im Normalfall, damit eine A4-Seite am großen Bildschirm nicht riesig wird. */
-const AUTO_MAX = 1.6;
+const AUTO_MAX = 1.35;
 const ABSTAND = 16; // px zwischen den Seiten
 
 type Zoom = "auto" | "breite" | number;

@@ -17,6 +17,7 @@ import { de } from "date-fns/locale";
 import { toast } from "sonner";
 import { DocFile, VISIBILITY_LABELS, getFileBucket } from "./types";
 import { ARCHIVE_CATEGORY_ID } from "./FolderTree";
+import { kannVorschau, useDokumentVorschau } from "@/components/shared/PdfAnsicht";
 
 interface DocumentFileListProps {
   buildingId: string;
@@ -62,6 +63,19 @@ const visIcon = (role: string) => {
 };
 
 export function DocumentFileList({ buildingId, categoryId, searchQuery, selectedFileId, onSelect }: DocumentFileListProps) {
+  const vorschau = useDokumentVorschau();
+  /** PDFs und Bilder in der App anzeigen, alles andere wie bisher im neuen Tab. */
+  const dateiOeffnen = async (f: DocFile) => {
+    const { data, error } = await supabase.storage
+      .from(getFileBucket(f.source, f.storage_bucket))
+      .createSignedUrl(f.file_path, 600);
+    if (error || !data) { toast.error(error?.message || "Datei konnte nicht geöffnet werden"); return; }
+    if (kannVorschau(f.mime_type, f.display_name || f.file_path)) {
+      vorschau.oeffnen({ quelle: data.signedUrl, dateiName: f.display_name || f.file_path.split("/").pop() || "Dokument", mimeType: f.mime_type });
+    } else {
+      window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+    }
+  };
   const parentRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -253,12 +267,7 @@ export function DocumentFileList({ buildingId, categoryId, searchQuery, selected
                     e.dataTransfer.setData("text/plain", ids.join(","));
                   }}
                   onClick={() => onSelect(f)}
-                  onDoubleClick={async () => {
-                    const { data, error } = await supabase.storage
-                      .from(getFileBucket(f.source))
-                      .createSignedUrl(f.file_path, 60);
-                    if (!error && data) window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
-                  }}
+                  onDoubleClick={() => dateiOeffnen(f)}
                   className={cn(
                     "w-full text-left p-3 hover:bg-accent transition-colors cursor-pointer border-b",
                     selectedFileId === f.id && "bg-accent",
@@ -290,16 +299,16 @@ export function DocumentFileList({ buildingId, categoryId, searchQuery, selected
                           variant="ghost"
                           size="icon"
                           className="h-6 w-6 flex-shrink-0"
-                          title="In neuem Tab öffnen"
-                          onClick={async (e) => {
+                          title={kannVorschau(f.mime_type, f.display_name || f.file_path) ? "Ansehen" : "In neuem Tab öffnen"}
+                          aria-label={kannVorschau(f.mime_type, f.display_name || f.file_path) ? "Ansehen" : "In neuem Tab öffnen"}
+                          onClick={(e) => {
                             e.stopPropagation();
-                            const { data, error } = await supabase.storage
-                              .from(getFileBucket(f.source))
-                              .createSignedUrl(f.file_path, 60);
-                            if (!error && data) window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+                            dateiOeffnen(f);
                           }}
                         >
-                          <ExternalLink className="h-3.5 w-3.5" />
+                          {kannVorschau(f.mime_type, f.display_name || f.file_path)
+                            ? <Eye className="h-3.5 w-3.5" />
+                            : <ExternalLink className="h-3.5 w-3.5" />}
                         </Button>
                         <Button
                           variant="ghost"
@@ -371,6 +380,7 @@ export function DocumentFileList({ buildingId, categoryId, searchQuery, selected
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {vorschau.dialog}
     </div>
   );
 }

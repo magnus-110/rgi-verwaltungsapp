@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { EditBookingDialog } from "./EditBookingDialog";
 import { VendorHistorySection } from "./VendorHistorySection";
 import { useMobileSplitView, MobileViewSwitcher, MobileBackToListButton } from "@/components/shared/MobileSplitView";
+import { DokumentAnsicht } from "@/components/shared/PdfAnsicht";
 
 interface BookingReviewModeProps {
   open: boolean;
@@ -349,7 +350,7 @@ export function BookingReviewMode({ open, onOpenChange, fiscalYear, buildingId }
                       </div>
                     </div>
                     {pdfUrl ? (
-                      <iframe src={pdfUrl} className="flex-1 w-full border-0" title="Rechnung PDF" />
+                      <div className="min-h-0 flex-1"><DokumentAnsicht quelle={pdfUrl} dateiName={currentBooking.invoices.file_path?.split("/").pop() || "Rechnung.pdf"} /></div>
                     ) : (
                       <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
                         PDF wird geladen...

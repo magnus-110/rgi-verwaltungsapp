@@ -29,6 +29,7 @@ import { parseAmount } from "./lib/parseAmount";
 import { SollstellenQuickButton } from "./SollstellenQuickButton";
 import { IhrZufuehrungQuickButton } from "./IhrZufuehrungQuickButton";
 import { BankPurposePanel } from "./BankPurposePanel";
+import { DokumentAnsicht } from "@/components/shared/PdfAnsicht";
 
 interface Booking {
   id: string;
@@ -1137,7 +1138,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
                       </div>
                     </div>
                     {pdfUrl ? (
-                      <iframe src={pdfUrl} className="flex-1 w-full border-0" title="Rechnung PDF" />
+                      <div className="min-h-0 flex-1"><DokumentAnsicht quelle={pdfUrl} dateiName="Rechnung.pdf" /></div>
                     ) : (
                       <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">PDF wird geladen...</div>
                     )}

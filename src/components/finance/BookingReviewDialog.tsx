@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Check, AlertTriangle, FileText, LayoutTemplate, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { DokumentAnsicht } from "@/components/shared/PdfAnsicht";
 
 export interface AuditBookingRow {
   id: string;
@@ -390,7 +391,7 @@ export function BookingReviewDialog({
               pdfLoading ? (
                 <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">Beleg wird geladen…</div>
               ) : pdfUrl ? (
-                <iframe src={pdfUrl} className="w-full h-full border-0" title="Beleg" />
+                <div className="h-full min-h-0 w-full flex-1"><DokumentAnsicht quelle={pdfUrl} dateiName={booking.invoices.file_path.split("/").pop() || "Beleg.pdf"} /></div>
               ) : (
                 <div className="flex-1 flex flex-col items-center justify-center text-sm text-muted-foreground p-6 text-center gap-1">
                   <span>Beleg konnte nicht geladen werden.</span>
@@ -447,7 +448,7 @@ export function BookingReviewDialog({
                           {templateInvoiceLoading ? (
                             <div className="h-full flex items-center justify-center text-sm text-muted-foreground">Rechnung wird geladen…</div>
                           ) : templateInvoiceUrl ? (
-                            <iframe src={templateInvoiceUrl} className="w-full h-full border-0" title="Verknüpfte Rechnung" />
+                            <DokumentAnsicht quelle={templateInvoiceUrl} dateiName="Rechnung.pdf" />
                           ) : (
                             <div className="h-full flex flex-col items-center justify-center text-sm text-muted-foreground p-6 text-center gap-1">
                               <span>Rechnung konnte nicht geladen werden.</span>

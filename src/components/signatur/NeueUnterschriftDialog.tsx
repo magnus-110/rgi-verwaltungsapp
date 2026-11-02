@@ -9,7 +9,7 @@
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AlertCircle, ArrowLeft, ChevronRight, FileText, FolderOpen, Loader2, Search, Upload, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, Check, ChevronLeft, ChevronRight, Eye, FileText, FolderOpen, Loader2, Search, Upload, X } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
@@ -17,6 +17,7 @@ import { dokumentartAusName, formatDate, titelAusDateiname, type QuelleTyp } fro
 import { getFileBucket } from "@/components/buildings/documents/types";
 import { eingabeKlasse, FeldLabel, SigButton } from "./ui";
 import { UnterschriftAnfordernDialog, type UnterschriftStartInfo } from "./UnterschriftAnfordernDialog";
+import { DokumentVorschauDialog, PdfAnsicht } from "@/components/shared/PdfAnsicht";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -77,21 +78,42 @@ export function NeueUnterschriftDialog({ open, onOpenChange }: { open: boolean; 
   const [schritt, setSchritt] = useState<Schritt>("wahl");
   const [start, setStart] = useState<{ quelleTyp: QuelleTyp; quelleId: string | null; info: UnterschriftStartInfo } | null>(null);
   const [anfordernOffen, setAnfordernOffen] = useState(false);
+  // Auswahl merken, damit „‹ Anderes Dokument wählen“ dorthin zurückführt
+  const [dmsObjekt, setDmsObjekt] = useState("");
+  const [dmsSuche, setDmsSuche] = useState("");
+  const [dmsVorschau, setDmsVorschau] = useState<DmsDatei | null>(null);
+  const zurueckZu = useRef<Schritt | null>(null);
 
   useEffect(() => {
-    if (open) setSchritt("wahl");
+    if (!open) return;
+    setSchritt(zurueckZu.current ?? "wahl");
+    if (!zurueckZu.current) setDmsVorschau(null);
+    zurueckZu.current = null;
   }, [open]);
 
   const weiter = (quelleTyp: QuelleTyp, quelleId: string | null, info: UnterschriftStartInfo) => {
     setStart({ quelleTyp, quelleId, info });
+    setDmsVorschau(null);
     onOpenChange(false);
     setAnfordernOffen(true);
   };
 
+  const anderesDokument = () => {
+    zurueckZu.current = start?.quelleTyp === "building_file" ? "dms" : start?.quelleTyp === "upload" ? "upload" : "wahl";
+    setAnfordernOffen(false);
+    onOpenChange(true);
+  };
+  const breit = schritt === "dms" && !!dmsVorschau;
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-h-[100dvh] w-screen max-w-none gap-0 overflow-hidden p-0 font-sans sm:w-[96vw] sm:max-w-[560px] sm:rounded-xl">
+        <DialogContent
+          className={cn(
+            "flex max-h-[100dvh] w-screen max-w-none flex-col gap-0 overflow-hidden p-0 font-sans sm:w-[96vw] sm:rounded-xl",
+            breit ? "h-[100dvh] sm:h-[90vh] sm:max-w-[900px]" : "sm:max-w-[560px]",
+          )}
+        >
           <div className="border-b border-[#E5E5E5] px-6 pb-4 pt-5 pr-12">
             <DialogTitle className="font-display text-[22px] font-normal leading-tight text-[#2B2B2B]">
               Welches Dokument soll unterschrieben werden?
@@ -101,7 +123,9 @@ export function NeueUnterschriftDialog({ open, onOpenChange }: { open: boolean; 
                 ? "Danach wählen Sie Unterzeichner, Frist und E-Mail wie gewohnt."
                 : schritt === "upload"
                   ? "PDF vom Computer hochladen (höchstens 20 MB)."
-                  : "PDF aus den Dokumenten eines Objekts wählen."}
+                  : dmsVorschau
+                    ? "Bitte prüfen, ob das das richtige Dokument ist."
+                    : "PDF aus den Dokumenten eines Objekts wählen."}
             </DialogDescription>
           </div>
           {schritt === "wahl" && (
@@ -121,7 +145,19 @@ export function NeueUnterschriftDialog({ open, onOpenChange }: { open: boolean; 
             </div>
           )}
           {schritt === "upload" && <UploadSchritt aktiv={open} onZurueck={() => setSchritt("wahl")} onWeiter={weiter} />}
-          {schritt === "dms" && <DmsSchritt aktiv={open} onZurueck={() => setSchritt("wahl")} onWeiter={weiter} />}
+          {schritt === "dms" && (
+            <DmsSchritt
+              aktiv={open}
+              objekt={dmsObjekt}
+              setObjekt={setDmsObjekt}
+              suche={dmsSuche}
+              setSuche={setDmsSuche}
+              vorschau={dmsVorschau}
+              setVorschau={setDmsVorschau}
+              onZurueck={() => setSchritt("wahl")}
+              onWeiter={weiter}
+            />
+          )}
         </DialogContent>
       </Dialog>
 
@@ -132,6 +168,7 @@ export function NeueUnterschriftDialog({ open, onOpenChange }: { open: boolean; 
           quelleTyp={start.quelleTyp}
           quelleId={start.quelleId}
           startInfo={start.info}
+          onAnderesDokument={anderesDokument}
         />
       )}
     </>
@@ -191,6 +228,7 @@ function UploadSchritt({
   const [objekt, setObjekt] = useState("");
   const [fehler, setFehler] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [ansehen, setAnsehen] = useState(false);
   const input = useRef<HTMLInputElement>(null);
 
   const waehlen = async (f: File | null | undefined) => {
@@ -253,6 +291,17 @@ function UploadSchritt({
               </div>
               <button
                 type="button"
+                className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-[12.5px] font-semibold text-[#595959] hover:bg-white hover:text-[#B35300]"
+                aria-label="Datei ansehen"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setAnsehen(true);
+                }}
+              >
+                <Eye className="h-4 w-4" /> <span className="hidden sm:inline">Ansehen</span>
+              </button>
+              <button
+                type="button"
                 className="rounded p-1 text-[#595959] hover:bg-white"
                 aria-label="Datei entfernen"
                 onClick={(e) => {
@@ -289,18 +338,46 @@ function UploadSchritt({
         <SigButton onClick={onZurueck} disabled={busy}><ArrowLeft className="h-4 w-4" /> Zurück</SigButton>
         <SigButton variante="primaer" onClick={hochladen} loading={busy} disabled={!datei} className="px-5">Weiter</SigButton>
       </div>
+      <DokumentVorschauDialog
+        open={ansehen && !!datei}
+        onOpenChange={setAnsehen}
+        quelle={datei}
+        dateiName={datei?.name ?? ""}
+        mimeType="application/pdf"
+      />
     </>
   );
 }
 
 // ---------------------------------------------------------------- (b) Aus Dokumenten wählen
 
+const dateiName = (f: DmsDatei) => f.display_name || f.file_path.split("/").pop() || "Dokument";
+
+async function signierteUrl(f: DmsDatei) {
+  const { data, error } = await supabase.storage
+    .from(getFileBucket(f.source, f.storage_bucket))
+    .createSignedUrl(f.file_path, 900);
+  if (error) throw new Error(error.message);
+  return data.signedUrl;
+}
+
 function DmsSchritt({
-  aktiv, onZurueck, onWeiter,
-}: { aktiv: boolean; onZurueck: () => void; onWeiter: (t: QuelleTyp, id: string | null, info: UnterschriftStartInfo) => void }) {
+  aktiv, objekt, setObjekt, suche, setSuche, vorschau, setVorschau, onZurueck, onWeiter,
+}: {
+  aktiv: boolean;
+  objekt: string;
+  setObjekt: (v: string) => void;
+  suche: string;
+  setSuche: (v: string) => void;
+  vorschau: DmsDatei | null;
+  setVorschau: (f: DmsDatei | null) => void;
+  onZurueck: () => void;
+  onWeiter: (t: QuelleTyp, id: string | null, info: UnterschriftStartInfo) => void;
+}) {
   const { data: objekte = [], isLoading: objLaedt } = useObjekte(aktiv);
-  const [objekt, setObjekt] = useState("");
-  const [suche, setSuche] = useState("");
+  const [ansehen, setAnsehen] = useState<{ datei: DmsDatei; url: string } | null>(null);
+  const [ansehenLaedt, setAnsehenLaedt] = useState<string | null>(null);
+  const [ansehenFehler, setAnsehenFehler] = useState<string | null>(null);
 
   const { data: dateien = [], isLoading, error } = useQuery({
     queryKey: ["signatur", "dms-pdfs", objekt],
@@ -322,14 +399,22 @@ function DmsSchritt({
     staleTime: 60_000,
   });
 
+  // Signierte Adresse für die Vorschau-Seite im Dialog
+  const { data: vorschauUrl, error: vorschauFehler } = useQuery({
+    queryKey: ["signatur", "dms-vorschau-url", vorschau?.id],
+    enabled: aktiv && !!vorschau,
+    queryFn: () => signierteUrl(vorschau!),
+    staleTime: 10 * 60_000,
+  });
+
   const gefiltert = useMemo(() => {
     const q = suche.trim().toLowerCase();
     return q ? dateien.filter((f) => (f.display_name || f.file_path).toLowerCase().includes(q)) : dateien;
   }, [dateien, suche]);
 
-  const waehlen = (f: DmsDatei) => {
+  const verwenden = (f: DmsDatei) => {
     const o = objekte.find((x) => x.id === objekt);
-    const name = f.display_name || f.file_path.split("/").pop() || "Dokument";
+    const name = dateiName(f);
     onWeiter("building_file", f.id, {
       titel: titelAusDateiname(name),
       building_id: objekt,
@@ -339,6 +424,50 @@ function DmsSchritt({
       dokumentart: dokumentartAusName(name),
     });
   };
+
+  const oeffneAnsicht = async (f: DmsDatei) => {
+    setAnsehenFehler(null);
+    setAnsehenLaedt(f.id);
+    try {
+      setAnsehen({ datei: f, url: await signierteUrl(f) });
+    } catch (e: any) {
+      setAnsehenFehler(e?.message || "Das Dokument konnte nicht geöffnet werden.");
+    } finally {
+      setAnsehenLaedt(null);
+    }
+  };
+
+  // ---------- Vorschau-Seite: „Ist das das richtige Dokument?“ ----------
+  if (vorschau) {
+    return (
+      <>
+        <div className="flex min-h-0 flex-1 flex-col px-4 pt-3 sm:px-6 sm:pt-4">
+          <div className="mb-2 flex items-center gap-2 text-[13.5px]">
+            <FileText className="h-4 w-4 shrink-0 text-[#B35300]" />
+            <span className="min-w-0 truncate font-semibold text-[#2B2B2B]">{dateiName(vorschau)}</span>
+            <span className="shrink-0 text-[12px] text-[#6B6B6B]">
+              {formatDate(vorschau.created_at)}{vorschau.file_size ? ` · ${groesse(vorschau.file_size)}` : ""}
+            </span>
+          </div>
+          <div className="min-h-[300px] flex-1 overflow-hidden rounded-lg border border-[#E5E5E5]">
+            {vorschauFehler ? (
+              <div className="p-4"><Fehler text={(vorschauFehler as Error).message || "Das Dokument kann nicht angezeigt werden."} /></div>
+            ) : vorschauUrl ? (
+              <PdfAnsicht quelle={vorschauUrl} dateiName={dateiName(vorschau)} />
+            ) : (
+              <div className="flex h-full items-center justify-center bg-[#EDEDED]"><Loader2 className="h-5 w-5 animate-spin text-[#6B6B6B]" /></div>
+            )}
+          </div>
+        </div>
+        <div className="flex flex-col-reverse gap-2.5 border-t border-[#E5E5E5] px-4 py-3 pb-[max(12px,env(safe-area-inset-bottom))] sm:flex-row sm:justify-between sm:px-6 sm:py-4">
+          <SigButton onClick={() => setVorschau(null)}><ChevronLeft className="h-4 w-4" /> Zurück zur Auswahl</SigButton>
+          <SigButton variante="primaer" className="px-5" onClick={() => verwenden(vorschau)}>
+            <Check className="h-4 w-4" /> Dieses Dokument verwenden
+          </SigButton>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
@@ -356,6 +485,7 @@ function DmsSchritt({
             />
           </div>
         )}
+        {ansehenFehler && <Fehler text={ansehenFehler} />}
       </div>
       <div className="max-h-[46vh] min-h-[120px] overflow-y-auto px-6 py-3">
         {!objekt ? (
@@ -371,20 +501,30 @@ function DmsSchritt({
         ) : (
           <ul className="space-y-1.5">
             {gefiltert.map((f) => (
-              <li key={f.id}>
+              <li key={f.id} className="flex items-stretch gap-1.5">
                 <button
                   type="button"
-                  onClick={() => waehlen(f)}
-                  className="flex w-full items-center gap-3 rounded-[10px] border border-[#E5E5E5] bg-white px-3 py-2.5 text-left hover:border-[#ee7202] hover:bg-[#FFF7ED]"
+                  onClick={() => setVorschau(f)}
+                  className="flex min-w-0 flex-1 items-center gap-3 rounded-[10px] border border-[#E5E5E5] bg-white px-3 py-2.5 text-left hover:border-[#ee7202] hover:bg-[#FFF7ED]"
                 >
                   <FileText className="h-5 w-5 shrink-0 text-[#B35300]" />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[14px] font-semibold text-[#2B2B2B]">{f.display_name || f.file_path.split("/").pop()}</span>
+                    <span className="block truncate text-[14px] font-semibold text-[#2B2B2B]">{dateiName(f)}</span>
                     <span className="block text-[12px] text-[#6B6B6B]">
                       {formatDate(f.created_at)}{f.file_size ? ` · ${groesse(f.file_size)}` : ""}
                     </span>
                   </span>
                   <ChevronRight className="h-4 w-4 shrink-0 text-[#B35300]" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => oeffneAnsicht(f)}
+                  title="Ansehen"
+                  aria-label={`${dateiName(f)} ansehen`}
+                  className="flex w-12 shrink-0 flex-col items-center justify-center gap-0.5 rounded-[10px] border border-[#E5E5E5] bg-white text-[11px] font-semibold text-[#595959] hover:border-[#ee7202] hover:bg-[#FFF7ED] hover:text-[#B35300] sm:w-[76px]"
+                >
+                  {ansehenLaedt === f.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
+                  <span className="hidden sm:block">Ansehen</span>
                 </button>
               </li>
             ))}
@@ -394,6 +534,29 @@ function DmsSchritt({
       <div className="flex justify-start border-t border-[#E5E5E5] px-6 py-4">
         <SigButton onClick={onZurueck}><ArrowLeft className="h-4 w-4" /> Zurück</SigButton>
       </div>
+
+      <DokumentVorschauDialog
+        open={!!ansehen}
+        onOpenChange={(v) => !v && setAnsehen(null)}
+        quelle={ansehen?.url ?? null}
+        dateiName={ansehen ? dateiName(ansehen.datei) : ""}
+        mimeType="application/pdf"
+        aktionen={
+          ansehen ? (
+            <button
+              type="button"
+              onClick={() => {
+                const f = ansehen.datei;
+                setAnsehen(null);
+                verwenden(f);
+              }}
+              className="inline-flex h-10 items-center gap-1.5 rounded-lg bg-[#B35300] px-3 text-[13px] font-semibold text-white hover:bg-[#9A4700] sm:h-9"
+            >
+              <Check className="h-4 w-4" /> <span className="hidden sm:inline">Dieses Dokument verwenden</span><span className="sm:hidden">Verwenden</span>
+            </button>
+          ) : undefined
+        }
+      />
     </>
   );
 }

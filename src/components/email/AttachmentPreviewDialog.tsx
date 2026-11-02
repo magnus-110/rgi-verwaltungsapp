@@ -1,7 +1,5 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Download, ExternalLink, PenLine } from "lucide-react";
-import { useInlineFileUrl } from "@/lib/inlineFile";
+import { PenLine } from "lucide-react";
+import { DokumentVorschauDialog, istPdfTyp } from "@/components/shared/PdfAnsicht";
 
 interface AttachmentPreviewDialogProps {
   open: boolean;
@@ -13,81 +11,27 @@ interface AttachmentPreviewDialogProps {
   onSign?: () => void;
 }
 
-const isImage = (mime: string | null, name: string) =>
-  (mime?.startsWith("image/") ?? false) ||
-  /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(name);
-
-const isPdf = (mime: string | null, name: string) =>
-  (mime?.includes("pdf") ?? false) || /\.pdf$/i.test(name);
-
-const isText = (mime: string | null, name: string) =>
-  (mime?.startsWith("text/") ?? false) ||
-  /\.(txt|csv|xml|json|md|log)$/i.test(name);
-
-export const AttachmentPreviewDialog = ({
-  open,
-  onOpenChange,
-  url,
-  fileName,
-  mimeType,
-  onSign,
-}: AttachmentPreviewDialogProps) => {
-  // Datei als blob: mit korrektem Typ laden — sonst lädt der Browser z. B. PDFs,
-  // die der Absender als „application/octet-stream“ geschickt hat, herunter.
-  const inline = useInlineFileUrl(open ? url : null, { fileName, mimeType });
-  const effectiveMime = inline.type || mimeType;
-  const viewUrl = inline.url;
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl w-[90vw] h-[90vh] flex flex-col p-0">
-        <DialogHeader className="px-6 py-3 border-b flex-row items-center justify-between space-y-0">
-          <DialogTitle className="truncate pr-4">{fileName}</DialogTitle>
-          <div className="flex items-center gap-2 mr-6">
-            {onSign && isPdf(mimeType, fileName) && (
-              <Button size="sm" onClick={onSign}>
-                <PenLine className="h-4 w-4 mr-1.5" /> Unterschreiben
-              </Button>
-            )}
-            {viewUrl && (
-              <>
-                <Button asChild variant="outline" size="sm">
-                  <a href={viewUrl} target="_blank" rel="noopener noreferrer">
-                    <ExternalLink className="h-4 w-4 mr-1.5" /> Neuer Tab
-                  </a>
-                </Button>
-                <Button asChild variant="outline" size="sm">
-                  <a href={viewUrl} download={fileName}>
-                    <Download className="h-4 w-4 mr-1.5" /> Download
-                  </a>
-                </Button>
-              </>
-            )}
-          </div>
-        </DialogHeader>
-        <div className="flex-1 overflow-auto bg-muted/30">
-          {!viewUrl ? (
-            <div className="h-full flex items-center justify-center text-muted-foreground">
-              Lade Vorschau…
-            </div>
-          ) : isImage(effectiveMime, fileName) ? (
-            <div className="h-full flex items-center justify-center p-4">
-              <img src={viewUrl} alt={fileName} className="max-h-full max-w-full object-contain" />
-            </div>
-          ) : isPdf(effectiveMime, fileName) || isText(effectiveMime, fileName) ? (
-            <iframe src={viewUrl} title={fileName} className="w-full h-full border-0 bg-white" />
-          ) : (
-            <div className="h-full flex flex-col items-center justify-center gap-3 text-muted-foreground">
-              <p>Vorschau für diesen Dateityp nicht verfügbar.</p>
-              <Button asChild>
-                <a href={viewUrl} download={fileName}>
-                  <Download className="h-4 w-4 mr-1.5" /> Datei herunterladen
-                </a>
-              </Button>
-            </div>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-};
+/**
+ * Vorschau von Anhängen (E-Mail, Ablage …) über die gemeinsame Anzeige:
+ * PDFs als Seiten (react-pdf), Bilder als Bild, Text als Text.
+ */
+export const AttachmentPreviewDialog = ({ open, onOpenChange, url, fileName, mimeType, onSign }: AttachmentPreviewDialogProps) => (
+  <DokumentVorschauDialog
+    open={open}
+    onOpenChange={onOpenChange}
+    quelle={url}
+    dateiName={fileName}
+    mimeType={mimeType}
+    aktionen={
+      onSign && istPdfTyp(mimeType, fileName) ? (
+        <button
+          type="button"
+          onClick={onSign}
+          className="inline-flex h-10 items-center gap-1.5 rounded-lg bg-[#B35300] px-3 text-[13px] font-semibold text-white hover:bg-[#9A4700] sm:h-9"
+        >
+          <PenLine className="h-4 w-4" /> <span className="hidden sm:inline">Unterschreiben</span>
+        </button>
+      ) : undefined
+    }
+  />
+);

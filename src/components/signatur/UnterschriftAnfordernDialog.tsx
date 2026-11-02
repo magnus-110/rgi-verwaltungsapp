@@ -12,7 +12,11 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
-import { AlertCircle, Loader2, Plus, Search, X, MousePointerClick, Link2 } from "lucide-react";
+import { AlertCircle, ChevronLeft, Loader2, Plus, Search, X, MousePointerClick, Link2 } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -78,6 +82,8 @@ interface Props {
   quelleId: string | null;
   startInfo: UnterschriftStartInfo;
   onSent?: (r: { id: string; nummer: string }) => void;
+  /** Nur aus „Neue Unterschrift“: Knopf „‹ Anderes Dokument wählen“ (zurück zur Auswahl). */
+  onAnderesDokument?: () => void;
 }
 
 interface EntwurfSigner {
@@ -143,7 +149,7 @@ const alleMails = (c: any): string[] => ((c?.contact_emails ?? []) as { email: s
 
 const RGI_STANDARD: Dokumentart[] = ["verwaltervertrag", "dienstleistervertrag", "angebot"];
 
-export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, quelleId, startInfo, onSent }: Props) {
+export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, quelleId, startInfo, onSent, onAnderesDokument }: Props) {
   const { user, profile } = useAuth();
   const typ: SignTyp = startInfo.typ ?? "ausgehend";
   const etv = typ === "etv_protokoll";
@@ -173,6 +179,7 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
   /** Nach dem Anlegen: Links zum Verschicken („Nur Link“), nur jetzt sichtbar. */
   const [ergebnis, setErgebnis] = useState<CreateErgebnis | null>(null);
   const vorbelegt = useRef(false);
+  const [zurueckFragen, setZurueckFragen] = useState(false);
 
   // ---------- Zurücksetzen beim Öffnen ----------
   useEffect(() => {
@@ -514,6 +521,25 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
     }
   };
 
+  // ---------- Zurück zur Dokumentauswahl ----------
+  const anderesDokument = () => {
+    if (!onAnderesDokument) return;
+    const vorschlaege = Array.isArray(startInfo.vorschlagUnterzeichner) ? startInfo.vorschlagUnterzeichner.length : 0;
+    const eingegeben = signer.length > vorschlaege || Object.values(placements).some((l) => l.length > 0);
+    if (eingegeben) setZurueckFragen(true);
+    else onAnderesDokument();
+  };
+  const zurueckKnopf = onAnderesDokument ? (
+    <button
+      type="button"
+      onClick={anderesDokument}
+      disabled={senden}
+      className="inline-flex h-9 items-center gap-0.5 rounded-lg pl-1 pr-2.5 text-[13px] font-semibold text-[#B35300] hover:bg-[#FFF7ED] disabled:opacity-50"
+    >
+      <ChevronLeft className="h-4 w-4" /> Anderes Dokument wählen
+    </button>
+  ) : null;
+
   // ---------- Darstellung ----------
   return (
     <>
@@ -562,6 +588,7 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
                 </div>
               ) : (
               <div className="flex flex-wrap items-center gap-2 px-4 pt-3">
+                {zurueckKnopf}
                 <button
                   type="button"
                   onClick={() => setPlatzieren((v) => !v)}
@@ -718,6 +745,7 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
             {/* ---------- Rechts: Formular ---------- */}
             <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-[#E5E5E5] bg-white md:max-w-[520px]">
               <div className="border-b border-[#E5E5E5] px-6 pb-4 pt-5 pr-12">
+                {zurueckKnopf && <div className={`-ml-2 -mt-2 mb-1 ${etv ? "" : "md:hidden"}`}>{zurueckKnopf}</div>}
                 <DialogTitle className="font-display text-[22px] font-normal leading-tight text-[#2B2B2B]">
                   Unterschrift anfordern
                 </DialogTitle>
@@ -920,6 +948,29 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
         </DialogContent>
         )}
       </Dialog>
+
+      <AlertDialog open={zurueckFragen} onOpenChange={setZurueckFragen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Anderes Dokument wählen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Die eingegebenen Unterzeichner und Unterschriftsfelder gehen dabei verloren.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Hierbleiben</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-[#B35300] hover:bg-[#9A4700]"
+              onClick={() => {
+                setZurueckFragen(false);
+                onAnderesDokument?.();
+              }}
+            >
+              Anderes Dokument wählen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Vorschau der E-Mail */}
       <Dialog open={!!vorschau} onOpenChange={(v) => !v && setVorschau(null)}>

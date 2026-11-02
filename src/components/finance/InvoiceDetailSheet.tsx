@@ -14,8 +14,9 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+import { DokumentAnsicht, DokumentVorschauDialog } from "@/components/shared/PdfAnsicht";
 import { toast } from "sonner";
-import { Loader2, FileText, ExternalLink, CheckCircle, CreditCard, Sparkles, Plus, Trash2, Fuel, ChevronDown, ChevronRight, Check, ChevronsUpDown } from "lucide-react";
+import { Loader2, FileText, ExternalLink, Maximize2, CheckCircle, CreditCard, Sparkles, Plus, Trash2, Fuel, ChevronDown, ChevronRight, Check, ChevronsUpDown } from "lucide-react";
 
 const PAYMENT_STATUS: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
   open: { label: "Offen", variant: "destructive" },
@@ -41,6 +42,7 @@ interface Props {
 export function InvoiceDetailSheet({ invoiceId, onClose, buildings }: Props) {
   const queryClient = useQueryClient();
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [pdfGross, setPdfGross] = useState(false);
   const [loadingPdf, setLoadingPdf] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -325,10 +327,23 @@ export function InvoiceDetailSheet({ invoiceId, onClose, buildings }: Props) {
               <div>
                 {pdfUrl ? (
                   <div className="space-y-2">
-                    <iframe src={pdfUrl} className="w-full h-[400px] rounded-lg border" />
-                    <a href={pdfUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary flex items-center gap-1 hover:underline">
-                      <ExternalLink className="h-3 w-3" /> In neuem Tab öffnen
-                    </a>
+                    <div className="h-[480px] overflow-hidden rounded-lg border">
+                      <DokumentAnsicht quelle={pdfUrl} dateiName={inv.file_path.split("/").pop() || "Rechnung.pdf"} />
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <button type="button" onClick={() => setPdfGross(true)} className="text-xs text-primary flex items-center gap-1 hover:underline">
+                        <Maximize2 className="h-3 w-3" /> Groß ansehen
+                      </button>
+                      <a href={pdfUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary flex items-center gap-1 hover:underline">
+                        <ExternalLink className="h-3 w-3" /> In neuem Tab öffnen
+                      </a>
+                    </div>
+                    <DokumentVorschauDialog
+                      open={pdfGross}
+                      onOpenChange={setPdfGross}
+                      quelle={pdfUrl}
+                      dateiName={inv.file_path.split("/").pop() || "Rechnung.pdf"}
+                    />
                   </div>
                 ) : (
                   <Button variant="outline" size="sm" onClick={loadPdf} disabled={loadingPdf}>

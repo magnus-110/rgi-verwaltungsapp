@@ -7,12 +7,14 @@ import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
+import { kannVorschau, useDokumentVorschau } from "@/components/shared/PdfAnsicht";
 
 interface ContactDocumentsSectionProps {
   contactId: string;
 }
 
 export function ContactDocumentsSection({ contactId }: ContactDocumentsSectionProps) {
+  const vorschau = useDokumentVorschau();
   const { toast } = useToast();
 
   const { data: files = [], isLoading } = useQuery({
@@ -42,7 +44,7 @@ export function ContactDocumentsSection({ contactId }: ContactDocumentsSectionPr
     },
   });
 
-  const handleOpen = async (filePath: string, name: string) => {
+  const handleOpen = async (filePath: string, name: string, mime?: string | null) => {
     const { data, error } = await supabase.storage
       .from("building-files")
       .createSignedUrl(filePath, 3600);
@@ -50,7 +52,8 @@ export function ContactDocumentsSection({ contactId }: ContactDocumentsSectionPr
       toast({ title: "Fehler", description: "Datei konnte nicht geöffnet werden", variant: "destructive" });
       return;
     }
-    window.open(data.signedUrl, "_blank");
+    if (kannVorschau(mime, name || filePath)) vorschau.oeffnen({ quelle: data.signedUrl, dateiName: name, mimeType: mime });
+    else window.open(data.signedUrl, "_blank");
   };
 
   if (isLoading) {
@@ -89,11 +92,12 @@ export function ContactDocumentsSection({ contactId }: ContactDocumentsSectionPr
               </span>
             </div>
           </div>
-          <Button size="sm" variant="ghost" onClick={() => handleOpen(f.file_path, f.display_name)}>
+          <Button size="sm" variant="ghost" onClick={() => handleOpen(f.file_path, f.display_name, f.mime_type)}>
             <ExternalLink className="h-4 w-4" />
           </Button>
         </Card>
       ))}
+      {vorschau.dialog}
     </div>
   );
 }

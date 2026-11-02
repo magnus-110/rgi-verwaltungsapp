@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Download, FileText, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useDokumentVorschau } from '@/components/shared/PdfAnsicht';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import {
   anhangHerunterladen,
@@ -27,6 +28,7 @@ export function NotizAnhaenge({ anhaenge, bearbeitbar }: Props) {
   const { data: links = {} } = useAnhangLinks(anhaenge);
   const { loeschen } = useAnhangAktionen();
   const [gross, setGross] = useState<NotizAnhang | null>(null);
+  const vorschau = useDokumentVorschau();
 
   const bilder = anhaenge.filter(istBild);
   const dateien = anhaenge.filter(a => !istBild(a));
@@ -92,14 +94,13 @@ export function NotizAnhaenge({ anhaenge, bearbeitbar }: Props) {
                 <span className="text-[12px] text-muted-foreground">{groesse(d.file_size)}</span>
               </button>
               {links[d.file_path] && (d.mime_type === 'application/pdf' || /\.pdf$/i.test(d.file_name)) && (
-                <a
-                  href={links[d.file_path]}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  type="button"
+                  onClick={() => vorschau.oeffnen({ quelle: links[d.file_path], dateiName: d.file_name, mimeType: d.mime_type })}
                   className="text-[12.5px] text-primary hover:underline"
                 >
                   Öffnen
-                </a>
+                </button>
               )}
               <Button
                 type="button"
@@ -148,6 +149,7 @@ export function NotizAnhaenge({ anhaenge, bearbeitbar }: Props) {
           )}
         </DialogContent>
       </Dialog>
+      {vorschau.dialog}
     </div>
   );
 }

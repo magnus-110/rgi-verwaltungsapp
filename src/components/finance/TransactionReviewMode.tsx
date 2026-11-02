@@ -43,6 +43,7 @@ import { VendorAliasDialog } from "./VendorAliasDialog";
 import { Pencil } from "lucide-react";
 import { CreateAccountInlineDialog } from "./CreateAccountInlineDialog";
 import { useBuildingBankAccounts } from "@/hooks/useBuildingBankAccounts";
+import { DokumentAnsicht } from "@/components/shared/PdfAnsicht";
 
 interface TransactionReviewModeProps {
   open: boolean;
@@ -2034,7 +2035,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                                 className="flex-1 m-0 mt-2 min-h-0 data-[state=active]:flex data-[state=active]:flex-col data-[state=inactive]:hidden"
                               >
                                 {pdfUrl ? (
-                                  <iframe src={pdfUrl} className="w-full border-0 flex-1 min-h-[300px]" title="Rechnung PDF" />
+                                  <div className="flex min-h-[300px] w-full flex-1"><DokumentAnsicht quelle={pdfUrl} dateiName="Rechnung.pdf" /></div>
                                 ) : (
                                   <div className="flex items-center justify-center py-8 text-muted-foreground text-sm">
                                     PDF wird geladen...
@@ -2148,12 +2149,9 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                               )}
                             </div>
                             {showLinkedInvoicePdf && linkedInvoicePdfUrl && (
-                              <iframe
-                                src={`${linkedInvoicePdfUrl}#view=FitH`}
-                                className="w-full border-0 rounded-md"
-                                style={{ height: "calc(100vh - 200px)", minHeight: "800px" }}
-                                title="Verknüpfte Rechnung PDF"
-                              />
+                              <div className="w-full overflow-hidden rounded-md" style={{ height: "calc(100vh - 200px)", minHeight: "800px" }}>
+                                <DokumentAnsicht quelle={linkedInvoicePdfUrl} dateiName="Rechnung.pdf" />
+                              </div>
                             )}
                           </div>
                         )}

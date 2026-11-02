@@ -10,7 +10,8 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Download, Trash2, X, History, Sparkles, ExternalLink, Wrench, RefreshCw, PenLine, Mail, Send } from "lucide-react";
+import { Download, Trash2, X, History, Sparkles, ExternalLink, Wrench, RefreshCw, PenLine, Mail, Send, Eye } from "lucide-react";
+import { kannVorschau, useDokumentVorschau } from "@/components/shared/PdfAnsicht";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
@@ -39,6 +40,7 @@ export function DocumentDetailPanel({ file, buildingId, onClose, onChanged }: Do
   const [saving, setSaving] = useState(false);
   const [reindexing, setReindexing] = useState(false);
   const [signUrl, setSignUrl] = useState<string | null>(null);
+  const vorschau = useDokumentVorschau();
   const { openCompose } = useComposeEmail();
   const [anfordernOffen, setAnfordernOffen] = useState(false);
 
@@ -171,6 +173,15 @@ export function DocumentDetailPanel({ file, buildingId, onClose, onChanged }: Do
 
   const isPdfFile =
     (file.mime_type || "").toLowerCase().includes("pdf") || /\.pdf$/i.test(file.display_name || file.file_path);
+  const vorschauMoeglich = kannVorschau(file.mime_type, file.display_name || file.file_path);
+
+  const handleAnsehen = async () => {
+    const { data, error } = await supabase.storage
+      .from(getFileBucket(file.source, file.storage_bucket))
+      .createSignedUrl(file.file_path, 600);
+    if (error) { toast.error(error.message); return; }
+    vorschau.oeffnen({ quelle: data.signedUrl, dateiName: file.display_name || file.file_path.split("/").pop() || "Dokument", mimeType: file.mime_type });
+  };
 
   const signStart: UnterschriftStartInfo = {
     titel: titelAusDateiname(file.display_name || file.file_path.split("/").pop() || "Dokument"),
@@ -429,6 +440,11 @@ export function DocumentDetailPanel({ file, buildingId, onClose, onChanged }: Do
               Änderungen speichern
             </Button>
           )}
+          {vorschauMoeglich && (
+            <Button size="sm" variant="outline" className="w-full gap-1.5" onClick={handleAnsehen}>
+              <Eye className="h-3.5 w-3.5" /> Ansehen
+            </Button>
+          )}
           {isPdfFile && (
             <>
               <Button size="sm" className="w-full gap-1.5" onClick={handleOpenSign}>
@@ -464,6 +480,7 @@ export function DocumentDetailPanel({ file, buildingId, onClose, onChanged }: Do
           startInfo={signStart}
         />
       )}
+      {vorschau.dialog}
       <SignPdfDialog
         open={!!signUrl}
         onOpenChange={(o) => !o && setSignUrl(null)}

@@ -20,6 +20,7 @@ import {
 } from "@/hooks/useCompanyDocuments";
 import { CompanyFile, companyFileBucket, formatBytes } from "./types";
 import { SignPdfDialog } from "@/components/documents/SignPdfDialog";
+import { kannVorschau, useDokumentVorschau } from "@/components/shared/PdfAnsicht";
 import { saveSignedBuildingFile } from "@/lib/documentSigning";
 import { useComposeEmail } from "@/contexts/ComposeEmailContext";
 
@@ -37,6 +38,7 @@ export function CompanyFileDetail({ file, onClose }: Props) {
   const [description, setDescription] = useState("");
   const [categoryId, setCategoryId] = useState<string>(NO_FOLDER);
   const [signUrl, setSignUrl] = useState<string | null>(null);
+  const vorschau = useDokumentVorschau();
   const invalidate = useInvalidateCompanyDocuments();
   const { openCompose } = useComposeEmail();
 
@@ -75,7 +77,13 @@ export function CompanyFileDetail({ file, onClose }: Props) {
 
   const open = async () => {
     try {
-      window.open(await companyFileUrl(file), "_blank", "noopener,noreferrer");
+      const url = await companyFileUrl(file);
+      // PDFs und Bilder in der App zeigen, alles andere wie bisher im neuen Tab
+      if (kannVorschau(file.mime_type, file.display_name || file.file_path)) {
+        vorschau.oeffnen({ quelle: url, dateiName: file.display_name || "Dokument", mimeType: file.mime_type });
+      } else {
+        window.open(url, "_blank", "noopener,noreferrer");
+      }
     } catch (e: any) {
       toast.error(e.message ?? "Datei konnte nicht geöffnet werden");
     }
@@ -185,6 +193,7 @@ export function CompanyFileDetail({ file, onClose }: Props) {
           </Button>
         )}
       />
+      {vorschau.dialog}
     </div>
   );
 }

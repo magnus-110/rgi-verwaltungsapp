@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { SignaturePad } from "@/components/buildings/keys/SignaturePad";
+import { DokumentAnsicht, DokumentVorschauDialog } from "@/components/shared/PdfAnsicht";
 
 type Info = {
   status: string;
@@ -38,6 +39,7 @@ export const EtvProtocolSign = () => {
   const [read, setRead] = useState(false);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  const [protokollOffen, setProtokollOffen] = useState(false);
 
   useEffect(() => {
     call({ action: "get", token })
@@ -97,10 +99,19 @@ export const EtvProtocolSign = () => {
                   <h2 className="text-base font-semibold">1. Protokoll lesen</h2>
                   {info.pdf_url ? (
                     <>
-                      <Button asChild variant="outline" className="w-full gap-2">
-                        <a href={info.pdf_url} target="_blank" rel="noopener noreferrer"><FileText className="h-4 w-4" /> Protokoll öffnen (PDF)</a>
+                      <Button variant="outline" className="w-full gap-2" onClick={() => setProtokollOffen(true)}>
+                        <FileText className="h-4 w-4" /> Protokoll öffnen (PDF)
                       </Button>
-                      <iframe title="Protokoll" src={info.pdf_url} className="hidden h-[520px] w-full rounded-lg border md:block" />
+                      <div className="hidden h-[620px] w-full overflow-hidden rounded-lg border md:block">
+                        <DokumentAnsicht quelle={info.pdf_url} dateiName="Protokoll.pdf" mimeType="application/pdf" />
+                      </div>
+                      <DokumentVorschauDialog
+                        open={protokollOffen}
+                        onOpenChange={setProtokollOffen}
+                        quelle={info.pdf_url}
+                        dateiName="Protokoll.pdf"
+                        mimeType="application/pdf"
+                      />
                     </>
                   ) : (
                     <p className="text-sm text-muted-foreground">Das Protokoll wird gerade erstellt. Bitte laden Sie die Seite in einer Minute neu oder wenden Sie sich an die Verwaltung.</p>
