@@ -125,7 +125,9 @@ export interface OwnerEinstellungen {
   angebote_startseite: boolean;
   angebote_hinweis: boolean;
   mail_meldungen: boolean;
-  mail_versammlungen: boolean;
+  mail_einladung: boolean;
+  mail_erinnerung: boolean;
+  mail_terminumfrage: boolean;
   mail_umfragen: boolean;
   mail_dokumente: boolean;
   mail_aushaenge: boolean;
@@ -135,9 +137,11 @@ const STANDARD: OwnerEinstellungen = {
   angebote_startseite: false,
   angebote_hinweis: false,
   mail_meldungen: true,
-  mail_versammlungen: true,
+  mail_einladung: false,
+  mail_erinnerung: true,
+  mail_terminumfrage: true,
   mail_umfragen: true,
-  mail_dokumente: false,
+  mail_dokumente: true,
   mail_aushaenge: true,
 };
 const SPALTEN = Object.keys(STANDARD).join(", ");
