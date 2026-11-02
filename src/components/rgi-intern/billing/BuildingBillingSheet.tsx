@@ -2,7 +2,11 @@
 // abrechenbar ist — und ob es schon abgerechnet wurde.
 //
 // Herkünfte: Vertrag (Honorar + Zusatzleistungen), Stunden, Vorlage,
-// Frei. Jede Position ist eine Karte: anklicken wählt sie aus,
+// Frei. Freie Positionen werden sofort gespeichert („vormerken“) und
+// bleiben stehen, bis sie abgerechnet oder verworfen sind – auch ohne
+// Betrag, wenn der noch nicht feststeht.
+//
+// Jede Position ist eine Karte: anklicken wählt sie aus,
 // Bezeichnung, Menge und Einzelpreis lassen sich direkt ändern.
 // Rechts steht live eine Vorschau der Rechnung(en) – je
 // Zahlungspflichtigem eine eigene.
@@ -21,7 +25,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   Plus, Save, MoreVertical, Trash2, Ban, Calculator, FileStack, Receipt, Undo2, Info,
-  FolderKanban, CheckCircle2, Landmark, User,
+  FolderKanban, CheckCircle2, Landmark, User, Bookmark, PencilLine,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -34,7 +38,7 @@ import {
 } from "@/hooks/useRgiBilling";
 import {
   type BillingRow, DEFAULT_INTRO, isOpenRow, rowNet, rowsNet,
-  rowFromEvent, suggestionsFromContract, mergeSuggestions,
+  rowFromEvent, suggestionsFromContract, mergeSuggestions, isMemoRow, rowNeedsAmount,
 } from "@/types/rgiBilling";
 import { type FeeDebtor, formatDate, formatEur } from "@/types/rgiContracts";
 import { BillingRowDialog, PercentBaseDialog } from "./BillingRowDialogs";
@@ -96,6 +100,7 @@ export function BuildingBillingSheet({
   const [newRowOpen, setNewRowOpen] = useState(false);
   const [percentRow, setPercentRow] = useState<BillingRow | null>(null);
   const [creating, setCreating] = useState(false);
+  const [savingRow, setSavingRow] = useState(false);
 
   const contract = useMemo(
     () => (contracts ?? []).find((c) => c.building_id === buildingId) ?? null,
@@ -202,7 +207,7 @@ export function BuildingBillingSheet({
 
   // ---------------- Aktionen ----------------
 
-  const isSelectable = (r: BillingRow) => isOpenRow(r) && !(r.needsInput && !r.unitPriceNet);
+  const isSelectable = (r: BillingRow) => isOpenRow(r) && !rowNeedsAmount(r);
 
   const toggle = (key: string) =>
     setSelected((prev) => {
@@ -241,11 +246,71 @@ export function BuildingBillingSheet({
         label: r.label,
         quantity: r.quantity,
         unit: r.unit,
-        amount_net: r.unitPriceNet ?? 0,
+        // Vorgemerkte Posten ohne Betrag behalten ihren offenen Betrag.
+        amount_net: r.unitPriceNet ?? (r.amountOpen ? null : 0),
         vat_rate: r.vatRate,
       } as any);
     }
     setOverrides({});
+  };
+
+  /**
+   * Freie Position vormerken bzw. eine gespeicherte Zeile im Detail
+   * ändern. Beides geht direkt in die Datenbank – eine Notiz, die beim
+   * Schließen des Blatts verschwindet, hilft niemandem.
+   */
+  const saveRowFromDialog = async (row: BillingRow, selectNow: boolean) => {
+    if (!buildingId) return;
+    setSavingRow(true);
+    try {
+      const amount = row.amountOpen ? null : (row.unitPriceNet ?? 0);
+      if (editRow?.eventId) {
+        await upsert.mutateAsync({
+          id: editRow.eventId,
+          building_id: buildingId,
+          label: row.label,
+          quantity: row.quantity,
+          unit: row.unit,
+          amount_net: amount,
+          amount_gross: null,
+          vat_rate: row.vatRate,
+          debtor: row.debtor,
+          occurred_on: row.occurredOn,
+          notes: row.hint ?? null,
+        } as any);
+        resetRow(editRow.key);
+      } else if (editRow) {
+        // Vorschlag oder Stundenzeile: nur lokal ändern wie bisher.
+        patch(editRow.key, {
+          label: row.label, quantity: row.quantity,
+          unitPriceNet: row.unitPriceNet, vatRate: row.vatRate,
+        });
+      } else {
+        const saved = await upsert.mutateAsync({
+          building_id: buildingId,
+          contract_id: row.contractId,
+          status: "approved",
+          occurred_on: row.occurredOn,
+          label: row.label,
+          quantity: row.quantity,
+          unit: row.unit,
+          amount_net: amount,
+          vat_rate: row.vatRate,
+          debtor: row.debtor,
+          source_kind: "manual",
+          notes: row.hint ?? null,
+          created_by: user?.id ?? null,
+        } as any);
+        setTab("open");
+        if (selectNow && saved?.id) {
+          setSelected((prev) => new Set([...prev, `event:${saved.id}`]));
+        }
+      }
+      setNewRowOpen(false);
+      setEditRow(null);
+    } finally {
+      setSavingRow(false);
+    }
   };
 
   const applyPreset = (presetId: string) => {
@@ -431,7 +496,8 @@ export function BuildingBillingSheet({
     const isSel = selected.has(r.key);
     const editable = isOpenRow(r);
     const edited = !!overrides[r.key];
-    const needsAmount = r.needsInput && !r.unitPriceNet;
+    const needsAmount = rowNeedsAmount(r);
+    const memo = isMemoRow(r);
 
     return (
       <div
@@ -466,6 +532,16 @@ export function BuildingBillingSheet({
             className="h-8 border-transparent bg-transparent shadow-none px-1.5 -ml-1.5 hover:border-input focus-visible:border-input text-sm font-medium disabled:opacity-100 disabled:cursor-default"
           />
           <div className="flex items-center gap-1.5 flex-wrap mt-1 pl-0.5">
+            {memo && (
+              <span className="text-[11px] px-2 py-0.5 rounded-full bg-orange-50 text-orange-800 dark:bg-orange-950/40 dark:text-orange-200 inline-flex items-center gap-1">
+                <Bookmark className="w-3 h-3" />vorgemerkt {formatDate(r.occurredOn)}
+              </span>
+            )}
+            {memo && needsAmount && (
+              <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 dark:bg-amber-950/50 dark:text-amber-200">
+                Betrag offen
+              </span>
+            )}
             {r.hint && (
               <span className="text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{r.hint}</span>
             )}
@@ -495,7 +571,11 @@ export function BuildingBillingSheet({
         </div>
 
         {/* Menge × Einzelpreis = Betrag */}
-        {needsAmount ? (
+        {needsAmount && r.amountOpen ? (
+          <Button variant="outline" size="sm" className="h-9 gap-1.5 shrink-0 ml-auto" onClick={() => setEditRow(r)}>
+            <PencilLine className="w-3.5 h-3.5" />Betrag eintragen
+          </Button>
+        ) : needsAmount ? (
           <Button variant="outline" size="sm" className="h-9 gap-1.5 shrink-0" onClick={() => setPercentRow(r)}>
             <Calculator className="w-3.5 h-3.5" />Betrag berechnen
           </Button>
@@ -665,8 +745,8 @@ export function BuildingBillingSheet({
   const emptyText =
     tab === "open"
       ? contract
-        ? "Hier ist gerade nichts offen. Über „Freie Position“ kannst du jederzeit etwas ergänzen."
-        : "Für dieses Objekt ist kein Verwaltervertrag erfasst — deshalb gibt es keine Vorschläge. Du kannst trotzdem freie Positionen anlegen."
+        ? "Hier ist gerade nichts offen. Über „Freie Position“ kannst du jederzeit etwas vormerken – auch ohne festen Betrag."
+        : "Für dieses Objekt ist kein Verwaltervertrag erfasst — deshalb gibt es keine Vorschläge. Du kannst trotzdem freie Positionen vormerken."
       : tab === "done"
         ? "Für dieses Objekt wurde über das Abrechnungsblatt noch nichts abgerechnet."
         : "Nichts verworfen. Posten, die du bewusst nicht abrechnest, landen hier – mit Begründung.";
@@ -774,7 +854,11 @@ export function BuildingBillingSheet({
                       tab === "open" ? "Vorschläge – nichts wird ohne dein Zutun abgerechnet" : undefined)}
                     {renderTimeGroup(groups.time)}
                     {renderGroup("Aus Positionsvorlagen", groups.preset)}
-                    {renderGroup("Freie Positionen", groups.manual)}
+                    {renderGroup(
+                      tab === "open" ? "Vorgemerkte Positionen" : "Freie Positionen",
+                      groups.manual,
+                      tab === "open" ? "bleiben stehen, bis sie abgerechnet oder verworfen sind" : undefined,
+                    )}
                   </>
                 )}
               </div>
@@ -861,20 +945,8 @@ export function BuildingBillingSheet({
         onOpenChange={(v) => { if (!v) { setNewRowOpen(false); setEditRow(null); } }}
         row={editRow}
         contractId={contract?.id ?? null}
-        onSave={(row) => {
-          if (editRow) {
-            patch(editRow.key, {
-              label: row.label, quantity: row.quantity,
-              unitPriceNet: row.unitPriceNet, vatRate: row.vatRate,
-            });
-          } else {
-            setExtraRows((prev) => [...prev, row]);
-            setSelected((prev) => new Set([...prev, row.key]));
-            setTab("open");
-          }
-          setNewRowOpen(false);
-          setEditRow(null);
-        }}
+        saving={savingRow}
+        onSave={(row, { selectNow }) => { void saveRowFromDialog(row, selectNow); }}
       />
 
       <PercentBaseDialog

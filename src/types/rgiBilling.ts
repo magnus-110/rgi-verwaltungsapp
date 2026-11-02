@@ -82,6 +82,10 @@ export interface BillingOverviewRow {
   base_monthly_net: number;
   open_count: number;
   open_net: number;
+  /** Davon von Hand vorgemerkte Posten (freie Positionen). */
+  memo_count?: number;
+  /** Vorgemerkte Posten, deren Betrag noch nicht feststeht. */
+  memo_unpriced_count?: number;
   /** Abrechenbare, noch nicht zugeordnete Projektstunden. */
   open_hours: number;
   open_hours_net: number;
@@ -156,6 +160,23 @@ export interface BillingRow {
   invoiceNumber?: string | null;
   invoiceId?: string | null;
   dismissedReason?: string | null;
+  /**
+   * Vorgemerkter Posten, dessen Betrag noch nicht feststeht (z. B.
+   * „Versicherungsfall, mind. 250 €“). Er bleibt im Blatt stehen,
+   * lässt sich aber erst abrechnen, wenn ein Betrag eingetragen ist.
+   */
+  amountOpen?: boolean;
+}
+
+/** Von Hand angelegter Posten, der noch abgerechnet werden muss. */
+export function isMemoRow(row: BillingRow): boolean {
+  return row.origin === "manual" && !!row.eventId && isOpenRow(row);
+}
+
+/** Muss vor dem Abrechnen noch ein Betrag eingetragen werden? */
+export function rowNeedsAmount(row: BillingRow): boolean {
+  if (row.amountOpen) return row.unitPriceNet === null || row.unitPriceNet === undefined;
+  return !!row.needsInput && !row.unitPriceNet;
 }
 
 /** Standard-Einleitung jeder neuen Rechnung. */
@@ -411,12 +432,15 @@ export function suggestionsFromContract(
 
 /** Datensatz aus der Datenbank in eine Zeile des Blatts übersetzen. */
 export function rowFromEvent(ev: BillableEvent): BillingRow {
+  const amountOpen =
+    (ev.amount_net === null || ev.amount_net === undefined) &&
+    (ev.amount_gross === null || ev.amount_gross === undefined);
   const net =
     ev.amount_net !== null && ev.amount_net !== undefined
       ? Number(ev.amount_net)
       : ev.amount_gross !== null && ev.amount_gross !== undefined
         ? Math.round((Number(ev.amount_gross) / (1 + Number(ev.vat_rate) / 100)) * 100) / 100
-        : 0;
+        : null;
 
   const origin: BillingRowOrigin =
     ev.source_kind === "time_entry" ? "time"
@@ -433,6 +457,7 @@ export function rowFromEvent(ev: BillableEvent): BillingRow {
     quantity: Number(ev.quantity ?? 1),
     unit: ev.unit ?? "pauschal",
     unitPriceNet: net,
+    amountOpen,
     vatRate: Number(ev.vat_rate),
     debtor: ev.debtor,
     feeId: ev.fee_id,
