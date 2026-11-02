@@ -40,6 +40,8 @@ type Linie = Box & { art: "unterstrich" | "vektor"; zeile?: Zeile; davor?: strin
 
 // Beschriftungen, die für sich allein eine Unterschriftsstelle anzeigen
 const STARK = /unterschrift|unterzeichne|beiratsvorsitz|versammlungsleit|protokollf(ü|ue)hr|protokollant|firmenstempel|stempel und/i;
+// Beschriftungen ohne Linie: nur echte Unterschrifts-Beschriftungen (keine Verben im Fließtext)
+const BESCHRIFTUNG = /unterschrift|unterzeichner|beiratsvorsitz|versammlungsleit|protokollf(ü|ue)hr|protokollant|stempel/i;
 // Rollen, die nur in kurzen Zeilen direkt an einer Linie als Beschriftung zählen
 const ROLLE = /auftraggeber|auftragnehmer|verwalter|verwaltung|eigent(ü|ue)mer|beirat|vermieter|mieter|hausmeister|dienstleister|bevollm(ä|ae)chtigt|vollmachtgeber|gemeinschaft|\bweg\b|rgi|immobilien|gmbh|vertreten|f(ü|ue)r die/i;
 const ORT_DATUM = /\bort\b.{0,6}\bdatum\b|\bdatum\b.{0,6}\bort\b/i;
@@ -216,7 +218,10 @@ export async function unterschriftsstellenErkennen(bytes: Uint8Array): Promise<A
     seiten.push({ seite: i, breite: r1(B), hoehe: r1(H), textauszug: textAuszug(zeilen, i === seitenzahl ? 2500 : maxSeitenText) });
 
     let linien: Linie[] = unterstriche(zeilen);
-    try {
+    // Vektorlinien nur auf Seiten mit Unterschrifts-Hinweisen im Text lesen (Operatorliste kostet bei
+    // Scans/Bildern viel Rechenzeit; Seiten ohne Text haben ohnehin keine Beschriftung)
+    const signale = zeilen.some((z) => STARK.test(z.text) || ORT_DATUM.test(z.text) || /,\s*den\b/i.test(z.text));
+    if ((signale || (i === seitenzahl && zeilen.length > 0)) && bytes.byteLength <= 25 * 1024 * 1024) try {
       const vektor = await vektorLinien(page, vp, OPS);
       // Tabellenraster (viele gleich lange Linien übereinander) nicht als Unterschriftslinie werten
       const raster = (l: Linie) => vektor.filter((v) => Math.abs(v.x0 - l.x0) < 3 && Math.abs(v.x1 - l.x1) < 3).length >= 4;
@@ -246,7 +251,8 @@ export async function unterschriftsstellenErkennen(bytes: Uint8Array): Promise<A
         (STARK.test(z.text) || (z.text.length <= 70 && ROLLE.test(z.text) && umfeld(l.y0)) || ORT_DATUM.test(z.text)));
       if (passend && ORT_DATUM.test(passend.text) && !STARK.test(passend.text)) {
         benutzt.add(passend);
-        ortDatum.push({ seite: i, x: r1(l.x0), y: r1(l.y0), text: passend.text.replace(/\s+/g, " ").trim().slice(0, 120) });
+        const teil = passend.teile.filter((t) => ueberlappX(t.box, l) > 0).map((t) => t.str).join(" ").trim();
+        ortDatum.push({ seite: i, x: r1(l.x0), y: r1(l.y0), text: (teil || passend.text).replace(/\s+/g, " ").trim().slice(0, 120) });
         continue;
       }
       // Beschriftungszeile kann mehrere Spalten enthalten – den Teil unter der Linie nehmen
@@ -273,7 +279,7 @@ export async function unterschriftsstellenErkennen(bytes: Uint8Array): Promise<A
       if (z.teile.some((t) => t.str.trim() && !STARK.test(t.str) && !ORT_DATUM.test(t.str))) continue;
       if (seitenFunde.some((f) => z.y0 >= f.y + f.h - 4 && z.y0 <= f.y + f.h + 30 && ueberlappX(z, { x0: f.x, x1: f.x + f.w, y0: 0, y1: 0 }) > 0)) continue;
       // Teile der Zeile mit Schlüsselwort einzeln (mehrspaltige Unterschriftszeilen)
-      const spalten = z.teile.filter((t) => STARK.test(t.str) && t.str.trim().length <= 50 && !/:\s*[^\s)]/.test(t.str));
+      const spalten = z.teile.filter((t) => BESCHRIFTUNG.test(t.str) && t.str.trim().length <= 50 && !/:\s*[^\s)]/.test(t.str) && !/[.!?;]\s*$/.test(t.str));
       for (const t of spalten) {
         const mitDoppelpunkt = /:\s*$/.test(t.str.trim());
         const ziel = mitDoppelpunkt
