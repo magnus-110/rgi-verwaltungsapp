@@ -83,6 +83,8 @@ export function DmsAblegenDialog({
   const [vorschlag, setVorschlag] = useState<DmsVorschlag | null>(null);
   const [vorschlagLaedt, setVorschlagLaedt] = useState(false);
   const ordnerVorwahl = useRef<{ slug: string | null; id: string | null } | null>(null);
+  // Zählt hoch, sobald ein Vorschlag angewendet wurde (Ordner evtl. schon geladen → Vorwahl neu prüfen)
+  const [vorschlagStand, setVorschlagStand] = useState(0);
   const [neuOffen, setNeuOffen] = useState(false);
   const [neuName, setNeuName] = useState("");
   const [neuEltern, setNeuEltern] = useState("");
@@ -159,6 +161,7 @@ export function DmsAblegenDialog({
         if (v.building_id) setZiel(v.building_id);
         ordnerVorwahl.current = { slug: v.category_slug, id: null };
       }
+      setVorschlagStand((n) => n + 1);
     };
     if (r.dms_vorschlag) {
       anwenden(r.dms_vorschlag);
@@ -191,7 +194,7 @@ export function DmsAblegenDialog({
     const k = v.id ? ordner.find((o) => o.id === v.id) : v.slug ? ordner.find((o) => o.slug === v.slug) : null;
     if (k) setOrdnerId(k.id);
     ordnerVorwahl.current = null;
-  }, [ordner, ordnerLaedt, ziel, firma]);
+  }, [ordner, ordnerLaedt, ziel, firma, vorschlagStand]);
 
   const liste = useMemo(() => flach(ordner), [ordner]);
 
@@ -202,6 +205,7 @@ export function DmsAblegenDialog({
     // Ordner-Vorschlag (Schlüssel) auch beim anderen Objekt anwenden, wenn es ihn dort gibt
     if (vorschlag?.category_slug && v !== FIRMA) ordnerVorwahl.current = { slug: vorschlag.category_slug, id: null };
     else if (vorschlag?.ziel === "firma" && v === FIRMA) ordnerVorwahl.current = { slug: null, id: vorschlag.category_id };
+    setVorschlagStand((n) => n + 1);
   };
 
   const ordnerAnlegen = async () => {

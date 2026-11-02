@@ -45,11 +45,13 @@ export async function dmsAblegen(db: Db, b: Body, userId: string | null) {
   const categoryId = b.category_id ? uuidOderNull(b.category_id) : null;
   if (b.category_id && !categoryId) throw new Fehler(400, "Ungültiger Ordner.");
   let ordner: string | null = null;
+  let ordnerSlug: string | null = null;
   if (categoryId) {
-    const { data: k } = await db.from("building_file_categories").select("id, name, building_id, is_company").eq("id", categoryId).maybeSingle();
+    const { data: k } = await db.from("building_file_categories").select("id, name, slug, building_id, is_company").eq("id", categoryId).maybeSingle();
     const passt = k && (firma ? k.is_company === true : k.is_company !== true && k.building_id === buildingId);
     if (!passt) throw new Fehler(400, "Der Ordner gehört nicht zum gewählten Ziel.");
     ordner = k.name;
+    ordnerSlug = k.slug ?? null;
   }
 
   const name = dateiname(zeile(b.dateiname, 140) || `${v.titel} (unterschrieben)`);
@@ -108,8 +110,9 @@ export async function dmsAblegen(db: Db, b: Body, userId: string | null) {
   let geaendert: boolean | null = null;
   if (vs) {
     const vorschlagFirma = vs.ziel === "firma";
-    geaendert = vorschlagFirma !== firma || (!firma && vs.building_id !== buildingId) ||
-      (vs.category_id ?? null) !== categoryId || (vs.dateiname ?? null) !== name;
+    // Objekt-Ordner werden per Schlüssel (slug) vorgeschlagen, Firmen-Ordner per ID
+    const ordnerAnders = firma ? (vs.category_id ?? null) !== categoryId : (vs.category_slug ?? null) !== ordnerSlug;
+    geaendert = vorschlagFirma !== firma || (!firma && vs.building_id !== buildingId) || ordnerAnders || (vs.dateiname ?? null) !== name;
   }
 
   const zielName = firma ? "RGI Immobilien (Firmen-DMS)" : gebaeude.name;
