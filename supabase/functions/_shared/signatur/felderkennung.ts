@@ -44,6 +44,9 @@ const STARK = /unterschrift|unterzeichne|beiratsvorsitz|versammlungsleit|protoko
 const ROLLE = /auftraggeber|auftragnehmer|verwalter|verwaltung|eigent(ü|ue)mer|beirat|vermieter|mieter|hausmeister|dienstleister|bevollm(ä|ae)chtigt|vollmachtgeber|gemeinschaft|\bweg\b|rgi|immobilien|gmbh|vertreten|f(ü|ue)r die/i;
 const ORT_DATUM = /\bort\b.{0,6}\bdatum\b|\bdatum\b.{0,6}\bort\b/i;
 const UNTERSTRICH = /_{6,}|\.{10,}|…{4,}/g;
+const HAT_UNTERSTRICH = /_{6,}|\.{10,}|…{4,}/;
+// Überschriften wie „Unterschriften“ sind keine Unterschriftsstelle
+const UEBERSCHRIFT = /^\s*unterschriften\s*:?\s*$|unterschriften?(seite|liste|feld)|elektronisch unterschrieben/i;
 
 const r1 = (n: number) => Math.round(n * 10) / 10;
 
@@ -224,6 +227,10 @@ export async function unterschriftsstellenErkennen(bytes: Uint8Array): Promise<A
 
     const benutzt = new Set<Zeile>();
     const seitenFunde: Vorschlag[] = [];
+    // Reine Rollen-Beschriftungen („Auftraggeber“, „Hausverwaltung“) nur in einem Unterschriftsumfeld
+    // werten (Unterschrift/Ort, Datum/„…, den ____“ in der Nähe) – sonst z. B. Vertragsparteien im Kopf
+    const umfeld = (y: number) => zeilen.some((z) => Math.abs(z.y0 - y) <= 150 &&
+      ((STARK.test(z.text) && !UEBERSCHRIFT.test(z.text)) || ORT_DATUM.test(z.text) || /,\s*den\b/i.test(z.text)));
     for (const l of linien) {
       // Zeile mit dem Unterstrich: Text links davon („Unterschrift: ____“, „Pfronten, den ____“)
       const eigene = l.zeile;
@@ -235,7 +242,8 @@ export async function unterschriftsstellenErkennen(bytes: Uint8Array): Promise<A
       }
       // Beschriftung direkt unter der Linie (bis 28 pt) oder knapp darüber in derselben Spalte
       const darunter = zeilen.filter((z) => z !== eigene && z.y0 >= l.y0 - 3 && z.y0 <= l.y1 + 28 && ueberlappX(z, l) > 10);
-      const passend = darunter.find((z) => STARK.test(z.text) || (z.text.length <= 70 && ROLLE.test(z.text)) || ORT_DATUM.test(z.text));
+      const passend = darunter.find((z) => !HAT_UNTERSTRICH.test(z.text) && !UEBERSCHRIFT.test(z.text) &&
+        (STARK.test(z.text) || (z.text.length <= 70 && ROLLE.test(z.text) && umfeld(l.y0)) || ORT_DATUM.test(z.text)));
       if (passend && ORT_DATUM.test(passend.text) && !STARK.test(passend.text)) {
         benutzt.add(passend);
         ortDatum.push({ seite: i, x: r1(l.x0), y: r1(l.y0), text: passend.text.replace(/\s+/g, " ").trim().slice(0, 120) });
@@ -244,28 +252,29 @@ export async function unterschriftsstellenErkennen(bytes: Uint8Array): Promise<A
       // Beschriftungszeile kann mehrere Spalten enthalten – den Teil unter der Linie nehmen
       const beschr = passend
         ? (passend.teile.filter((t) => ueberlappX(t.box, l) > 0).map((t) => t.str).join(" ").trim() || passend.text.trim())
-        : links && (STARK.test(links) || ROLLE.test(links)) ? links : "";
+        : links && (STARK.test(links) || (links.length <= 60 && ROLLE.test(links) && umfeld(l.y0))) ? links : "";
       if (passend) benutzt.add(passend);
-      if (!beschr && l.art === "vektor") continue; // unbeschriftete Linien nur als Notlösung (unten)
+      if (!beschr) continue; // unbeschriftete Linien (z. B. „Name: ____“) nur als Notlösung (unten)
       seitenFunde.push({
         seite: i,
         ...feldUeber(l, B, H),
         beschriftung: beschr.replace(/\s+/g, " ").slice(0, 120) || "(Linie ohne Beschriftung)",
         kontext: kontextUm(zeilen, l.y0, passend),
-        quelle: beschr ? (l.art === "vektor" || passend ? "linie+beschriftung" : "unterstrich") : "unterstrich",
-        sicherheit: beschr && (STARK.test(beschr) || passend) ? "hoch" : beschr ? "mittel" : "niedrig",
+        quelle: passend || l.art === "vektor" ? "linie+beschriftung" : "unterstrich",
+        sicherheit: STARK.test(beschr) || passend ? "hoch" : "mittel",
       });
     }
 
     // Beschriftungen ohne Linie („Unterschrift Auftraggeber“, „(Unterschrift)“, „Versammlungsleiter“)
     for (const z of zeilen) {
       if (benutzt.has(z) || z.text.length > 80) continue;
-      if (!STARK.test(z.text)) continue;
-      if (/unterschriften?(seite|liste|feld)|elektronisch unterschrieben/i.test(z.text)) continue;
+      if (!STARK.test(z.text) || UEBERSCHRIFT.test(z.text) || HAT_UNTERSTRICH.test(z.text)) continue;
+      // Nur reine Beschriftungszeilen: andere Textteile (z. B. „Versammlungsleitung  Max Muster“) → Angabe, kein Feld
+      if (z.teile.some((t) => t.str.trim() && !STARK.test(t.str) && !ORT_DATUM.test(t.str))) continue;
       if (seitenFunde.some((f) => z.y0 >= f.y + f.h - 4 && z.y0 <= f.y + f.h + 30 && ueberlappX(z, { x0: f.x, x1: f.x + f.w, y0: 0, y1: 0 }) > 0)) continue;
       // Teile der Zeile mit Schlüsselwort einzeln (mehrspaltige Unterschriftszeilen)
-      const spalten = z.teile.filter((t) => STARK.test(t.str));
-      for (const t of spalten.length ? spalten : [{ str: z.text, box: z as Box }]) {
+      const spalten = z.teile.filter((t) => STARK.test(t.str) && t.str.trim().length <= 50 && !/:\s*[^\s)]/.test(t.str));
+      for (const t of spalten) {
         const mitDoppelpunkt = /:\s*$/.test(t.str.trim());
         const ziel = mitDoppelpunkt
           // „Unterschrift:“ → Feld rechts daneben
@@ -294,7 +303,7 @@ export async function unterschriftsstellenErkennen(bytes: Uint8Array): Promise<A
 
     // Notlösung für die letzte Seite: unbeschriftete Linien, wenn sonst nichts gefunden wurde
     if (i === seitenzahl && !vorschlaege.length) {
-      for (const l of linien.filter((l) => l.art === "vektor" && l.y0 > H * 0.4).slice(-4)) {
+      for (const l of linien.filter((l) => l.y0 > H * 0.4 && !(l.davor && /:\s*$/.test(l.davor.trim()))).slice(-4)) {
         vorschlaege.push({
           seite: i, ...feldUeber(l, B, H), beschriftung: "(Linie ohne Beschriftung)",
           kontext: kontextUm(zeilen, l.y0), quelle: "linie", sicherheit: "niedrig",
