@@ -990,6 +990,32 @@ function SignerKarte({
           <X className="h-4 w-4" />
         </button>
       </div>
+      {!intern && (
+        <div className="mt-2 flex flex-wrap gap-1.5 pl-10" role="radiogroup" aria-label="Wie bekommt die Person den Link?">
+          {(
+            [
+              ["mail", "Per E-Mail senden"],
+              ["link", "Link selbst verschicken"],
+            ] as const
+          ).map(([w, text]) => {
+            const aktiv = (link ? "link" : "mail") === w;
+            return (
+              <button
+                key={w}
+                type="button"
+                role="radio"
+                aria-checked={aktiv}
+                onClick={() => onChange({ versand: w })}
+                className={`h-8 rounded-full border px-3 text-[12.5px] font-medium transition-colors ${
+                  aktiv ? "border-[#ee7202] bg-[#FFF7ED] text-[#B35300]" : "border-[#E5E5E5] bg-white text-[#595959] hover:bg-[#FAFAFA]"
+                }`}
+              >
+                {text}
+              </button>
+            );
+          })}
+        </div>
+      )}
       {auswahl && (
         <div className="mt-2.5 pl-10">
           <select
