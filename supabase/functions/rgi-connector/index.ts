@@ -1,8 +1,10 @@
 // RGI VerwaltungsApp – Claude-Konnektor (MCP über Streamable HTTP, JSON-Antworten)
 // Dateien (DMS) hochladen/finden/herunterladen, E-Mail-Anhänge lesen/ins DMS übernehmen,
 // E-Mails mit Anhängen versenden oder als Entwurf im Postfach ablegen, Rundmails mit persönlichen
-// Anhängen als Entwurf vorbereiten. Anmeldung: Firmenschlüssel (Secret RGI_CONNECTOR_KEY)
-// entweder als Request-Header oder als OAuth-Client-Secret (Auto-Freigabe, PKCE).
+// Anhängen als Entwurf vorbereiten, Dokumente zur elektronischen Unterschrift vorbereiten.
+// Anmeldung: Firmenschlüssel (Secret RGI_CONNECTOR_KEY) entweder als Request-Header oder als
+// OAuth-Client-Secret (Auto-Freigabe, PKCE); für Server-Aufrufe/Tests zusätzlich der
+// Zeitplan-Schlüssel aus dem Tresor im Header "x-cron-secret" (wie requireStaffOrCron).
 import { createClient } from "npm:@supabase/supabase-js@2.52.1";
 import { rundmailTools } from "./rundmail.ts";
 import { dokumentTools } from "./dokumente.ts";
@@ -50,11 +52,17 @@ function safeEqual(a: string, b: string) {
 async function sha256b64u(s: string) {
   return b64u(new Uint8Array(await crypto.subtle.digest("SHA-256", enc.encode(s))));
 }
-const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, content-type, x-api-key, mcp-protocol-version, mcp-session-id", "Access-Control-Expose-Headers": "WWW-Authenticate, Mcp-Session-Id" };
+const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, content-type, x-api-key, x-cron-secret, mcp-protocol-version, mcp-session-id", "Access-Control-Expose-Headers": "WWW-Authenticate, Mcp-Session-Id" };
 const json = (b: unknown, status = 200, extra: Record<string, string> = {}) =>
   new Response(JSON.stringify(b), { status, headers: { ...cors, "Content-Type": "application/json", ...extra } });
 
 async function istBerechtigt(req: Request): Promise<boolean> {
+  // Server-Aufrufe (z. B. Ende-zu-Ende-Test per net.http_post): Zeitplan-Schlüssel aus dem Tresor
+  const cron = req.headers.get("x-cron-secret");
+  if (cron) {
+    const { data } = await db.rpc("fints_cron_token_pruefen", { p_token: cron });
+    return data === true;
+  }
   if (!CONNECTOR_KEY) return false;
   const apiKey = req.headers.get("x-api-key") ?? "";
   if (apiKey && safeEqual(apiKey, CONNECTOR_KEY)) return true;
@@ -569,7 +577,7 @@ const tools: Tool[] = [
 ];
 
 // ---------------------------------------------------------------- MCP
-const SERVER_INFO = { name: "rgi-verwaltungsapp", version: "1.6.0" };
+const SERVER_INFO = { name: "rgi-verwaltungsapp", version: "1.7.0" };
 async function mcp(msg: any): Promise<any | null> {
   const { id, method, params } = msg ?? {};
   const ok = (result: unknown) => ({ jsonrpc: "2.0", id, result });

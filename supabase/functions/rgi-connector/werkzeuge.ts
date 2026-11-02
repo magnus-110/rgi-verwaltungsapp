@@ -4,6 +4,7 @@ import { rechnungTools } from "./rechnungen.ts";
 import { angebotTools } from "./angebote.ts";
 import { kalenderTools } from "./kalender.ts";
 import { dmsTools } from "./dms.ts";
+import { unterschriftTools } from "./unterschriften.ts";
 
 type Deps = {
   db: any;
@@ -18,6 +19,7 @@ export const WEITERE_HINWEISE = [
   "RGI-Rechnungen schreiben: rechnung_entwurf_anlegen (Entwurf + Vorschau-PDF, Beträge nur nach Vorgabe des Nutzers), dann rechnung_festschreiben – zuerst ohne bestaetigt, Nummer erst nach ausdrücklicher Zustimmung.",
   "Verwalter-Angebote: angebote_suchen, angebot_lesen, angebot_speichern (anlegen/ändern, Sätze nur nach Vorgabe des Nutzers); gewonnenes Angebot mit angebot_gebaeude_anlegen in Gebäude + Verwaltervertrag übernehmen – zuerst ohne bestaetigt, dann nur nach ausdrücklicher Zustimmung.",
   "Kalender der App: kalender_lesen (Termine und fällige Aufgaben), termin_speichern (anlegen/ändern, Zeiten in deutscher Ortszeit, Teilnehmer per Mitarbeiter-E-Mail aus kalender_optionen).",
+  "Elektronische Unterschrift (Textform § 126b BGB): zuerst unterschrift_dokument_analysieren (Unterschriftsstellen mit Koordinaten, Zuordnung zu Personen dem Nutzer zeigen), dann unterschrift_vorbereiten mit Feldern je Unterzeichner. art 'link' verschickt nichts und liefert persönliche Links (nur einmal im Klartext) zum Einfügen in eigene E-Mails; art 'email' schickt sofort Einladungen an Externe – nur nach Vorschau und ausdrücklicher Zustimmung (bestaetigt=true). Neuer Link: unterschrift_link_erstellen; Stand: unterschriften_status; Erinnerung: unterschrift_erinnern (ebenfalls erst nach Zustimmung).",
 ].join(" ");
 
 export function weitereWerkzeuge(d: Deps) {
@@ -26,5 +28,6 @@ export function weitereWerkzeuge(d: Deps) {
     ...angebotTools(d),
     ...kalenderTools(d),
     ...dmsTools(d),
+    ...unterschriftTools(d),
   ];
 }
