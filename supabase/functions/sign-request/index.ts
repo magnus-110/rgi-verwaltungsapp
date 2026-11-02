@@ -3,7 +3,7 @@
 // (sign_request_events) immer zusammenpassen. Vertrag: /home/claude/esig/API.md
 //
 // Aktionen: create · preview_mail · sign_internal · remind · withdraw · accept_paper ·
-//           reject_paper · assign_paper_email · urls · nachweis · cron ·
+//           reject_paper · assign_paper_email · urls · nachweis · neuer_link · cron ·
 //           create_incoming · complete_incoming (Fall B, eingehende Dokumente selbst unterschreiben)
 //
 // Testmodus (nur mit x-cron-secret): body.test_user_id handelt als dieser Mitarbeiter,
@@ -21,6 +21,7 @@ import {
   ROLLE_KEYS,
   TYPEN,
   UNTERSCHREIBBAR,
+  VERSAND,
   ZUSTIMMUNG_INTERN,
   addTage,
   adminClient,
@@ -47,7 +48,9 @@ import {
   einladen,
   etvQuelleVorbereiten,
   istEtv,
+  linkErstellen,
   nachUnterschrift,
+  nurLink,
   papierSpeichern,
   signerLaden,
   vorgangLaden,
@@ -96,6 +99,8 @@ Deno.serve(async (req) => {
         return json(await urls(db, body));
       case "nachweis":
         return json(await nachweis(db, body, userId));
+      case "neuer_link":
+        return json(await neuerLink(db, body, userId));
       case "create_incoming":
         return json(await eingehendAnlegen(db, body, userId));
       case "complete_incoming":
@@ -181,8 +186,11 @@ async function anlegen(db: Db, b: Body, userId: string | null, test: boolean) {
     const name = zeile(s?.name, 120);
     if (!name) throw new Fehler(400, `Unterzeichner ${i + 1}: Name fehlt.`);
     const methode = s?.methode === "intern" ? "intern" : "online";
+    // „Nur Link erstellen“: keine Einladungsmail, E-Mail-Adresse optional (Erinnerungen/Kopie)
+    const versand = methode === "online" && s?.versand === "link" ? "link" : "mail";
+    if (!VERSAND.includes(versand)) throw new Fehler(400, `${name}: ungültiger Versandweg.`);
     const email = zeile(s?.email, 200).toLowerCase() || null;
-    if (methode === "online" && (!email || !EMAIL_RE.test(email))) {
+    if (methode === "online" && versand === "mail" && (!email || !EMAIL_RE.test(email))) {
       throw new Fehler(400, `${name}: gültige E-Mail-Adresse erforderlich.`);
     }
     if (email && !EMAIL_RE.test(email)) throw new Fehler(400, `${name}: ungültige E-Mail-Adresse.`);
@@ -196,6 +204,7 @@ async function anlegen(db: Db, b: Body, userId: string | null, test: boolean) {
       name,
       email,
       methode,
+      versand,
       contact_id: uuidOderNull(s?.contact_id),
       user_id: uuidOderNull(s?.user_id),
       rolle: zeile(s?.rolle, 80) || null,
@@ -266,12 +275,23 @@ async function anlegen(db: Db, b: Body, userId: string | null, test: boolean) {
     details: { quelle_typ: quelleTyp, quelle_label: v.quelle_label, unterzeichner: signers.length },
   });
 
-  // ---- Einladungen
+  // ---- Einladungen (bzw. bei „Nur Link“: Link erzeugen und nur in der Antwort zurückgeben)
   const links: Record<string, string> = {};
+  const linkListe: { signer_id: string; name: string; url: string }[] = [];
   const fehler: string[] = [];
   for (const s of signers.filter((x: Signer) => x.status === "offen")) {
     if (s.methode === "intern") {
       if (s.user_id) await melden(db, s.user_id, "review_due", `Bitte unterschreiben: ${v.titel}`, `${v.nummer} · Unterschrift in der App`, id);
+      continue;
+    }
+    if (nurLink(s)) {
+      try {
+        const t = await linkErstellen(db, v, s, "link_erstellt", { userId });
+        linkListe.push({ signer_id: s.id, name: s.name, url: signLink(t) });
+        if (test) links[s.id] = signLink(t);
+      } catch (e) {
+        fehler.push(e instanceof Error ? e.message : String(e));
+      }
       continue;
     }
     try {
@@ -284,6 +304,7 @@ async function anlegen(db: Db, b: Body, userId: string | null, test: boolean) {
   return {
     id,
     nummer: neu.nummer,
+    links: linkListe,
     ...(fehler.length ? { versand_fehler: fehler } : {}),
     ...(test ? { test_links: links } : {}),
   };
@@ -362,7 +383,7 @@ async function erinnern(db: Db, b: Body, userId: string | null, test: boolean) {
   const { req: v, signers } = await vorgangLaden(db, String(b.request_id || ""));
   if (v.status !== "offen") throw new Fehler(409, "Der Vorgang ist nicht mehr offen.");
   const kandidaten = signers.filter((s: Signer) =>
-    s.methode !== "intern" && s.email && ["offen", "geoeffnet", "abgelehnt"].includes(s.status)
+    s.methode !== "intern" && (s.email || nurLink(s)) && ["offen", "geoeffnet", "abgelehnt"].includes(s.status)
   );
   let ziel = kandidaten;
   if (b.signer_id) {
@@ -371,8 +392,15 @@ async function erinnern(db: Db, b: Body, userId: string | null, test: boolean) {
   }
   const links: Record<string, string> = {};
   const fehler: string[] = [];
+  const selbst: string[] = [];
   let n = 0;
   for (const s of ziel) {
+    if (!s.email) {
+      // „Nur Link“ ohne E-Mail-Adresse: keine Mail möglich → Meldung an den Ersteller
+      await selbstErinnern(db, v, s, userId);
+      selbst.push(s.name);
+      continue;
+    }
     try {
       const t = await einladen(db, v, s, "erinnerung", { userId });
       if (test) links[s.id] = signLink(t);
@@ -381,7 +409,26 @@ async function erinnern(db: Db, b: Body, userId: string | null, test: boolean) {
       fehler.push(e instanceof Error ? e.message : String(e));
     }
   }
-  return { ok: true, erinnert: n, ...(fehler.length ? { fehler } : {}), ...(test ? { test_links: links } : {}) };
+  return {
+    ok: true,
+    erinnert: n,
+    ...(selbst.length ? { selbst_erinnern: selbst } : {}),
+    ...(fehler.length ? { fehler } : {}),
+    ...(test ? { test_links: links } : {}),
+  };
+}
+
+/** Erinnerung für einen „Nur Link“-Unterzeichner ohne E-Mail: Meldung an den Ersteller statt Mail. */
+async function selbstErinnern(db: Db, v: Body, s: Signer, userId: string | null, automatisch = false) {
+  await db.from("sign_request_signers").update({
+    reminder_count: (s.reminder_count ?? 0) + 1,
+    last_reminder_at: new Date().toISOString(),
+  }).eq("id", s.id);
+  await ereignis(db, v.id, "erinnerung_selbst", `${automatisch ? "Automatische " : ""}Erinnerung fällig: ${s.name} hat keine E-Mail-Adresse – bitte selbst erinnern`, {
+    signerId: s.id,
+    userId,
+  });
+  await melden(db, v.created_by, "review_due", `Bitte selbst erinnern: ${s.name}`, `${v.nummer} · ${v.titel} · ${s.name} hat noch nicht unterschrieben (keine E-Mail-Adresse hinterlegt). Bei Bedarf neuen Link erstellen.`, v.id);
 }
 
 async function zurueckziehen(db: Db, b: Body, userId: string | null) {
@@ -424,6 +471,26 @@ async function papierAblehnen(db: Db, b: Body, userId: string | null, test: bool
   if (v.status !== "offen") throw new Fehler(409, "Der Vorgang ist nicht mehr offen.");
   if (s.status !== "papier_eingegangen") throw new Fehler(409, "Es liegt keine ungeprüfte Papier-Unterschrift vor.");
   const grund = zeile(b.grund, 300) || null;
+  if (nurLink(s) && !s.email) {
+    // Keine E-Mail-Adresse: Papier zurücksetzen, neuen Link erzeugen und dem Büro zum Verschicken zurückgeben
+    const { error } = await db.from("sign_request_signers").update({
+      methode: "online",
+      status: "offen",
+      paper_bucket: null,
+      paper_path: null,
+      paper_page_count: null,
+      paper_eingang: null,
+      paper_email_id: null,
+      paper_eingang_at: null,
+      paper_pruefung: null,
+    }).eq("id", s.id).eq("status", "papier_eingegangen");
+    if (error) throw new Fehler(500, `Unterzeichner konnte nicht aktualisiert werden: ${error.message}`);
+    const t = await linkErstellen(db, v, { ...s, status: "offen" }, "neuer_link", {
+      userId,
+      text: `Papier-Unterschrift von ${s.name} abgelehnt – neuer Link erstellt (wird selbst verschickt)${grund ? ` · Grund: ${grund}` : ""}`,
+    });
+    return { ok: true, url: signLink(t), name: s.name };
+  }
   const t = await einladen(db, v, s, "abgelehnt", { userId, grund });
   return { ok: true, ...(test ? { test_link: signLink(t) } : {}) };
 }
@@ -477,6 +544,20 @@ async function papierMailZuordnen(db: Db, b: Body, userId: string | null) {
   }
   const r = await papierSpeichern(db, v, s, a.dateien, { eingang: "email", emailId, streng: false, userId });
   return { ok: true, seiten: r.seiten, warnung: r.warnung, ...(a.uebergangen.length ? { uebergangen: a.uebergangen } : {}) };
+}
+
+// ================================================================ neuer_link
+
+/** Neuen persönlichen Link erzeugen (alter wird ungültig, wieder 14 Tage gültig) – ohne E-Mail. */
+async function neuerLink(db: Db, b: Body, userId: string | null) {
+  const { req: v, signer: s } = await signerLaden(db, b.signer_id);
+  if (v.status !== "offen") throw new Fehler(409, "Der Vorgang ist nicht mehr offen.");
+  if (v.typ === "eingehend" || s.methode === "intern") throw new Fehler(400, "Für diesen Unterzeichner gibt es keinen Link.");
+  if (s.status === "wartet") throw new Fehler(409, `${s.name} ist erst an der Reihe, wenn die vorherigen Unterzeichner unterschrieben haben.`);
+  if (!["offen", "geoeffnet"].includes(s.status)) throw new Fehler(409, `Für ${s.name} kann derzeit kein neuer Link erstellt werden.`);
+  const erster = !s.token_hash;
+  const t = await linkErstellen(db, v, s, erster ? "link_erstellt" : "neuer_link", { userId });
+  return { url: signLink(t), name: s.name, ersetzt: !erster };
 }
 
 // ================================================================ urls / nachweis
@@ -546,7 +627,7 @@ async function zeitplan(db: Db) {
         const tage = istEtv(v) ? 3 : nachTagen.get(v.dokumentart) ?? 5;
         const vorFrist = v.frist ? addTage(v.frist, -2) : null;
         for (const s of signers) {
-          if (s.methode === "intern" || !s.email || !["offen", "geoeffnet", "abgelehnt"].includes(s.status)) continue;
+          if (s.methode === "intern" || !(s.email || nurLink(s)) || !["offen", "geoeffnet", "abgelehnt"].includes(s.status)) continue;
           if (!s.eingeladen_at) continue;
           const ersteFaellig = (s.reminder_count ?? 0) === 0 &&
             Date.now() - new Date(s.eingeladen_at).getTime() >= tage * 86400_000;
@@ -556,7 +637,8 @@ async function zeitplan(db: Db) {
             new Date(s.eingeladen_at).toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" }) < heute;
           if (!ersteFaellig && !zweiteFaellig) continue;
           try {
-            await einladen(db, v, s, "erinnerung", { automatisch: true });
+            if (!s.email) await selbstErinnern(db, v, s, null, true);
+            else await einladen(db, v, s, "erinnerung", { automatisch: true });
             ergebnis.erinnert++;
           } catch (e) {
             ergebnis.fehler.push(`${v.nummer}: ${e instanceof Error ? e.message : e}`);

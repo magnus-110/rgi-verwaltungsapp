@@ -4,7 +4,7 @@
  */
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Check, ExternalLink, Loader2 } from "lucide-react";
+import { Check, ExternalLink, Link2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import {
@@ -14,8 +14,9 @@ import {
 import {
   formatDate, formatDateTime, fortschritt, oeffneSignUrl, protokollEintraege, quellePfad, signAction,
   signerName, signerStatusLang, SIG, TON_FARBE, useSignEvents, useSignInvalidate, useSignRequest,
-  aktiveSigner,
+  aktiveSigner, erinnernMeldung, istNurLink, kannNeuenLink, oeffneQuellePdf, type SignSigner,
 } from "@/lib/signatur";
+import { NeuerLinkDialog } from "./LinkKopieren";
 import { Pill } from "./SignaturStatusBadge";
 import { Abschnitt, SigButton } from "./ui";
 
@@ -44,6 +45,7 @@ export function VorgangDetail({ requestId, onClose, imSheet }: { requestId: stri
   const { data: events = [] } = useSignEvents(requestId);
   const [busy, setBusy] = useState<string | null>(null);
   const [zurueckFrage, setZurueckFrage] = useState(false);
+  const [linkSigner, setLinkSigner] = useState<SignSigner | null>(null);
 
   if (isLoading || !r) {
     return (
@@ -72,8 +74,8 @@ export function VorgangDetail({ requestId, onClose, imSheet }: { requestId: stri
 
   const erinnern = () =>
     ausfuehren("erinnern", async () => {
-      const res = await signAction<{ erinnert: number }>("remind", { request_id: r.id });
-      toast.success(res?.erinnert ? `Erinnerung an ${res.erinnert} Unterzeichner versendet` : "Niemand zu erinnern");
+      const res = await signAction<{ erinnert: number; selbst_erinnern?: string[] }>("remind", { request_id: r.id });
+      erinnernMeldung(res);
       await invalidate();
     });
 
@@ -93,6 +95,8 @@ export function VorgangDetail({ requestId, onClose, imSheet }: { requestId: stri
 
   const quelle = () =>
     ausfuehren("quelle", async () => {
+      // Hochgeladene PDFs haben keine eigene Seite → Datei öffnen
+      if (r.quelle_typ === "upload") return oeffneQuellePdf(r.id);
       const pfad = await quellePfad(r);
       if (!pfad) throw new Error("Zu diesem Vorgang ist keine Quelle hinterlegt.");
       onClose?.();
@@ -127,8 +131,12 @@ export function VorgangDetail({ requestId, onClose, imSheet }: { requestId: stri
               const st = signerStatusLang(s);
               const pruefen = s.status === "papier_eingegangen";
               return (
-                <div key={s.id} className="flex items-baseline justify-between gap-3 text-[14px]">
-                  <span className="min-w-0 truncate text-[#2B2B2B]">{signerName(s)}</span>
+                <div key={s.id}>
+                <div className="flex items-baseline justify-between gap-3 text-[14px]">
+                  <span className="min-w-0 truncate text-[#2B2B2B]">
+                    {signerName(s)}
+                    {istNurLink(s) && <span className="ml-1.5 text-[12px] text-[#6B6B6B]">· Link selbst verschickt{s.email ? "" : ", ohne E-Mail"}</span>}
+                  </span>
                   {pruefen ? (
                     <button
                       type="button"
@@ -149,6 +157,12 @@ export function VorgangDetail({ requestId, onClose, imSheet }: { requestId: stri
                       {st.text}
                     </span>
                   )}
+                </div>
+                {kannNeuenLink(r, s) && (
+                  <SigButton klein className="mt-1.5" onClick={() => setLinkSigner(s)}>
+                    <Link2 className="h-3.5 w-3.5" /> {s.token_hash ? "Neuen Link erstellen" : "Link erstellen"}
+                  </SigButton>
+                )}
                 </div>
               );
             })}
@@ -196,6 +210,8 @@ export function VorgangDetail({ requestId, onClose, imSheet }: { requestId: stri
           </SigButton>
         )}
       </div>
+
+      <NeuerLinkDialog request={r} signer={linkSigner} onClose={() => setLinkSigner(null)} />
 
       <AlertDialog open={zurueckFrage} onOpenChange={setZurueckFrage}>
         <AlertDialogContent className="font-sans">

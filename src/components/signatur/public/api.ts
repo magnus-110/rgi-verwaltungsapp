@@ -10,6 +10,8 @@ export type SignInfo = {
   frist: string | null;
   name: string;
   email: string | null;
+  /** „link“ = Link kam nicht per E-Mail von uns, sondern wurde vom Büro selbst verschickt. */
+  versand?: "mail" | "link";
   dokumentart: string | null;
   typ: string | null;
   unterschriftsseite: number | null;

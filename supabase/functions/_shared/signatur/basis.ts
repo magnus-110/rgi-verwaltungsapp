@@ -52,6 +52,9 @@ export const TYPEN = ["ausgehend", "eingehend", "etv_protokoll"];
 export const QUELLE_TYPEN = ["building_file", "email_attachment", "offer", "contract", "etv_meeting", "upload"];
 export const ROLLE_KEYS = ["leiter", "protokollant", "eigentuemer", "beirat"];
 
+/** Versandweg je Unterzeichner: Einladung per E-Mail oder nur Link (Büro verschickt selbst). */
+export const VERSAND = ["mail", "link"];
+
 /** Unterzeichner-Status, die als „erledigt“ gelten. */
 export const ERLEDIGT = ["unterschrieben", "papier_uebernommen"];
 /** Unterzeichner-Status, in denen online unterschrieben werden darf. */

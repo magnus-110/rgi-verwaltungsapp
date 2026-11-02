@@ -34,8 +34,10 @@ export default function SchrittFertig({ info, ergebnis, name, onDownload, busy, 
               <>
                 Ihre Unterschrift ist eingegangen. Eine Kopie des unterschriebenen Dokuments haben wir an <b className="font-semibold">{kopie}</b> gesendet.
               </>
-            ) : (
+            ) : info.typ === "etv_protokoll" ? (
               <>Ihre Unterschrift ist eingegangen. Sobald alle unterschrieben haben, erhalten Sie das fertige Protokoll per E-Mail.</>
+            ) : (
+              <>Ihre Unterschrift ist eingegangen. Bitte laden Sie das unterschriebene Dokument jetzt herunter und bewahren Sie es auf.</>
             )}
           </p>
 

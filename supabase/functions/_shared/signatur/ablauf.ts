@@ -183,9 +183,46 @@ export async function einladen(
   return t.token;
 }
 
+/** Unterzeichner, dessen Link das Büro selbst verschickt (versand = 'link'). */
+export const nurLink = (s: Signer) => s.methode !== "intern" && s.versand === "link";
+
+/**
+ * „Nur Link erstellen“: neuer persönlicher Link OHNE E-Mail (alter Link wird ungültig, 14 Tage gültig).
+ * Der Klartext-Token wird nur an den Aufrufer zurückgegeben und nirgends gespeichert.
+ * art „link_erstellt“ = erster Link (setzt eingeladen_at), „neuer_link“ = Ersatz für einen vorhandenen Link.
+ */
+export async function linkErstellen(
+  db: Db,
+  req: Vorgang,
+  signer: Signer,
+  art: "link_erstellt" | "neuer_link",
+  o: { userId?: string | null; text?: string } = {},
+): Promise<string> {
+  const t = await neuerToken();
+  const upd: Record<string, unknown> = {
+    token_hash: t.hash,
+    expires_at: t.expires_at,
+    status: signer.status === "geoeffnet" ? "geoeffnet" : "offen",
+  };
+  if (art === "link_erstellt" || !signer.eingeladen_at) upd.eingeladen_at = new Date().toISOString();
+  const { error } = await db.from("sign_request_signers").update(upd).eq("id", signer.id);
+  if (error) throw new Fehler(500, `Link konnte nicht erstellt werden: ${error.message}`);
+  await ereignis(
+    db,
+    req.id,
+    art,
+    o.text ?? (art === "link_erstellt"
+      ? `Link für ${signer.name} erstellt (wird selbst verschickt)`
+      : `Neuer Link für ${signer.name} erstellt – der alte Link ist ungültig`),
+    { signerId: signer.id, userId: o.userId, details: { gueltig_bis: t.expires_at } },
+  );
+  return t.token;
+}
+
 /**
  * Reihenfolge „nacheinander“: Ist niemand mehr aktiv (offen/geöffnet/abgelehnt/Papier eingegangen),
- * wird der nächste wartende Unterzeichner aktiviert – externe per Mail, interne bleiben in der App offen.
+ * wird der nächste wartende Unterzeichner aktiviert – externe per Mail, interne bleiben in der App offen,
+ * „Nur Link“-Unterzeichner: Meldung an den Ersteller, den Link jetzt zu erstellen und zu verschicken.
  */
 export async function weiterschalten(db: Db, requestId: string, userId?: string | null): Promise<Record<string, string>> {
   const tokens: Record<string, string> = {};
@@ -204,6 +241,16 @@ export async function weiterschalten(db: Db, requestId: string, userId?: string 
     if (naechster.user_id) {
       await melden(db, naechster.user_id, "review_due", `Bitte unterschreiben: ${req.titel}`, `${req.nummer} · Sie sind an der Reihe.`, req.id);
     }
+  } else if (nurLink(naechster)) {
+    // Kein Token erzeugen: Der Klartext-Link würde sonst nirgends angezeigt. Das Büro erstellt ihn
+    // über „Neuen Link erstellen“ (neuer_link) und verschickt ihn selbst.
+    await db.from("sign_request_signers").update({ status: "offen", eingeladen_at: new Date().toISOString(), token_hash: null })
+      .eq("id", naechster.id);
+    await ereignis(db, req.id, "an_der_reihe", `${naechster.name} ist an der Reihe – Link bitte selbst erstellen und verschicken`, {
+      signerId: naechster.id,
+      userId,
+    });
+    await melden(db, req.created_by, "review_due", `Jetzt Link für ${naechster.name} erstellen`, `${req.nummer} · ${req.titel} · ${naechster.name} ist an der Reihe.`, req.id);
   } else {
     tokens[naechster.id] = await einladen(db, req, naechster, "einladung", { userId });
   }

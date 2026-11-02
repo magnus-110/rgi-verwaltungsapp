@@ -176,7 +176,11 @@ export default function PapierSeite({ token, info, onZurueck, onDownload, downlo
                   Das Dokument hat nur {n} {seitenWort(n)}. Bitte entfernen Sie überzählige Seiten.
                 </p>
               )}
-              <p className="mt-[7px] text-[12px] leading-[18px] text-[#595959]">Oder auf die Einladungs-E-Mail antworten und den vollständigen Scan anhängen.</p>
+              <p className="mt-[7px] text-[12px] leading-[18px] text-[#595959]">
+                {info.versand === "link"
+                  ? <>Oder den vollständigen Scan per E-Mail an <a href={`mailto:info@rgi-immobilien.de?subject=${encodeURIComponent(`[${info.nummer}] ${info.titel}`)}`} className="underline">info@rgi-immobilien.de</a> senden – bitte „[{info.nummer}]“ in den Betreff schreiben.</>
+                  : "Oder auf die Einladungs-E-Mail antworten und den vollständigen Scan anhängen."}
+              </p>
             </Schritt>
           </div>
 

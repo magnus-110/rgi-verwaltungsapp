@@ -1,20 +1,22 @@
 /**
  * Übersicht „Unterschriften“ (Mockup v02 + Reiter aus v09).
  *
- * Nur zum Überblick — angelegt wird dort, wo das Dokument entsteht
- * (Unterschriften-Box an DMS-Datei, Angebot, Vertrag, Mail-Anhang, ETV).
+ * Angelegt wird in der Regel dort, wo das Dokument entsteht (Unterschriften-Box
+ * an DMS-Datei, Angebot, Vertrag, Mail-Anhang, ETV). Zusätzlich oben rechts
+ * „Neue Unterschrift“: PDF hochladen oder aus den Dokumenten eines Objekts wählen.
  */
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Loader2 } from "lucide-react";
+import { Loader2, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
-  formatDate, fortschritt, quellePfad, SIG, tageBisFrist, todayIso, useSignRequests, type SignRequest,
+  formatDate, fortschritt, oeffneQuellePdf, quellePfad, SIG, tageBisFrist, todayIso, useSignRequests, type SignRequest,
 } from "@/lib/signatur";
+import { NeueUnterschriftDialog } from "@/components/signatur/NeueUnterschriftDialog";
 import { SignaturStatusBadge } from "@/components/signatur/SignaturStatusBadge";
 import { VorgangDetail, VorgangDetailSheet } from "@/components/signatur/VorgangDetailSheet";
-import { Karte } from "@/components/signatur/ui";
+import { Karte, SigButton } from "@/components/signatur/ui";
 import { EingehendAnsicht } from "@/components/signatur/EingehendAnsicht";
 
 type Reiter = "ausgehend" | "eingehend" | "etv" | "abgeschlossen";
@@ -58,6 +60,7 @@ export default function Unterschriften() {
   const objekt = params.get("objekt") ?? "alle";
   const [auswahl, setAuswahl] = useState<string | null>(params.get("vorgang"));
   const breit = useBreit();
+  const [neuOffen, setNeuOffen] = useState(false);
 
   const { data: alle = [], isLoading } = useSignRequests({});
 
@@ -118,6 +121,15 @@ export default function Unterschriften() {
   }, [breit, zeilen, auswahl, isLoading]);
 
   const zurQuelle = async (r: SignRequest) => {
+    if (r.quelle_typ === "upload") {
+      // Hochgeladene PDFs haben keine eigene Seite → Datei öffnen
+      try {
+        await oeffneQuellePdf(r.id);
+      } catch (e: any) {
+        toast.error(e?.message || "Datei nicht verfügbar");
+      }
+      return;
+    }
     const pfad = await quellePfad(r);
     if (pfad) navigate(pfad);
     else toast.info("Zu diesem Vorgang ist keine Quelle hinterlegt.");
@@ -129,17 +141,22 @@ export default function Unterschriften() {
       <div className="-mx-3 -mt-3 mb-5 border-b border-[#E5E5E5] bg-white px-4 pt-5 lg:-mx-6 lg:-mt-6 lg:px-7">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="font-display text-[26px] font-normal leading-tight text-[#2B2B2B]">Unterschriften</h1>
-          <select
-            aria-label="Nach Objekt filtern"
-            className="h-10 min-w-[220px] rounded-lg border border-[#D6D6D6] bg-white px-3 text-[14px] text-[#2B2B2B] outline-none focus:border-[#ee7202]"
-            value={objekt}
-            onChange={(e) => setParam({ objekt: e.target.value === "alle" ? null : e.target.value })}
-          >
-            <option value="alle">Alle Objekte</option>
-            {objekte.map(([id, name]) => (
-              <option key={id} value={id}>{name}</option>
-            ))}
-          </select>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <select
+              aria-label="Nach Objekt filtern"
+              className="h-11 min-w-[220px] rounded-lg border border-[#D6D6D6] bg-white px-3 text-[14px] text-[#2B2B2B] outline-none focus:border-[#ee7202]"
+              value={objekt}
+              onChange={(e) => setParam({ objekt: e.target.value === "alle" ? null : e.target.value })}
+            >
+              <option value="alle">Alle Objekte</option>
+              {objekte.map(([id, name]) => (
+                <option key={id} value={id}>{name}</option>
+              ))}
+            </select>
+            <SigButton variante="primaer" onClick={() => setNeuOffen(true)}>
+              <Plus className="h-4 w-4" strokeWidth={2.5} /> Neue Unterschrift
+            </SigButton>
+          </div>
         </div>
         <nav className="-mb-px mt-3 flex gap-7 overflow-x-auto" aria-label="Reiter">
           {REITER.map((t) => {
@@ -262,6 +279,7 @@ export default function Unterschriften() {
       )}
 
       {!breit && reiter !== "eingehend" && <VorgangDetailSheet requestId={auswahl} onOpenChange={(o) => !o && setAuswahl(null)} />}
+      <NeueUnterschriftDialog open={neuOffen} onOpenChange={setNeuOffen} />
     </div>
   );
 }

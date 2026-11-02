@@ -115,6 +115,8 @@ Deno.serve(async (req) => {
         name: s.name,
         anrede: await anredeErmitteln(db, s),
         email: s.email,
+        // „link“ = Link wurde vom Büro selbst verschickt (keine Einladungs-E-Mail, auf die man antworten könnte)
+        versand: s.versand === "link" ? "link" : "mail",
         dokumentart: v.dokumentart,
         typ: v.typ,
         unterschriftsseite: unterschriftsseite(v, s),

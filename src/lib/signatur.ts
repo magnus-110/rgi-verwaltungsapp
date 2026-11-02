@@ -7,6 +7,7 @@
  * und Protokoll zusammenpassen. Ausnahme: Mail-Vorlagen (Einstellungen).
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
 // Die neuen Tabellen stehen (noch) nicht in den generierten Typen.
@@ -28,6 +29,8 @@ export type SignerStatus =
   | "wartet" | "offen" | "geoeffnet" | "unterschrieben" | "papier_eingegangen"
   | "papier_uebernommen" | "abgelehnt" | "zurueckgezogen";
 export type SignerMethode = "online" | "papier" | "intern";
+/** Versandweg: Einladung per E-Mail oder „Nur Link erstellen (ich verschicke selbst)“. */
+export type SignerVersand = "mail" | "link";
 
 /** Unterschriftsfeld in PDF-Punkten, Ursprung oben links, `page` ab 0 (wie src/lib/pdfSign.ts). */
 export interface SignPlacement {
@@ -50,7 +53,10 @@ export interface SignSigner {
   email: string | null;
   anrede: string | null;
   methode: SignerMethode;
+  versand: SignerVersand;
   status: SignerStatus;
+  /** Nur der SHA-256 des Links; null = (noch) kein Link erzeugt. */
+  token_hash: string | null;
   expires_at: string | null;
   eingeladen_at: string | null;
   geoeffnet_at: string | null;
@@ -265,6 +271,19 @@ export const signerKopf = (s: SignSigner) => {
 
 export type StatusTon = "gruen" | "orange" | "grau";
 
+/** Unterzeichner, dessen Link das Büro selbst verschickt. */
+export const istNurLink = (s: Pick<SignSigner, "methode" | "versand">) => s.methode !== "intern" && s.versand === "link";
+
+/** Darf für diesen Unterzeichner ein neuer Link erstellt werden? (nur „Nur Link“, offen/geöffnet, Vorgang offen) */
+export const kannNeuenLink = (r: Pick<SignRequest, "status" | "typ">, s: SignSigner) =>
+  r.status === "offen" && r.typ !== "eingehend" && istNurLink(s) && (s.status === "offen" || s.status === "geoeffnet");
+
+/** Status-Wort für „Nur Link“-Unterzeichner, die noch nicht reagiert haben. */
+const linkStatus = (s: SignSigner): string | null => {
+  if (!istNurLink(s) || s.status !== "offen") return null;
+  return s.token_hash ? "Link erstellt" : "Link noch erstellen";
+};
+
 /** Kurzer Status rechts in der Box („✓ 29.10.“, „offen“, „wartet“ …). */
 export const signerStatusKurz = (s: SignSigner): { text: string; ton: StatusTon; check?: boolean } => {
   switch (s.status) {
@@ -280,7 +299,7 @@ export const signerStatusKurz = (s: SignSigner): { text: string; ton: StatusTon;
     case "abgelehnt":
       return { text: "neu angefordert", ton: "orange" };
     default:
-      return { text: "offen", ton: "orange" };
+      return { text: linkStatus(s) ?? "offen", ton: "orange" };
   }
 };
 
@@ -301,7 +320,7 @@ export const signerStatusLang = (s: SignSigner): { text: string; ton: StatusTon;
     case "abgelehnt":
       return { text: "neu angefordert", ton: "grau" };
     default:
-      return { text: "offen", ton: "grau" };
+      return { text: linkStatus(s) ?? "offen", ton: "grau" };
   }
 };
 
@@ -311,6 +330,7 @@ export const signerMethodeText = (s: SignSigner): string => {
   if (s.status === "papier_uebernommen") return "Papier · übernommen";
   if (s.methode === "intern") return "RGI · hinterlegte Unterschrift";
   if (s.methode === "papier") return "Papier gewählt · Scan steht aus";
+  if (istNurLink(s)) return s.email ? `Link selbst verschickt · ${s.email}` : "Link selbst verschickt · ohne E-Mail";
   return "online";
 };
 
@@ -359,6 +379,14 @@ export const protokollEintraege = (r: SignRequest, events: SignEvent[]) => {
             : "Einladungen versendet";
         break;
       }
+      case "link_erstellt":
+        text = `Link für ${name(e)} erstellt (selbst verschickt)`;
+        break;
+      case "neuer_link":
+        text = typeof e.details?.text === "string" && e.details.text.startsWith("Papier")
+          ? e.details.text
+          : `Neuer Link für ${name(e)} erstellt – alter Link ungültig`;
+        break;
       case "geoeffnet":
         text = `${name(e)} hat das Dokument geöffnet`;
         break;
@@ -576,7 +604,15 @@ export const useBueroMitarbeiter = () =>
 export type SignActionName =
   | "create" | "preview_mail" | "sign_internal" | "remind" | "withdraw"
   | "accept_paper" | "reject_paper" | "assign_paper_email" | "urls" | "nachweis"
-  | "create_incoming" | "complete_incoming";
+  | "create_incoming" | "complete_incoming" | "neuer_link";
+
+/** Antwort von `create`: bei „Nur Link“-Unterzeichnern die Links (nur jetzt sichtbar). */
+export interface CreateErgebnis {
+  id: string;
+  nummer: string;
+  links?: { signer_id: string; name: string; url: string }[];
+  versand_fehler?: string[];
+}
 
 /** Ruft `sign-request` auf und liefert die Antwort; Fehlertexte kommen deutsch vom Server. */
 export async function signAction<T = any>(action: SignActionName, payload: Record<string, unknown> = {}): Promise<T> {
@@ -599,6 +635,21 @@ export async function signAction<T = any>(action: SignActionName, payload: Recor
   }
   return data as T;
 }
+
+/** Rückmeldung nach „Erinnern“ (bei „Nur Link“ ohne E-Mail: selbst erinnern). */
+export const erinnernMeldung = (res: { erinnert?: number; selbst_erinnern?: string[] } | null | undefined) => {
+  const n = res?.erinnert ?? 0;
+  const selbst = res?.selbst_erinnern ?? [];
+  if (n) toast.success(`Erinnerung an ${n} Unterzeichner versendet`);
+  if (selbst.length) {
+    toast.info(`Ohne E-Mail-Adresse – bitte selbst erinnern: ${selbst.join(", ")}. Bei Bedarf einen neuen Link erstellen.`, { duration: 8000 });
+  }
+  if (!n && !selbst.length) toast.success("Niemand zu erinnern");
+};
+
+/** Quell-PDF eines Vorgangs öffnen (z. B. hochgeladene Datei ohne eigene Seite). */
+export const oeffneQuellePdf = (requestId: string) =>
+  oeffneSignUrl(async () => (await signAction<{ quelle?: string | null }>("urls", { request_id: requestId }))?.quelle);
 
 /** Nach jeder Aktion: alle Unterschriften-Abfragen neu laden. */
 export const useSignInvalidate = () => {

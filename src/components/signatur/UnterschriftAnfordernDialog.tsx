@@ -12,14 +12,16 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
-import { AlertCircle, Loader2, Plus, Search, X, MousePointerClick } from "lucide-react";
+import { AlertCircle, Loader2, Plus, Search, X, MousePointerClick, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import {
   addDaysIso, DOKUMENTART_LABEL, signAction, todayIso, useBueroMitarbeiter, useMailTemplates,
-  useSignInvalidate, type Dokumentart, type QuelleTyp, type SignPlacement, type SignTyp,
+  useSignInvalidate, type CreateErgebnis, type Dokumentart, type QuelleTyp, type SignPlacement, type SignTyp,
+  type SignerVersand,
 } from "@/lib/signatur";
+import { LinkHinweis, LinkZeile } from "./LinkKopieren";
 import { Abschnitt, eingabeKlasse, FeldLabel, NummerKreis, SigButton, SIGNER_FARBEN } from "./ui";
 import { LazySeite, PdfDocument, PdfPage, seitenGroessen, useElementBreite } from "./pdf";
 
@@ -43,6 +45,8 @@ export interface VorschlagSigner {
   anrede?: string | null;
   /** „intern“ = RGI-Mitarbeiter unterschreibt in der App (user_id); Standard „online“. */
   methode?: "online" | "intern";
+  /** Nur bei „online“: „link“ = keine Einladungsmail, Link wird angezeigt und selbst verschickt. */
+  versand?: SignerVersand;
   user_id?: string | null;
   /** Fester Rollenschlüssel (ETV: leiter · protokollant · eigentuemer · beirat). */
   rolle_key?: string | null;
@@ -84,10 +88,15 @@ interface EntwurfSigner {
   contact_id?: string | null;
   anrede?: string | null;
   methode: "online" | "intern";
+  versand: SignerVersand;
   user_id?: string | null;
   rolle_key?: string | null;
   optionen?: VorschlagOption[];
 }
+
+/** Auswahl „Wie wird unterschrieben?“ → methode + versand */
+type Weg = "mail" | "link" | "intern";
+const wegVon = (s: Pick<EntwurfSigner, "methode" | "versand">): Weg => (s.methode === "intern" ? "intern" : s.versand === "link" ? "link" : "mail");
 
 /** ETV: Rollenschlüssel aus der angezeigten Rolle ableiten (Kontakte aus der Auswahl). */
 const etvRolleKey = (rolle: string): string => {
@@ -161,6 +170,8 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
   const [fehler, setFehler] = useState<string | null>(null);
   const [vorschau, setVorschau] = useState<{ subject: string; html: string } | null>(null);
   const [vorschauLaedt, setVorschauLaedt] = useState(false);
+  /** Nach dem Anlegen: Links zum Verschicken („Nur Link“), nur jetzt sichtbar. */
+  const [ergebnis, setErgebnis] = useState<CreateErgebnis | null>(null);
   const vorbelegt = useRef(false);
 
   // ---------- Zurücksetzen beim Öffnen ----------
@@ -178,6 +189,7 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
     setFrist(addDaysIso(startInfo.typ === "etv_protokoll" ? 7 : 14));
     setAktivFeldSigner(null);
     setFehler(null);
+    setErgebnis(null);
     setSigner(
       Array.isArray(startInfo.vorschlagUnterzeichner)
         ? startInfo.vorschlagUnterzeichner
@@ -186,6 +198,7 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
               key: neuerKey(), name: v.name, email: v.email ?? "", rolle: v.rolle ?? "",
               contact_id: v.contact_id ?? null, anrede: v.anrede ?? null,
               methode: v.methode === "intern" ? "intern" : "online",
+              versand: v.methode !== "intern" && v.versand === "link" ? "link" : "mail",
               user_id: v.user_id ?? null, rolle_key: v.rolle_key ?? null, optionen: v.optionen,
             }))
         : [],
@@ -257,7 +270,7 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
     setSigner(
       beirat.map((k) => ({
         key: neuerKey(), name: k.name, email: k.email ?? "", rolle: k.rolle, contact_id: k.contact_id, anrede: k.anrede,
-        methode: "online" as const,
+        methode: "online" as const, versand: "mail" as const,
       })),
     );
   }, [open, objektKontakte, startInfo.vorschlagUnterzeichner]);
@@ -285,6 +298,8 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
 
   // ---------- Unterzeichner ----------
   const externe = signer;
+  const mitLink = externe.some((s) => s.methode !== "intern" && s.versand === "link");
+  const nurLinks = mitLink && externe.every((s) => s.methode === "intern" || s.versand === "link");
   const rgiName = mitarbeiter.find((m) => m.user_id === rgiUser)?.name
     || [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") || "RGI Immobilien";
   const feldSigner = [
@@ -301,7 +316,11 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
     setSigner((prev) => {
       // Ehepaare mit gleicher Mail sind zwei Unterzeichner → nur exakt gleiche Person (Kontakt + Name) überspringen
       if (prev.some((p) => p.contact_id && p.contact_id === t.contact_id && p.name === t.name)) return prev;
-      return [...prev, { key: neuerKey(), ...t, methode: "online" as const, rolle_key: etv ? etvRolleKey(t.rolle) : null }];
+      // Ohne E-Mail-Adresse bleibt nur „Nur Link erstellen“ (E-Mail kann noch ergänzt werden)
+      return [...prev, {
+        key: neuerKey(), ...t, methode: "online" as const, versand: t.email.trim() ? "mail" as const : "link" as const,
+        rolle_key: etv ? etvRolleKey(t.rolle) : null,
+      }];
     });
     setFehler(null);
   };
@@ -385,7 +404,10 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
         if (!s.user_id) return `Bitte für „${s.rolle || s.name}“ einen Mitarbeiter auswählen.`;
         continue;
       }
-      if (!s.email.trim()) return `Für ${s.name} fehlt die E-Mail-Adresse.`;
+      if (!s.email.trim()) {
+        if (s.versand === "link") continue; // E-Mail optional
+        return `Für ${s.name} fehlt die E-Mail-Adresse (oder „Nur Link erstellen“ wählen).`;
+      }
       if (!EMAIL_RE.test(s.email.trim())) return `Die E-Mail-Adresse von ${s.name} ist ungültig.`;
     }
     if (rgiZaehlt && !rgiUser) return "Bitte auswählen, wer bei RGI unterschreibt.";
@@ -414,7 +436,8 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
               }
             : {
                 name: s.name.trim(),
-                email: s.email.trim(),
+                email: s.email.trim() || undefined,
+                versand: s.versand,
                 contact_id: s.contact_id ?? undefined,
                 rolle: s.rolle || undefined,
                 rolle_key: s.rolle_key || (etv ? etvRolleKey(s.rolle) : undefined),
@@ -434,7 +457,7 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
             }]
           : []),
       ];
-      const res = await signAction<{ id: string; nummer: string }>("create", {
+      const res = await signAction<CreateErgebnis>("create", {
         typ,
         dokumentart,
         titel: startInfo.titel,
@@ -453,10 +476,14 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
         kopie_dms: kopieDms,
         signers,
       });
-      toast.success(`Zur Unterschrift gesendet (${res.nummer})`);
+      const nurLinks = externe.every((s) => s.methode === "intern" || s.versand === "link");
+      toast.success(nurLinks ? `Vorgang angelegt (${res.nummer})` : `Zur Unterschrift gesendet (${res.nummer})`);
+      if (res.versand_fehler?.length) toast.error(res.versand_fehler.join(" · "));
       await invalidate();
       onSent?.(res);
-      onOpenChange(false);
+      // „Nur Link“: Links jetzt anzeigen (danach nie wieder im Klartext abrufbar)
+      if (res.links?.length) setErgebnis(res);
+      else onOpenChange(false);
     } catch (e: any) {
       setFehler(e?.message || "Senden fehlgeschlagen");
       toast.error(e?.message || "Senden fehlgeschlagen");
@@ -491,6 +518,35 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
   return (
     <>
       <Dialog open={open} onOpenChange={(v) => !senden && onOpenChange(v)}>
+        {ergebnis ? (
+          <DialogContent
+            className="max-h-[100dvh] w-screen max-w-none gap-0 overflow-y-auto p-0 font-sans sm:w-[96vw] sm:max-w-[600px] sm:rounded-xl"
+            onInteractOutside={(e) => e.preventDefault()}
+            onOpenAutoFocus={(e) => e.preventDefault()}
+          >
+            <div className="border-b border-[#E5E5E5] px-6 pb-4 pt-5 pr-12">
+              <DialogTitle className="font-display text-[22px] font-normal leading-tight text-[#2B2B2B]">Links zum Verschicken</DialogTitle>
+              <DialogDescription className="mt-1 text-[13px] text-[#595959]">
+                {startInfo.titel} · {ergebnis.nummer}. Bitte jedem Unterzeichner seinen eigenen Link schicken (z. B. per WhatsApp, SMS oder eigener E-Mail).
+              </DialogDescription>
+            </div>
+            <div className="space-y-2.5 px-6 py-4">
+              {ergebnis.links!.map((l) => {
+                const e = externe.find((x) => x.name.trim() === l.name)?.email.trim();
+                return <LinkZeile key={l.signer_id} name={l.name} url={l.url} zusatz={e || "ohne E-Mail"} />;
+              })}
+              <LinkHinweis />
+              {reihenfolge === "nacheinander" && externe.some((s, i) => i > 0 && s.methode !== "intern" && s.versand === "link") && (
+                <p className="text-[12.5px] leading-snug text-[#595959]">
+                  Reihenfolge „nacheinander“: Für spätere Unterzeichner erhalten Sie eine Benachrichtigung, sobald sie an der Reihe sind. Dann den Link unter „Unterschriften“ erstellen.
+                </p>
+              )}
+            </div>
+            <div className="flex justify-end border-t border-[#E5E5E5] px-6 py-4">
+              <SigButton variante="primaer" className="px-6" onClick={() => onOpenChange(false)}>Fertig</SigButton>
+            </div>
+          </DialogContent>
+        ) : (
         <DialogContent
           className="flex h-[100dvh] w-screen max-w-none flex-col gap-0 overflow-hidden border-0 bg-[#F5F4F0] p-0 font-sans sm:h-[85vh] sm:w-[96vw] sm:max-w-[1200px] sm:rounded-xl sm:border"
           onInteractOutside={(e) => e.preventDefault()}
@@ -808,6 +864,12 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
                     />
                     <div className="mt-1 text-[11.5px] text-[#6B6B6B]">Platzhalter: {"{Anrede} {Dokument} {Objekt} {Frist}"}</div>
                   </div>
+                  {mitLink && (
+                    <div className="flex items-start gap-2 rounded-lg bg-[#FFF7ED] px-3 py-2 text-[12.5px] leading-snug text-[#2B2B2B]">
+                      <Link2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#B35300]" />
+                      <span>Bei „Nur Link erstellen“ wird keine Einladung gesendet. Mit E-Mail-Adresse gehen Erinnerungen und die Kopie nach dem Unterschreiben trotzdem per E-Mail raus.</span>
+                    </div>
+                  )}
                   <div className="flex items-start justify-between gap-3 text-[12px] text-[#595959]">
                     <span>Button „Unterschreiben“ und Papier-Link werden automatisch angefügt.</span>
                     <button
@@ -827,10 +889,16 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
                     <Checkbox checked={erinnerung} onCheckedChange={(v) => setErinnerung(!!v)} className="data-[state=checked]:border-[#B35300] data-[state=checked]:bg-[#B35300]" />
                     Automatisch erinnern
                   </label>
+                  {startInfo.building_id ? (
                   <label className="flex items-center gap-2.5 text-[14px] text-[#2B2B2B]">
                     <Checkbox checked={kopieDms} onCheckedChange={(v) => setKopieDms(!!v)} className="data-[state=checked]:border-[#B35300] data-[state=checked]:bg-[#B35300]" />
                     {etv ? "Ablage im DMS" : "Kopie an alle + Ablage im DMS"}
                   </label>
+                  ) : (
+                    <p className="text-[12.5px] leading-snug text-[#6B6B6B]">
+                      Ohne Objekt keine Ablage im DMS – die Endfassung bleibt im Vorgang abrufbar.
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -843,13 +911,14 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
                 <div className="flex justify-end gap-2.5">
                   <SigButton onClick={() => onOpenChange(false)} disabled={senden}>Abbrechen</SigButton>
                   <SigButton variante="primaer" onClick={absenden} loading={senden} className="px-5">
-                    Zur Unterschrift senden
+                    {nurLinks ? "Anlegen & Links erstellen" : "Zur Unterschrift senden"}
                   </SigButton>
                 </div>
               </div>
             </div>
           </div>
         </DialogContent>
+        )}
       </Dialog>
 
       {/* Vorschau der E-Mail */}
@@ -888,15 +957,18 @@ function SignerKarte({
   onChange: (p: Partial<EntwurfSigner>) => void;
 }) {
   const intern = signer.methode === "intern";
+  const link = !intern && signer.versand === "link";
   const auswahl = !intern && !!signer.optionen?.length;
   const [bearbeiten, setBearbeiten] = useState(intern ? !signer.user_id : !signer.email && !auswahl);
   const kopf = signer.rolle && signer.name ? `${signer.rolle} · ${signer.name}` : signer.name || signer.rolle || "Ohne Namen";
   const unterzeile = intern
     ? "RGI · in der App mit hinterlegter Unterschrift"
-    : signer.rolle && signer.name
-      ? signer.email
-      : [signer.rolle, signer.email].filter(Boolean).join(" · ");
-  const fehlt = intern ? !signer.user_id : !signer.email;
+    : [
+        signer.rolle && signer.name ? null : signer.rolle,
+        signer.email || (link ? "ohne E-Mail" : null),
+        link ? "Link selbst verschicken" : null,
+      ].filter(Boolean).join(" · ");
+  const fehlt = intern ? !signer.user_id : !signer.email && !link;
   return (
     <div className={`rounded-lg border border-[#E5E5E5] px-3 py-2.5 ${intern ? "bg-[#FAFAFA]" : "bg-white"}`}>
       <div className="flex items-center gap-3">
@@ -931,7 +1003,7 @@ function SignerKarte({
           >
             <option value="">{signer.rolle ? `${signer.rolle} auswählen …` : "Auswählen …"}</option>
             {signer.optionen!.map((o) => (
-              <option key={`${o.contact_id}|${o.email ?? ""}`} value={`${o.contact_id}|${o.email ?? ""}`} disabled={!o.email}>
+              <option key={`${o.contact_id}|${o.email ?? ""}`} value={`${o.contact_id}|${o.email ?? ""}`} disabled={!o.email && !link}>
                 {o.name}
                 {o.hinweis ? ` · ${o.hinweis}` : ""}
                 {o.email ? "" : " · keine E-Mail"}
@@ -944,11 +1016,19 @@ function SignerKarte({
         <div className="mt-2.5 grid grid-cols-1 gap-2 pl-10 sm:grid-cols-2">
           <select
             className={`${eingabeKlasse} h-9 text-[13px] sm:col-span-2`}
-            value={signer.methode}
+            value={wegVon(signer)}
             aria-label="Wie wird unterschrieben?"
-            onChange={(e) => onChange({ methode: e.target.value as "online" | "intern", optionen: undefined })}
+            onChange={(e) => {
+              const w = e.target.value as Weg;
+              onChange(
+                w === "intern"
+                  ? { methode: "intern", versand: "mail", optionen: undefined }
+                  : { methode: "online", versand: w, ...(intern ? { optionen: undefined } : {}) },
+              );
+            }}
           >
-            <option value="online">per E-Mail-Link (online oder Papier)</option>
+            <option value="mail">per E-Mail-Link (online oder Papier)</option>
+            <option value="link">Nur Link erstellen (ich verschicke selbst)</option>
             <option value="intern">RGI-Mitarbeiter in der App</option>
           </select>
           {intern ? (
@@ -972,11 +1052,16 @@ function SignerKarte({
               <input className={`${eingabeKlasse} h-9 text-[13px]`} placeholder="Rolle (z. B. Beirat)" value={signer.rolle} onChange={(e) => onChange({ rolle: e.target.value })} />
               <input
                 className={`${eingabeKlasse} h-9 text-[13px] sm:col-span-2`}
-                placeholder="E-Mail-Adresse"
+                placeholder={link ? "E-Mail-Adresse (optional)" : "E-Mail-Adresse"}
                 type="email"
                 value={signer.email}
                 onChange={(e) => onChange({ email: e.target.value })}
               />
+              {link && (
+                <p className="-mt-0.5 text-[11.5px] leading-snug text-[#6B6B6B] sm:col-span-2">
+                  Für Erinnerungen und die Kopie nach dem Unterschreiben empfohlen. Der Link wird nach dem Anlegen angezeigt.
+                </p>
+              )}
             </>
           )}
         </div>

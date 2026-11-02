@@ -51,7 +51,8 @@ export type Abschnitt = 'Büro' | 'Objekte' | 'Finanzen' | 'Eigentümer' | 'Inte
  * Seiten für jeden Tag (Dashboard, Postfach, Kalender).
  *
  * „Büro" nimmt die frühere Gruppe „Aufgaben" und „Wissen" auf
- * (Notizbuch und Anleitungen stehen am Ende). Was nur zur WEG oder nur
+ * (Notizbuch und Anleitungen stehen am Ende, darunter als letzter Punkt
+ * „Unterschriften" mit Zähler). Was nur zur WEG oder nur
  * zur Miete gehört, trägt `modus` und erscheint nur im passenden Modus:
  * Versammlungen und Umfragen nur im WEG-Modus.
  */
@@ -60,12 +61,12 @@ export const adminMenu: MenuItem[] = [
   { title: 'Postfach', url: '/postfach', icon: Mail },
   { title: 'Kalender', url: '/calendar', icon: CalendarDays },
 
-  { title: 'Unterschriften', url: '/unterschriften', icon: PenLine, abschnitt: 'Büro' },
   { title: 'Pinnwand', url: '/pinnwand', icon: StickyNote, abschnitt: 'Büro' },
   { title: 'Vorgänge', url: '/vorgaenge', icon: FolderKanban, abschnitt: 'Büro' },
   { title: 'Jahreszyklus', url: '/jahreszyklus', icon: CalendarRange, abschnitt: 'Büro' },
   { title: 'Notizbuch', url: '/notizbuch', icon: NotebookPen, abschnitt: 'Büro' },
   { title: 'Anleitungen', url: '/checklisten', icon: Workflow, abschnitt: 'Büro' },
+  { title: 'Unterschriften', url: '/unterschriften', icon: PenLine, abschnitt: 'Büro' },
 
   { title: 'Gebäude', url: '/buildings', icon: Castle, abschnitt: 'Objekte' },
   { title: 'Aufnahme', url: '/aufnahme', icon: ClipboardList, abschnitt: 'Objekte' },

@@ -6,19 +6,20 @@
  */
 import { useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Check, ChevronDown, Loader2 } from "lucide-react";
+import { Check, ChevronDown, Link2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useMySignature } from "@/lib/documentSigning";
 import { cn } from "@/lib/utils";
 import {
-  aktiveSigner, formatDate, fortschritt, oeffneSignUrl, signAction, signerKopf, signerMethodeText,
-  signerStatusKurz, SIG, TON_FARBE, useSignInvalidate, useSignRequestsForQuelle,
+  aktiveSigner, erinnernMeldung, formatDate, fortschritt, kannNeuenLink, oeffneSignUrl, signAction, signerKopf,
+  signerMethodeText, signerStatusKurz, SIG, TON_FARBE, useSignInvalidate, useSignRequestsForQuelle,
   type QuelleTyp, type SignRequest, type SignSigner,
 } from "@/lib/signatur";
 import { Pill } from "./SignaturStatusBadge";
 import { SigButton } from "./ui";
+import { NeuerLinkDialog } from "./LinkKopieren";
 import { UnterschriftAnfordernDialog, type UnterschriftStartInfo } from "./UnterschriftAnfordernDialog";
 import { VorgangDetailSheet } from "./VorgangDetailSheet";
 
@@ -173,14 +174,15 @@ function VorgangInhalt({
   const [erinnert, setErinnert] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [internSigner, setInternSigner] = useState<SignSigner | null>(null);
+  const [linkSigner, setLinkSigner] = useState<SignSigner | null>(null);
   const f = fortschritt(r);
   const fertig = r.status === "abgeschlossen";
 
   const erinnern = async () => {
     setBusy("erinnern");
     try {
-      const res = await signAction<{ erinnert: number }>("remind", { request_id: r.id });
-      toast.success(res?.erinnert ? `Erinnerung an ${res.erinnert} Unterzeichner versendet` : "Niemand zu erinnern");
+      const res = await signAction<{ erinnert: number; selbst_erinnern?: string[] }>("remind", { request_id: r.id });
+      erinnernMeldung(res);
       setErinnert(true);
       await invalidate();
     } catch (e: any) {
@@ -254,6 +256,11 @@ function VorgangInhalt({
                   Jetzt unterschreiben
                 </SigButton>
               )}
+              {kannNeuenLink(r, s) && (
+                <SigButton klein className="mt-2" onClick={() => setLinkSigner(s)}>
+                  <Link2 className="h-3.5 w-3.5" /> {s.token_hash ? "Neuen Link erstellen" : "Link erstellen"}
+                </SigButton>
+              )}
             </div>
           );
         })}
@@ -282,6 +289,7 @@ function VorgangInhalt({
       </div>
 
       <InternUnterschreibenDialog signer={internSigner} request={r} onClose={() => setInternSigner(null)} />
+      <NeuerLinkDialog request={r} signer={linkSigner} onClose={() => setLinkSigner(null)} />
     </>
   );
 }

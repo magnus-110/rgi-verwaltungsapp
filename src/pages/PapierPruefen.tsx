@@ -18,6 +18,7 @@ import {
   useSignEvents, useSignInvalidate, useSignRequest, type SignSigner,
 } from "@/lib/signatur";
 import { Abschnitt, Karte, SigButton } from "@/components/signatur/ui";
+import { LinksAnzeigenDialog } from "@/components/signatur/LinkKopieren";
 import { PdfDocument, PdfPage, useElementBreite } from "@/components/signatur/pdf";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -65,6 +66,8 @@ export default function PapierPruefen() {
   const [anzahl, setAnzahl] = useState(0);
   const [busy, setBusy] = useState<"accept" | "reject" | null>(null);
   const [ablehnenOffen, setAblehnenOffen] = useState(false);
+  /** „Nur Link“ ohne E-Mail: neuer Link nach dem Ablehnen, selbst verschicken */
+  const [neuerLink, setNeuerLink] = useState<{ name: string; url: string } | null>(null);
   const [grund, setGrund] = useState("");
   const gross = useElementBreite<HTMLDivElement>();
 
@@ -113,10 +116,16 @@ export default function PapierPruefen() {
   const ablehnen = async () => {
     setBusy("reject");
     try {
-      await signAction("reject_paper", { signer_id: signer.id, grund: grund.trim() || undefined });
-      toast.success(`${signer.name} wurde gebeten, erneut zu unterschreiben`);
+      const res = await signAction<{ url?: string; name?: string }>("reject_paper", { signer_id: signer.id, grund: grund.trim() || undefined });
       setAblehnenOffen(false);
       await invalidate();
+      if (res?.url) {
+        // Keine E-Mail-Adresse hinterlegt: neuen Link anzeigen, das Büro schickt ihn selbst
+        toast.success(`Abgelehnt – bitte ${signer.name} den neuen Link schicken`);
+        setNeuerLink({ name: res.name || signer.name, url: res.url });
+        return;
+      }
+      toast.success(`${signer.name} wurde gebeten, erneut zu unterschreiben`);
       navigate(zurueck);
     } catch (e: any) {
       toast.error(e?.message || "Ablehnen fehlgeschlagen");
@@ -318,6 +327,15 @@ export default function PapierPruefen() {
           </div>
         </DialogContent>
       </Dialog>
+      <LinksAnzeigenDialog
+        titel="Neuer Link zum Verschicken"
+        beschreibung={`Für ${neuerLink?.name ?? ""} ist keine E-Mail-Adresse hinterlegt. Bitte den neuen Link selbst schicken und um eine erneute Unterschrift bitten.`}
+        links={neuerLink ? [neuerLink] : null}
+        onClose={() => {
+          setNeuerLink(null);
+          navigate(zurueck);
+        }}
+      />
     </div>
   );
 }
