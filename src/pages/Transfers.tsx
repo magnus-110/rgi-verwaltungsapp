@@ -59,7 +59,8 @@ export function Transfers() {
             ? (tabParam as Haupt)
             : "rechnungen";
   const [haupt, setHaupt] = useState<Haupt>(startHaupt);
-  const [rfilter, setRfilter] = useState<RFilter>(tabParam === "offen" ? "offen" : tabParam === "lastschrift" ? "lastschrift" : "alle");
+  // Standard: nur die zu überweisenden Rechnungen – Lastschriften erst auf Klick
+  const [rfilter, setRfilter] = useState<RFilter>(tabParam === "lastschrift" ? "lastschrift" : tabParam === "alle" ? "alle" : "offen");
   const [efilter, setEfilter] = useState<"alles" | "tan" | "rechnungen" | "beendet">("alles");
   const reiter: Reiter = haupt === "rechnungen" ? rfilter : haupt === "erledigt" ? "bezahlt" : haupt;
   const ohneRechnungen = reiter === "auftraege" || reiter === "hausgeld";
@@ -684,7 +685,7 @@ export function Transfers() {
       {/* Reiter */}
       <nav aria-label="Reiter" className="-mx-3 overflow-x-auto px-3 md:mx-0 md:px-0">
         <div className="inline-flex gap-1.5 rounded-full bg-muted p-1.5">
-          {hauptKnopf("rechnungen", `Rechnungen${direction === "outgoing" && !showPaid ? ` · ${unpaidInvoices.length + lastschriftInvoices.length}` : ""}`)}
+          {hauptKnopf("rechnungen", `Rechnungen${direction === "outgoing" && !showPaid ? ` · ${unpaidInvoices.length}` : ""}`)}
           {hauptKnopf("hausgeld", "Hausgeld")}
           {hauptKnopf("auftraege", `Aufträge · ${auftragsAnzahl}`)}
           {hauptKnopf("erledigt", "Erledigt")}
@@ -774,9 +775,9 @@ export function Transfers() {
         <div className="flex flex-wrap gap-2" role="group" aria-label="Filter">
           {(
             [
-              ["alle", `Alle · ${unpaidInvoices.length + lastschriftInvoices.length}`],
-              ["offen", `Zu prüfen · ${unpaidInvoices.length}`],
+              ["offen", `Zu überweisen · ${unpaidInvoices.length}`],
               ["lastschrift", `Lastschrift · ${lastschriftInvoices.length}`],
+              ["alle", `Alle · ${unpaidInvoices.length + lastschriftInvoices.length}`],
             ] as [RFilter, string][]
           ).map(([f, t]) => (
             <button
@@ -870,7 +871,7 @@ export function Transfers() {
                 aria-label="Alle auswählen"
               />
               <span className="flex-1">
-                {filteredInvoices.length} {showPaid ? "bezahlt oder überwiesen" : reiter === "lastschrift" ? "per Lastschrift – wird eingezogen" : reiter === "alle" ? "offen" : "zu prüfen"}
+                {filteredInvoices.length} {showPaid ? "bezahlt oder überwiesen" : reiter === "lastschrift" ? "per Lastschrift – wird eingezogen" : reiter === "alle" ? "offen" : "zu überweisen"}
                 {(reiter === "offen" || reiter === "alle") && freigabeAnzahl > 0 && (
                   <button type="button" onClick={() => setAnsicht("freigabe")} className="ml-2 text-primary hover:underline">
                     · {freigabeAnzahl} liegen in der Freigabe
