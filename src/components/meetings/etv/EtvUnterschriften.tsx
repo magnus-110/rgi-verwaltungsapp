@@ -18,7 +18,7 @@ import { Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { UnterschriftenBox } from "@/components/signatur/UnterschriftenBox";
 import type { UnterschriftStartInfo, VorschlagOption, VorschlagSigner } from "@/components/signatur/UnterschriftAnfordernDialog";
-import { formatShortDate, useBueroMitarbeiter, useSignRequestsForQuelle } from "@/lib/signatur";
+import { formatShortDate, fortschrittText, useBueroMitarbeiter, useSignRequestsForQuelle } from "@/lib/signatur";
 import { contactEmail, contactName, useAttendees } from "./useAttendees";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -82,7 +82,13 @@ export function EtvUnterschriften({ meeting, onRundmail }: Props) {
   });
 
   // Nach Abschluss: Versammlung neu laden (protocol_filed_at, unterschriebenes PDF)
-  const status = vorgaenge.find((v) => v.status === "offen" || v.status === "abgeschlossen")?.status;
+  const aktuell = vorgaenge.find((v) => v.status === "offen" || v.status === "abgeschlossen");
+  const status = aktuell?.status;
+  const stand = aktuell ? `${aktuell.id}:${fortschrittText(aktuell)}` : "";
+  useEffect(() => {
+    // Phasen-Karte „Protokoll · x von y Unterschriften“ aktuell halten
+    qc.invalidateQueries({ queryKey: ["etv-meeting-stats", meetingId] });
+  }, [stand, meetingId, qc]);
   const vorher = useRef(status);
   useEffect(() => {
     if (vorher.current === "offen" && status === "abgeschlossen") {

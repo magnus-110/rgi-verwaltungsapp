@@ -48,17 +48,24 @@ export const MeetingWorkspace = ({ meetingId, initialBuildingId, initialKind = "
     queryKey: ["etv-meeting-stats", meetingId],
     enabled: !!meetingId,
     queryFn: async () => {
-      const [items, sigs, renders] = await Promise.all([
+      const [items, sigs, renders, vorgang] = await Promise.all([
         supabase.from("etv_agenda_items").select("id, status").eq("meeting_id", meetingId!),
         supabase.from("etv_protocol_signatures").select("role").eq("meeting_id", meetingId!),
         supabase.from("etv_protocol_renders").select("id").eq("meeting_id", meetingId!).eq("is_signed", true).limit(1),
+        // Elektronische Unterschrift (neu): Stand des aktuellen Vorgangs
+        db.from("sign_requests").select("status, signers:sign_request_signers(status)")
+          .eq("quelle_typ", "etv_meeting").eq("quelle_id", meetingId!).in("status", ["offen", "abgeschlossen"])
+          .order("created_at", { ascending: false }).limit(1),
       ]);
       const list = items.data || [];
+      const v = (vorgang.data || [])[0] as { signers: { status: string }[] } | undefined;
+      const aktiv = (v?.signers || []).filter((x) => x.status !== "zurueckgezogen");
       return {
         agendaCount: list.length,
         decided: list.filter((i: any) => i.status === "voted").length,
         signatureCount: new Set((sigs.data || []).map((x: any) => x.role)).size,
         protocolFiled: (renders.data || []).length > 0,
+        vorgang: v ? { fertig: aktiv.filter((x) => x.status === "unterschrieben" || x.status === "papier_uebernommen").length, gesamt: aktiv.length } : null,
       };
     },
     refetchInterval: 30_000,
@@ -142,7 +149,11 @@ export const MeetingWorkspace = ({ meetingId, initialBuildingId, initialKind = "
     durchfuehrung: meeting?.status === "in_progress" ? { text: "läuft gerade", warn: true }
       : meeting?.status === "completed" || meeting?.ended_at ? { text: "abgehalten" }
       : { text: date ? formatMeetingDate(meeting!.meeting_date, { weekday: true }) : "–" },
-    protokoll: stats?.protocolFiled ? { text: "unterschrieben und abgelegt" } : { text: `${stats?.signatureCount ?? 0} von 3 Unterschriften` },
+    protokoll: stats?.protocolFiled
+      ? { text: "unterschrieben und abgelegt" }
+      : stats?.vorgang
+        ? { text: `${stats.vorgang.fertig} von ${stats.vorgang.gesamt} Unterschriften` }
+        : { text: `${stats?.signatureCount ?? 0} von 3 Unterschriften` },
   };
 
   return (

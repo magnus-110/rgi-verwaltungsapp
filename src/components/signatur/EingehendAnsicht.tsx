@@ -433,7 +433,7 @@ function Arbeitsflaeche({ r, onFertig }: { r: SignRequest; onFertig: () => void 
       {/* ---------- PDF ---------- */}
       <div
         ref={box.ref}
-        className="relative h-[calc(100vh-230px)] min-h-[560px] overflow-auto rounded-xl bg-[#EDEDED] px-5 py-6"
+        className="relative h-[calc(100vh-290px)] min-h-[560px] overflow-auto rounded-xl bg-[#EDEDED] px-5 py-6"
       >
         {urlFehler || pdfFehler ? (
           <div className="flex flex-col items-center gap-2 py-20 text-center text-sm text-[#595959]">
@@ -548,7 +548,7 @@ function Arbeitsflaeche({ r, onFertig }: { r: SignRequest; onFertig: () => void 
       </div>
 
       {/* ---------- Selbst unterschreiben ---------- */}
-      <div className="flex min-h-[560px] flex-col overflow-hidden rounded-xl border border-[#E5E5E5] bg-white lg:col-span-2 xl:col-span-1 xl:h-[calc(100vh-230px)]">
+      <div className="flex min-h-[560px] flex-col overflow-hidden rounded-xl border border-[#E5E5E5] bg-white lg:col-span-2 xl:col-span-1 xl:h-[calc(100vh-290px)]">
         <div className="border-b border-[#E5E5E5] px-5 pb-3.5 pt-4">
           <h2 className="font-display text-[20px] font-normal leading-tight text-[#2B2B2B]">Selbst unterschreiben</h2>
           <p className="mt-1 text-[13px] text-[#595959]">Feld im Dokument ziehen, Unterschrift wird eingesetzt.</p>
@@ -620,7 +620,6 @@ function Arbeitsflaeche({ r, onFertig }: { r: SignRequest; onFertig: () => void 
               />
               <div className="mt-1.5 break-all text-[13px] font-semibold text-[#B35300]">Anhang: {dateiErgebnis}</div>
             </div>
-            <p className="mt-1.5 text-[11.5px] text-[#6B6B6B]">Die Signatur des Postfachs wird beim Senden angefügt.</p>
           </div>
 
           <div>

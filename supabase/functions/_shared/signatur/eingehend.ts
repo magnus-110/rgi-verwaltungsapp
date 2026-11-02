@@ -378,6 +378,25 @@ export async function eingehendAbschliessen(db: Db, b: Body, userId: string | nu
     const zs = await zeitstempelHolen(hash);
     const zsOk = "token" in zs ? zs : null;
 
+    // ---- Unterzeichner
+    await db.from("sign_request_signers").update({
+      status: "unterschrieben",
+      typed_name: s.name,
+      signature_png: us.signature_png,
+      consent_text: ZUSTIMMUNG_INTERN,
+      signed_by: userId,
+      signed_at: jetzt,
+      ort: ortDatum ? zeile(ortDatum.split(",")[0], 80) : null,
+      ort_datum: !!ortDatum,
+      placements,
+      ip: null,
+      user_agent: "VerwaltungsApp",
+    }).eq("id", s.id);
+    await ereignis(db, v.id, "unterschrieben", `${s.name} hat in der App unterschrieben`, {
+      signerId: s.id,
+      userId,
+      details: { methode: "intern", ort_datum: ortDatum },
+    });
     // ---- DMS
     let fileId: string | null = null;
     let dmsPfad: string | null = null;
@@ -427,25 +446,6 @@ export async function eingehendAbschliessen(db: Db, b: Body, userId: string | nu
       }
     }
 
-    // ---- Unterzeichner + Vorgang
-    await db.from("sign_request_signers").update({
-      status: "unterschrieben",
-      typed_name: s.name,
-      signature_png: us.signature_png,
-      consent_text: ZUSTIMMUNG_INTERN,
-      signed_by: userId,
-      signed_at: jetzt,
-      ort: ortDatum ? zeile(ortDatum.split(",")[0], 80) : null,
-      ort_datum: !!ortDatum,
-      placements,
-      ip: null,
-      user_agent: "VerwaltungsApp",
-    }).eq("id", s.id);
-    await ereignis(db, v.id, "unterschrieben", `${s.name} hat in der App unterschrieben`, {
-      signerId: s.id,
-      userId,
-      details: { methode: "intern", ort_datum: ortDatum },
-    });
     if (antwort) {
       await ereignis(db, v.id, "antwort_versendet", `Unterschrieben an ${an} zurückgesendet`, {
         userId,

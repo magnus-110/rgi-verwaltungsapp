@@ -175,6 +175,7 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
     setKopieDms(true);
     setPlacements({});
     setPlatzieren(false);
+    setFrist(addDaysIso(startInfo.typ === "etv_protokoll" ? 7 : 14));
     setAktivFeldSigner(null);
     setFehler(null);
     setSigner(
@@ -203,7 +204,7 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
     if (!v) return;
     setBetreff(v.betreff);
     setText(v.text);
-    setFrist(addDaysIso(v.frist_tage || 14));
+    setFrist(addDaysIso(v.frist_tage || (etv ? 7 : 14)));
   };
   useEffect(() => {
     if (open && vorlagen.length) vorlageAnwenden(startInfo.dokumentart);
@@ -499,6 +500,11 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
           <div className="flex min-h-0 flex-1 gap-6 p-4 md:p-6">
             {/* ---------- Links: Dokumentvorschau ---------- */}
             <div className="hidden min-w-0 flex-[1.05] flex-col overflow-hidden rounded-xl bg-[#EDEDED] md:flex">
+              {etv ? (
+                <div className="px-4 pt-3 text-[12.5px] text-[#595959]">
+                  Die Unterschriftsseite für alle Rollen wird automatisch angehängt.
+                </div>
+              ) : (
               <div className="flex flex-wrap items-center gap-2 px-4 pt-3">
                 <button
                   type="button"
@@ -540,6 +546,7 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
                   </span>
                 )}
               </div>
+              )}
               {platzieren && (
                 <div className="px-4 pt-2 text-[12.5px] text-[#B35300]">
                   Auf die Stelle im Dokument klicken, an der {feldSigner.find((f) => f.key === aktiverFeldKey)?.name ?? "der Unterzeichner"} unterschreiben soll.
@@ -747,6 +754,7 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
                     </select>
                   </div>
                 </div>
+                {!etv && (
                 <div>
                   <FeldLabel htmlFor="sig-art">Dokumentart</FeldLabel>
                   <select
@@ -764,6 +772,7 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
                     ))}
                   </select>
                 </div>
+                )}
 
                 {/* E-MAIL */}
                 <div className="space-y-3 rounded-xl border border-[#E5E5E5] p-3.5">
