@@ -259,14 +259,12 @@ export async function stempeln(doc: Doc, signers: SignerPdf[], o: StempelOptione
       }
       const name = sicher(f.normal, s.name);
       const zeit = datumZeit(s.signed_at);
-      let unterzeile = `${name} · elektronisch unterschrieben am ${zeit}`;
-      const ortDatum = s.methode === "intern" && s.ort_datum !== false
-        ? sicher(f.normal, `${s.ort || o.standardOrt || "Pfronten"}, ${datum(s.signed_at)}`)
-        : "";
-      const ortGroesse = Math.max(7, Math.min(10, pl.h * 0.3));
-      const ortBreite = ortDatum ? f.normal.widthOfTextAtSize(ortDatum, ortGroesse) : 0;
-      const ortLinks = ortDatum && pl.x - ortBreite - 8 >= 8;
-      if (ortDatum && !ortLinks) unterzeile = `${ortDatum} · ${unterzeile}`;
+      // Ort (interne Unterschrift) nur in der kleinen grauen Zeile unter der Unterschrift –
+      // nicht mehr als eigener Text neben dem Feld (überlappte dort andere Unterschriften).
+      const ort = s.methode === "intern" && s.ort_datum !== false ? (s.ort || o.standardOrt || "").trim() : "";
+      const unterzeile = ort
+        ? `${name} · elektronisch unterschrieben in ${sicher(f.normal, ort)} am ${zeit}`
+        : `${name} · elektronisch unterschrieben am ${zeit}`;
 
       imRechteck(page, pl, () => {
         if (img) {
@@ -280,9 +278,6 @@ export async function stempeln(doc: Doc, signers: SignerPdf[], o: StempelOptione
           while (size > 6 && f.kursiv.widthOfTextAtSize(text, size) > pl.w) size -= 0.5;
           const tw = f.kursiv.widthOfTextAtSize(text, size);
           page.drawText(text, { x: Math.max(0, (pl.w - tw) / 2), y: Math.max(1, pl.h * 0.18), size, font: f.kursiv, color: F.tinte });
-        }
-        if (ortLinks) {
-          page.drawText(ortDatum, { x: -ortBreite - 8, y: Math.max(1, pl.h * 0.18), size: ortGroesse, font: f.normal, color: F.tinte });
         }
         page.drawText(sicher(f.normal, unterzeile), { x: 0, y: -7.5, size: 6, font: f.normal, color: F.grau });
       });

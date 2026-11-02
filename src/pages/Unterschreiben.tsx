@@ -37,7 +37,7 @@ export default function Unterschreiben() {
   const [dlFehler, setDlFehler] = useState<string | null>(null);
 
   useEffect(() => {
-    document.title = "Sichere Unterschrift · RGI Immobilien";
+    document.title = "Elektronische Unterschrift · RGI Immobilien";
     const meta = document.createElement("meta");
     meta.name = "robots";
     meta.content = "noindex, nofollow";

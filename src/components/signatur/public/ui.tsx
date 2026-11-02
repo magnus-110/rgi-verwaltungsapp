@@ -55,7 +55,7 @@ export function Kopf({ links, onZurueck }: { links?: "sicher" | "zurueck" | null
   return (
     <header className="shrink-0 border-b-[3px] border-[#F08C1F] bg-white">
       <div className="flex h-[60px] items-center justify-between pl-5 pr-5 min-[641px]:h-[72px] min-[641px]:px-10 [@media(orientation:landscape)_and_(max-height:500px)]:h-[54px]">
-        {links === "sicher" && <span className="text-[12px] leading-none text-[#595959] min-[641px]:text-[13.5px]">Sichere Unterschrift</span>}
+        {links === "sicher" && <span className="max-w-[190px] text-[12px] leading-[15px] text-[#595959] min-[641px]:max-w-none min-[641px]:text-[13.5px]">Elektronische Unterschrift (Textform, § 126b BGB)</span>}
         {links === "zurueck" && (
           <button type="button" onClick={onZurueck} className="-ml-1 px-1 py-2 text-[13.5px] leading-none text-[#B35300] hover:underline min-[641px]:text-[15px]">
             ‹ Zurück
