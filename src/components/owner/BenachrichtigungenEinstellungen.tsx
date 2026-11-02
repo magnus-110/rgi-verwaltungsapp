@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Bell, Calendar, ClipboardList, FileText, Home, Megaphone, MessageSquare } from "lucide-react";
+import { AlarmClock, Bell, CalendarCheck, CalendarClock, ClipboardList, FileText, Home, Megaphone, MessageSquare } from "lucide-react";
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/useAuth";
@@ -45,7 +45,9 @@ export function BenachrichtigungenEinstellungen() {
   const email = profile?.email && !profile.email.toLowerCase().endsWith("@users.rgi-immobilien.app") ? profile.email : null;
   const zeilen: { feld: Schalter; icon: typeof Bell; titel: string; text: string }[] = [
     { feld: "mail_meldungen", icon: MessageSquare, titel: "Antworten auf meine Meldungen", text: "Wenn RGI antwortet oder etwas erledigt ist" },
-    { feld: "mail_versammlungen", icon: Calendar, titel: "Versammlungen", text: "Einladung, Erinnerung und Terminumfragen" },
+    { feld: "mail_einladung", icon: CalendarCheck, titel: "Einladung zur Versammlung", text: "Wenn die Einladung in der App steht" },
+    { feld: "mail_erinnerung", icon: AlarmClock, titel: "Erinnerung an die Versammlung", text: "3 Tage vor dem Termin" },
+    { feld: "mail_terminumfrage", icon: CalendarClock, titel: "Terminumfragen", text: "Wenn ein Versammlungstermin abgestimmt wird" },
     { feld: "mail_umfragen", icon: ClipboardList, titel: "Neue Umfragen", text: "Wenn Ihre Meinung gefragt ist" },
     { feld: "mail_dokumente", icon: FileText, titel: "Neue Dokumente", text: "Einmal am Tag zusammengefasst" },
     { feld: "mail_aushaenge", icon: Megaphone, titel: "Aushänge von RGI", text: "Wichtige Hinweise zu Ihrem Haus" },
