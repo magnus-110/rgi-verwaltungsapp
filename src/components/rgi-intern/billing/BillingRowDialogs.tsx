@@ -1,6 +1,6 @@
 // Zwei kleine Dialoge des Abrechnungsblatts:
 //
-//  BillingRowDialog   – freie Position anlegen oder eine Zeile im
+//  BillingRowDialog   – freie Position vormerken oder eine Zeile im
 //                       Detail bearbeiten
 //  PercentBaseDialog  – Bemessungsgrundlage für prozentuale
 //                       Bausteine eingeben (Versicherungsschaden,
@@ -30,10 +30,15 @@ interface RowDialogProps {
   /** null = neue freie Position */
   row: BillingRow | null;
   contractId: string | null;
-  onSave: (row: BillingRow) => void;
+  /**
+   * Speichern. `selectNow` = die Position soll gleich auf die nächste
+   * Rechnung (nur bei neuen Positionen angeboten).
+   */
+  onSave: (row: BillingRow, opts: { selectNow: boolean }) => void;
+  saving?: boolean;
 }
 
-export function BillingRowDialog({ open, onOpenChange, row, contractId, onSave }: RowDialogProps) {
+export function BillingRowDialog({ open, onOpenChange, row, contractId, onSave, saving }: RowDialogProps) {
   const [label, setLabel] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [unit, setUnit] = useState("Stück");
@@ -42,6 +47,7 @@ export function BillingRowDialog({ open, onOpenChange, row, contractId, onSave }
   const [debtor, setDebtor] = useState<FeeDebtor>("community");
   const [occurredOn, setOccurredOn] = useState(new Date().toISOString().slice(0, 10));
   const [note, setNote] = useState("");
+  const [amountOpen, setAmountOpen] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -53,12 +59,17 @@ export function BillingRowDialog({ open, onOpenChange, row, contractId, onSave }
     setDebtor(row?.debtor ?? "community");
     setOccurredOn(row?.occurredOn ?? new Date().toISOString().slice(0, 10));
     setNote(row?.hint ?? "");
+    setAmountOpen(!!row?.amountOpen && (row?.unitPriceNet === null || row?.unitPriceNet === undefined));
   }, [open, row]);
 
   const net = Math.round(quantity * price * 100) / 100;
+  const isNew = !row;
+  // Nur freie Positionen dürfen ohne Betrag vorgemerkt werden.
+  const canLeaveOpen = isNew || row?.origin === "manual";
 
-  const save = () => {
+  const save = (selectNow: boolean) => {
     if (!label.trim()) return;
+    const open = canLeaveOpen && amountOpen;
     onSave({
       key: row?.key ?? `manual:${Date.now()}`,
       origin: row?.origin ?? "manual",
@@ -67,7 +78,8 @@ export function BillingRowDialog({ open, onOpenChange, row, contractId, onSave }
       label: label.trim(),
       quantity,
       unit,
-      unitPriceNet: price,
+      unitPriceNet: open ? null : price,
+      amountOpen: open,
       vatRate: vat,
       debtor,
       feeId: row?.feeId ?? null,
@@ -78,16 +90,18 @@ export function BillingRowDialog({ open, onOpenChange, row, contractId, onSave }
       occurredOn,
       hint: note.trim() || undefined,
       timeEntryIds: row?.timeEntryIds,
-    });
+    }, { selectNow: selectNow && !open });
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>{row ? "Position bearbeiten" : "Freie Position"}</DialogTitle>
+          <DialogTitle>{row ? "Position bearbeiten" : "Freie Position vormerken"}</DialogTitle>
           <DialogDescription>
-            Alle Werte sind frei überschreibbar — auch bei Positionen, die aus dem Vertrag stammen.
+            {isNew
+              ? "Wird sofort gespeichert und bleibt im Abrechnungsblatt stehen, bis sie abgerechnet oder verworfen ist – z. B. Versicherungsfall, Schlüssel, Sonderaufwand."
+              : "Alle Werte sind frei überschreibbar — auch bei Positionen, die aus dem Vertrag stammen."}
           </DialogDescription>
         </DialogHeader>
 
@@ -109,7 +123,13 @@ export function BillingRowDialog({ open, onOpenChange, row, contractId, onSave }
             </div>
             <div>
               <Label className="text-xs">€ netto</Label>
-              <Input type="number" step="0.01" value={price} onChange={(e) => setPrice(Number(e.target.value))} />
+              <Input
+                type="number" step="0.01"
+                value={amountOpen && canLeaveOpen ? "" : price}
+                placeholder={amountOpen && canLeaveOpen ? "offen" : undefined}
+                disabled={amountOpen && canLeaveOpen}
+                onChange={(e) => setPrice(Number(e.target.value))}
+              />
             </div>
             <div>
               <Label className="text-xs">USt</Label>
@@ -123,6 +143,14 @@ export function BillingRowDialog({ open, onOpenChange, row, contractId, onSave }
               </Select>
             </div>
           </div>
+
+          {canLeaveOpen && (
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <Switch checked={amountOpen} onCheckedChange={setAmountOpen} />
+              Betrag steht noch nicht fest
+              <span className="text-xs text-muted-foreground">– Hinweis in die Notiz, z. B. „mind. 250 €“</span>
+            </label>
+          )}
 
           <div className="grid grid-cols-2 gap-2">
             <div>
@@ -145,18 +173,31 @@ export function BillingRowDialog({ open, onOpenChange, row, contractId, onSave }
           <div>
             <Label className="text-xs">Notiz (nur intern)</Label>
             <Input value={note} onChange={(e) => setNote(e.target.value)}
-              placeholder="z. B. Vertragsstelle oder Beschluss" />
+              placeholder="z. B. Schadennummer, Beschluss, „mind. 250 €“" />
           </div>
 
           <div className="flex justify-between items-center pt-2 border-t text-sm">
             <span className="text-muted-foreground">Betrag netto</span>
-            <span className="font-mono font-semibold text-base">{formatEur(net)}</span>
+            <span className="font-mono font-semibold text-base">
+              {amountOpen && canLeaveOpen ? "offen" : formatEur(net)}
+            </span>
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="gap-2 sm:gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Abbrechen</Button>
-          <Button onClick={save} disabled={!label.trim()}>Übernehmen</Button>
+          {isNew ? (
+            <>
+              {!amountOpen && (
+                <Button variant="secondary" onClick={() => save(true)} disabled={!label.trim() || saving}>
+                  Vormerken und auswählen
+                </Button>
+              )}
+              <Button onClick={() => save(false)} disabled={!label.trim() || saving}>Vormerken</Button>
+            </>
+          ) : (
+            <Button onClick={() => save(false)} disabled={!label.trim() || saving}>Übernehmen</Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
