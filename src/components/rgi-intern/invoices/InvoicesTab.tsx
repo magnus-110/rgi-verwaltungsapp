@@ -21,7 +21,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  Search, ChevronRight, FileWarning, Plus, CircleDot, Clock, Wallet, Trash2,
+  Search, ChevronRight, FileWarning, Plus, CircleDot, Clock, Wallet, Trash2, Bookmark,
 } from "lucide-react";
 import { useBillingOverview, useDeleteInvoiceDraft } from "@/hooks/useRgiBilling";
 import { useRgiInvoices, useRgiClients } from "@/hooks/useRgi";
@@ -115,12 +115,19 @@ export function InvoicesTab() {
     return { drafts, open, paid, overdue: open.filter(isOverdue).length };
   }, [modeInvoices]);
 
+  /** Vorgemerkte Posten über alle Objekte des Modus. */
+  const memoTotal = useMemo(
+    () => modeOverview.reduce((s, r) => s + Number(r.memo_count ?? 0), 0),
+    [modeOverview],
+  );
+
   const stacks = [
     {
       key: "todo" as const, label: "Abzurechnen", icon: CircleDot,
       big: `${todo.length}`,
       unit: todo.length === 1 ? "Objekt" : "Objekte",
-      meta: formatEur(todo.reduce((s, r) => s + openWorkNet(r, year), 0)) + " offen",
+      meta: formatEur(todo.reduce((s, r) => s + openWorkNet(r, year), 0)) + " offen"
+        + (memoTotal > 0 ? ` · ${memoTotal} Merkposten` : ""),
     },
     {
       key: "draft" as const, label: "Entwürfe", icon: FileWarning,
@@ -158,7 +165,10 @@ export function InvoicesTab() {
     const parts: string[] = [];
     if (!feeYearBilled(r, year) && Number(r.base_monthly_net) > 0) parts.push(`Honorar ${year}`);
     if (Number(r.open_hours) > 0) parts.push(`${Number(r.open_hours).toLocaleString("de-DE")} Std`);
-    if (r.open_count > 0) parts.push(`${r.open_count} Posten`);
+    const memos = Number(r.memo_count ?? 0);
+    const memosUnpriced = Number(r.memo_unpriced_count ?? 0);
+    const otherOpen = r.open_count - memos;
+    if (otherOpen > 0) parts.push(`${otherOpen} Posten`);
     return (
       <div
         key={r.building_id}
@@ -181,6 +191,17 @@ export function InvoicesTab() {
             )}
           </div>
         </div>
+        {memos > 0 && (
+          <Badge
+            variant="outline"
+            className="font-normal whitespace-nowrap gap-1 border-orange-300 bg-orange-50 text-orange-800 dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-200"
+            title="Von Hand vorgemerkte Posten, die noch abgerechnet werden müssen"
+          >
+            <Bookmark className="w-3 h-3" />
+            {memos} Merkposten
+            {memosUnpriced > 0 && ` · ${memosUnpriced} ohne Betrag`}
+          </Badge>
+        )}
         {parts.length > 0 && (
           <Badge variant="secondary" className="font-normal whitespace-nowrap">{parts.join(" · ")}</Badge>
         )}
