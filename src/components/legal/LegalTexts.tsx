@@ -68,7 +68,7 @@ export const AgbText = () => (
 export const DatenschutzText = () => (
   <div className="prose prose-sm max-w-none">
     <h2 className="text-lg font-bold mb-1">Datenschutzerklärung</h2>
-    <p className="text-xs text-muted-foreground mb-4">Stand: Juni 2026 · Version 2.0</p>
+    <p className="text-xs text-muted-foreground mb-4">Stand: November 2026 · Version 2.0 (ergänzt um Abschnitt 13 „Elektronische Unterschrift“)</p>
 
     <h3 className="font-semibold mt-4 mb-2">1. Verantwortlicher</h3>
     <p className="text-sm mb-2">RGI-Immobilien GmbH &amp; Co. KG, Andreas Göttinger, Schützenstraße 16, 87459 Pfronten. E-Mail: info@rgi-immobilien.de · Internet: https://rgi-immobilien.de</p>
@@ -105,5 +105,13 @@ export const DatenschutzText = () => (
 
     <h3 className="font-semibold mt-4 mb-2">12. Datensicherheit</h3>
     <p className="text-sm mb-2">TLS-Verschlüsselung (SSL) sowie technische und organisatorische Maßnahmen (TOM) gegen unbefugten Zugriff.</p>
+
+    <h3 id="elektronische-unterschrift" className="font-semibold mt-4 mb-2">13. Elektronische Unterschrift (Textform, § 126b BGB)</h3>
+    <p className="text-sm mb-2">Zweck: Wir bieten an, Dokumente elektronisch zu unterschreiben, z. B. Verwalterverträge, Vollmachten, Umlaufbeschlüsse, Protokolle von Eigentümerversammlungen, Angebote und Dienstleisterverträge. Sie erhalten dazu einen persönlichen Link per E-Mail von info@rgi-immobilien.de oder von Ihrem Ansprechpartner bei der RGI. Der Link ist 14 Tage gültig; bei uns wird nur ein verschlüsselter Prüfwert (Hash) des Links gespeichert, nicht der Link selbst.</p>
+    <p className="text-sm mb-2">Verarbeitete Daten: Name und E-Mail-Adresse, die Rolle beim Dokument (z. B. Eigentümer, Beiratsvorsitz), der von Ihnen eingetippte Name, Ihre gezeichnete Unterschrift (freiwillig), Ihre Zustimmungserklärung, Datum und Uhrzeit, IP-Adresse sowie Angaben zu Browser und Gerät, außerdem Zeitpunkte des Öffnens und Herunterladens. Wenn Sie lieber auf Papier unterschreiben, verarbeiten wir die Fotos oder Scans, die Sie hochladen oder per E-Mail senden. Bitte senden Sie keine Unterlagen per Post. Unterschreiben Mitarbeiter der RGI, wird deren in der App hinterlegte Unterschrift samt Ort eingesetzt.</p>
+    <p className="text-sm mb-2">Nachweis: In das fertige PDF werden die Unterschriften sowie eine Zeile mit Name und Zeitpunkt eingefügt. Zum Schutz vor nachträglichen Änderungen bilden wir einen digitalen Fingerabdruck (SHA-256-Prüfwert) des Dokuments und lassen ihn mit einem Zeitstempel nach RFC 3161 bestätigen (DigiCert, Inc., USA; ersatzweise Sectigo Ltd., Großbritannien). Dabei wird ausschließlich dieser Prüfwert übermittelt – weder das Dokument noch personenbezogene Daten. Auf Wunsch erstellen wir einen Nachweis (Prüfblatt) mit den genannten Angaben.</p>
+    <p className="text-sm mb-2">Empfänger: zuständige Mitarbeiter der RGI; die übrigen Unterzeichner erhalten das fertige Dokument mit allen Unterschriften. Die Unterlagen werden in unserem App-Backend (Supabase, Frankfurt am Main, siehe Abschnitt 8) gespeichert; der E-Mail-Versand erfolgt über unser Firmenpostfach. Zur Vorbereitung von Dokumenten (z. B. Erkennen der Unterschriftsstellen) kann die unter Abschnitt 5 beschriebene KI von Anthropic eingesetzt werden; die Unterschrift selbst wird nicht durch KI verarbeitet.</p>
+    <p className="text-sm mb-2">Rechtsgrundlage: Art. 6 Abs. 1 lit. b DSGVO (Abschluss und Durchführung von Verträgen, Verwaltung der Gemeinschaft), Art. 6 Abs. 1 lit. c DSGVO (gesetzliche Pflichten, z. B. Unterzeichnung der Versammlungsniederschrift nach § 24 Abs. 6 WEG) sowie Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse an einem beweissicheren Nachweis der Unterschrift). Die Nutzung der elektronischen Unterschrift ist freiwillig; Sie können stattdessen auf Papier unterschreiben und uns ein Foto oder einen Scan senden.</p>
+    <p className="text-sm mb-2">Speicherdauer: Das unterschriebene Dokument und die Nachweisdaten bewahren wir so lange auf, wie das Dokument selbst aufbewahrt werden muss – z. B. für die Laufzeit eines Vertrags zuzüglich der gesetzlichen Verjährungs- und Aufbewahrungsfristen, bei Versammlungsniederschriften für die Dauer unserer Verwaltung. Nicht abgeschlossene oder zurückgezogene Vorgänge löschen wir, sobald sie nicht mehr benötigt werden.</p>
   </div>
 );
