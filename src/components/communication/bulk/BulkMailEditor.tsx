@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { SignaturePreview } from "@/components/email/SignaturePreview";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -111,7 +112,8 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("email_accounts")
-        .select("id, display_name, email_address, signature_html")
+        // signature_text / signature_rich_html: neuere Spalten (Typen ggf. noch nicht generiert)
+        .select("id, display_name, email_address, signature_html, signature_text, signature_rich_html" as any)
         .eq("is_active", true)
         .order("display_name");
       if (error) throw error;
@@ -119,9 +121,18 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
     },
   });
 
-  /** Hinterlegte Signatur eines E-Mail-Kontos (leer, wenn keine). */
-  const signatureOf = (id: string) =>
-    (((accounts as any[]).find((a) => a.id === id)?.signature_html as string | null) || "").trim();
+  /** Hinterlegte (Text-)Signatur eines E-Mail-Kontos (leer, wenn keine). */
+  const signatureOf = (id: string) => {
+    const a = (accounts as any[]).find((x) => x.id === id);
+    return (((a?.signature_text as string | null) || (a?.signature_html as string | null)) || "").trim();
+  };
+  /** Alle Textfassungen der Signatur – damit alte, in den Text eingefügte Signaturen entfernt werden. */
+  const signatureVariantsOf = (id: string) => {
+    const a = (accounts as any[]).find((x) => x.id === id);
+    return [a?.signature_text, a?.signature_html].map((v) => ((v as string | null) || "").trim()).filter(Boolean) as string[];
+  };
+  const ohneSignatur = (text: string, id: string) =>
+    signatureVariantsOf(id).reduce((t, sig) => stripTrailingSignature(t, sig), text);
 
   /** Entfernt eine Signatur, wenn sie am Ende des Textes steht. */
   const stripTrailingSignature = (text: string, sig: string) => {
@@ -131,20 +142,15 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
     return text.slice(0, idx).replace(/\s+$/, "");
   };
 
-  /** Hängt die Signatur unten an, sofern sie noch nicht im Text steht. */
-  const appendSignature = (text: string, sig: string) => {
-    if (!sig || text.includes(sig)) return text;
-    const base = text.replace(/\s+$/, "");
-    return base ? `${base}\n\n${sig}` : `\n\n${sig}`;
-  };
-
-  /** Absender wechseln: alte Signatur raus, neue Signatur unten rein. */
+  /**
+   * Absender wechseln. Die Signatur steht NICHT mehr im Text – sie wird unter dem
+   * Textfeld angezeigt und beim Versand automatisch (im RGI-Design) angehängt.
+   * Eine evtl. noch im Text stehende alte Signatur wird entfernt.
+   */
   const changeAccount = (nextId: string) => {
-    const prevSig = signatureOf(accountId);
-    const nextSig = signatureOf(nextId);
-    const swap = (text: string) => appendSignature(stripTrailingSignature(text, prevSig), nextSig);
+    const swap = (text: string) => ohneSignatur(text, accountId);
     setBody((b) => swap(b));
-    // Individuell bearbeitete Texte ebenfalls umstellen, sonst stünden dort zwei Signaturen
+    // Individuell bearbeitete Texte ebenfalls bereinigen
     setTextOverrides((prev) => {
       const next: typeof prev = {};
       for (const [k, v] of Object.entries(prev)) next[k] = v.body ? { ...v, body: swap(v.body) } : v;
@@ -180,14 +186,14 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
     setLoaded(true);
   }, [campaign, loaded]);
 
-  // Entwurf mit bereits gewähltem Absender: Signatur einmalig unten ergänzen, falls sie fehlt
+  // Ältere Entwürfe: dort steht die Signatur noch im Text → einmalig entfernen
+  // (sie wird unter dem Textfeld angezeigt und beim Versand angehängt).
   const signatureCheckedRef = useRef(false);
   useEffect(() => {
     if (!loaded || signatureCheckedRef.current || accounts.length === 0) return;
     signatureCheckedRef.current = true;
     if (!accountId) return;
-    const sig = signatureOf(accountId);
-    if (sig) setBody((b) => appendSignature(b, sig));
+    setBody((b) => ohneSignatur(b, accountId));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded, accounts.length, accountId]);
 
@@ -577,7 +583,7 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
   const handleSendInner = async () => {
     if (isSending) return toast({ title: "Versand läuft bereits", variant: "destructive" });
     if (!accountId) return toast({ title: "Bitte Absender-Konto wählen", variant: "destructive" });
-    const textWithoutSignature = stripTrailingSignature(body, signatureOf(accountId));
+    const textWithoutSignature = ohneSignatur(body, accountId);
     if (!subject.trim() || !textWithoutSignature.trim())
       return toast({ title: "Betreff und Text erforderlich", variant: "destructive" });
     if (selected.size === 0) return toast({ title: "Keine Empfänger ausgewählt", variant: "destructive" });
@@ -814,6 +820,23 @@ export const BulkMailEditor = ({ campaignId, onBack }: Props) => {
                   </button>
                 ))}
               </div>
+
+              {(() => {
+                const a = (accounts as any[]).find((x) => x.id === accountId);
+                const html = ((a?.signature_rich_html as string | null) || "").trim();
+                const text = signatureOf(accountId);
+                if (!accountId || (!html && !text)) return null;
+                return (
+                  <div className="border-t px-4 py-3">
+                    <div className="mb-1.5 text-[11px] uppercase tracking-wide text-muted-foreground">
+                      Signatur · wird beim Versand automatisch angehängt
+                    </div>
+                    <div className="rounded-md border bg-white p-2">
+                      <SignaturePreview html={html || null} text={html ? null : text} />
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Anhänge */}
