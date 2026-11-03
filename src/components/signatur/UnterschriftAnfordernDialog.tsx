@@ -134,6 +134,9 @@ interface KontaktTreffer {
 }
 
 const INTERN_KEY = "__rgi__";
+/** Unterschriftsfelder, die noch keinem Unterzeichner gehören (gesetzt, bevor jemand hinzugefügt wurde) */
+const OHNE_KEY = "__ohne__";
+const OHNE_FARBE = "#8A8A8A";
 const FELD_W = 170;
 const FELD_H = 46;
 
@@ -221,6 +224,8 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
   /** Unterschrifts-Anker der Vorlage, die schon einmal angewendet wurden */
   const vorlageAngewendet = useRef<Set<string>>(new Set());
   const [aktivFeldSigner, setAktivFeldSigner] = useState<string | null>(null);
+  /** Angeklicktes Unterschriftsfeld (Unterzeichner am Feld auswählen) */
+  const [gewaehltPl, setGewaehltPl] = useState<{ key: string; idx: number } | null>(null);
   const [senden, setSenden] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
   const [vorschau, setVorschau] = useState<{ subject: string; html: string } | null>(null);
@@ -249,6 +254,7 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
     vorlageAngewendet.current = new Set();
     setFrist(addDaysIso(startInfo.typ === "etv_protokoll" ? 7 : 14));
     setAktivFeldSigner(null);
+    setGewaehltPl(null);
     setFehler(null);
     setErgebnis(null);
     setSigner(
@@ -393,6 +399,7 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
     ...(rgiAuch && mitRgiZeile ? [{ key: INTERN_KEY, nr: externe.length + 1, name: "RGI Immobilien" }] : []),
   ];
   const farbeFuer = (key: string) => {
+    if (key === OHNE_KEY) return OHNE_FARBE;
     const i = feldSigner.findIndex((f) => f.key === key);
     return SIGNER_FARBEN[(i < 0 ? 0 : i) % SIGNER_FARBEN.length];
   };
@@ -425,7 +432,8 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
     if (!open || !erkennung?.vorlage) return;
     for (const f of erkennung.felder.filter((x) => x.typ === "unterschrift")) {
       if (vorlageAngewendet.current.has(f.feld_key)) continue;
-      const ziel = f.ausfueller_rolle === "rgi" ? (rgiAuch && mitRgiZeile ? INTERN_KEY : null) : ersterExterner?.key ?? null;
+      // Noch kein Unterzeichner: Feld trotzdem setzen („noch ohne Unterzeichner“), der erste externe bekommt es
+      const ziel = f.ausfueller_rolle === "rgi" ? (rgiAuch && mitRgiZeile ? INTERN_KEY : null) : ersterExterner?.key ?? OHNE_KEY;
       if (!ziel) continue;
       vorlageAngewendet.current.add(f.feld_key);
       setPlacements((prev) => (prev[ziel]?.length ? prev : { ...prev, [ziel]: [{ page: f.page, x: f.x, y: f.y, w: f.w, h: f.h }] }));
@@ -433,24 +441,37 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
   }, [open, erkennung, ersterExterner?.key, rgiAuch, mitRgiZeile]);
 
   const hinzufuegen = (t: { name: string; email: string; rolle: string; contact_id?: string | null; anrede?: string | null }) => {
-    setSigner((prev) => {
-      // Ehepaare mit gleicher Mail sind zwei Unterzeichner → nur exakt gleiche Person (Kontakt + Name) überspringen
-      if (prev.some((p) => p.contact_id && p.contact_id === t.contact_id && p.name === t.name)) return prev;
-      // Ohne E-Mail-Adresse bleibt nur „Nur Link erstellen“ (E-Mail kann noch ergänzt werden)
-      return [...prev, {
-        key: neuerKey(), ...t, methode: "online" as const, versand: t.email.trim() ? "mail" as const : "link" as const,
-        rolle_key: etv ? etvRolleKey(t.rolle) : null,
-      }];
-    });
+    // Ehepaare mit gleicher Mail sind zwei Unterzeichner → nur exakt gleiche Person (Kontakt + Name) überspringen
+    if (signer.some((p) => p.contact_id && p.contact_id === t.contact_id && p.name === t.name)) return;
+    const key = neuerKey();
+    const erster = !signer.some((p) => p.methode !== "intern");
+    // Ohne E-Mail-Adresse bleibt nur „Nur Link erstellen“ (E-Mail kann noch ergänzt werden)
+    setSigner((prev) => [...prev, {
+      key, ...t, methode: "online" as const, versand: t.email.trim() ? "mail" as const : "link" as const,
+      rolle_key: etv ? etvRolleKey(t.rolle) : null,
+    }]);
+    // Erster externer Unterzeichner: alle bisher gesetzten Unterschriftsfelder ohne Unterzeichner gehören ihm
+    if (erster) {
+      setPlacements((prev) => {
+        if (!prev[OHNE_KEY]?.length) return prev;
+        const n = { ...prev, [key]: [...(prev[key] ?? []), ...prev[OHNE_KEY]] };
+        delete n[OHNE_KEY];
+        return n;
+      });
+      setGewaehltPl(null);
+    }
     setFehler(null);
   };
   const entfernen = (key: string) => {
     setSigner((prev) => prev.filter((p) => p.key !== key));
+    // Unterschriftsfelder bleiben stehen („noch ohne Unterzeichner“) und können neu zugeordnet werden
     setPlacements((prev) => {
       const n = { ...prev };
+      if (n[key]?.length) n[OHNE_KEY] = [...(n[OHNE_KEY] ?? []), ...n[key]];
       delete n[key];
       return n;
     });
+    setGewaehltPl(null);
     if (aktivFeldSigner === key) setAktivFeldSigner(null);
     setFelder((prev) => prev.map((f) => (f.ausfueller === key ? { ...f, ausfueller: "" } : f)));
   };
@@ -460,7 +481,21 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
   // ---------- Felder platzieren ----------
   const aktiverFeldKey = aktivFeldSigner && feldSigner.some((f) => f.key === aktivFeldSigner)
     ? aktivFeldSigner
-    : feldSigner[0]?.key ?? null;
+    : feldSigner[0]?.key ?? OHNE_KEY;
+  const ohneFelder = placements[OHNE_KEY] ?? [];
+
+  /** Unterschriftsfeld einem anderen Unterzeichner zuordnen. */
+  const feldZuordnen = (von: string, idx: number, nach: string) => {
+    if (von === nach) return;
+    setPlacements((prev) => {
+      const p = prev[von]?.[idx];
+      if (!p) return prev;
+      const n = { ...prev, [von]: (prev[von] ?? []).filter((_, i) => i !== idx), [nach]: [...(prev[nach] ?? []), p] };
+      if (!n[von].length) delete n[von];
+      return n;
+    });
+    setGewaehltPl({ key: nach, idx: (placements[nach] ?? []).length });
+  };
 
   /** Änderbare Angabe aus Wörtern der Textebene (Feld genau über dem Text). */
   const vorbelegtAus = (S: SeiteText, woerter: Wort[]) => {
@@ -523,13 +558,14 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
       vorbelegtSetzen(page, px, py);
       return;
     }
-    if (gewaehlt) {
+    if (gewaehlt || gewaehltPl) {
       // Erst Auswahl aufheben, damit ein Klick neben das Feld nicht gleich ein neues anlegt
       setGewaehlt(null);
+      setGewaehltPl(null);
       return;
     }
     if (werkzeug === "unterschrift") {
-      if (!aktiverFeldKey) return;
+      // Auch ohne Unterzeichner möglich: Feld landet bei „noch ohne Unterzeichner“
       const p: SignPlacement = {
         page,
         w: FELD_W,
@@ -538,6 +574,8 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
         y: Math.max(0, Math.min(size.h - FELD_H, py - FELD_H / 2)),
       };
       setPlacements((prev) => ({ ...prev, [aktiverFeldKey]: [...(prev[aktiverFeldKey] ?? []), p] }));
+      // Mehrere mögliche Unterzeichner bzw. noch keiner: Feld gleich auswählen, damit die Zuordnung sichtbar ist
+      if (aktiverFeldKey === OHNE_KEY || feldSigner.length > 1) setGewaehltPl({ key: aktiverFeldKey, idx: (placements[aktiverFeldKey] ?? []).length });
       return;
     }
     const typ = werkzeug as FeldTyp;
@@ -604,8 +642,10 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
     !felder.some((f) => f.page === v.page && Math.abs(f.x - v.x) < 2 && Math.abs(f.y - v.y) < 2));
   const feldAendern = (key: string, idx: number, patch: Partial<SignPlacement>) =>
     setPlacements((prev) => ({ ...prev, [key]: (prev[key] ?? []).map((p, i) => (i === idx ? { ...p, ...patch } : p)) }));
-  const feldEntfernen = (key: string, idx: number) =>
+  const feldEntfernen = (key: string, idx: number) => {
     setPlacements((prev) => ({ ...prev, [key]: (prev[key] ?? []).filter((_, i) => i !== idx) }));
+    setGewaehltPl(null);
+  };
 
   const drag = useRef<{ key: string; idx: number; mode: "move" | "resize"; sx: number; sy: number; orig: SignPlacement; feld?: FeldTyp } | null>(null);
   const onFeldDown = (e: React.PointerEvent, key: string, idx: number, mode: "move" | "resize", feld?: EntwurfFeld) => {
@@ -624,6 +664,10 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
     const orig = feld ? { page: feld.page, x: feld.x, y: feld.y, w: feld.w, h: feld.h } : { ...placements[key][idx] };
     drag.current = { key, idx, mode, sx: e.clientX, sy: e.clientY, orig, feld: feld?.typ };
     if (feld) setGewaehlt(feld.key);
+    else {
+      setGewaehlt(null);
+      setGewaehltPl({ key, idx });
+    }
   };
   const onFeldMove = (e: React.PointerEvent) => {
     const d = drag.current;
@@ -674,6 +718,17 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
       if (!EMAIL_RE.test(s.email.trim())) return `Die E-Mail-Adresse von ${s.name} ist ungültig.`;
     }
     if (rgiZaehlt && !rgiUser) return "Bitte auswählen, wer bei RGI unterschreibt.";
+    // Unterschriftsfelder: jedes Feld braucht einen Unterzeichner; gibt es Felder, braucht jeder externe Unterzeichner
+    // mindestens eines (ganz ohne Felder gilt wie bisher: Prüfblatt wird angehängt)
+    if (ohneFelder.length) {
+      return `Unterschriftsfeld auf Seite ${ohneFelder[0].page + 1}: Bitte auswählen, wer dort unterschreibt („Felder platzieren“ → Feld anklicken).`;
+    }
+    if (!etv && Object.entries(placements).some(([k, l]) => k !== OHNE_KEY && l.length > 0)) {
+      const ohneFeld = externe.find((s) => s.methode !== "intern" && !placements[s.key]?.length);
+      if (ohneFeld) {
+        return `${ohneFeld.name || ohneFeld.rolle || "Ein Unterzeichner"} hat noch kein Unterschriftsfeld. Bitte ein Feld setzen – oder alle Unterschriftsfelder entfernen (dann wird ein Prüfblatt angehängt).`;
+      }
+    }
     for (const f of felder) {
       const name = f.beschriftung || FELD_TYP_LABEL[f.typ];
       if (f.ausfueller !== "rgi") {
@@ -922,7 +977,12 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
               )}
               {platzieren && werkzeug === "unterschrift" && (
                 <div className="flex flex-wrap items-center gap-1.5 px-4 pt-2">
-                  {feldSigner.length === 0 && <span className="text-[12.5px] text-[#B35300]">Zuerst Unterzeichner hinzufügen.</span>}
+                  {feldSigner.length === 0 && (
+                    <span className="inline-flex h-8 items-center gap-1.5 rounded-full border border-dashed border-[#B5B5B5] bg-white px-2.5 text-[12.5px] font-medium text-[#595959]">
+                      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold text-white" style={{ backgroundColor: OHNE_FARBE }}>?</span>
+                      Feld setzen – Unterzeichner danach auswählen
+                    </span>
+                  )}
                   {feldSigner.map((f) => {
                     const an = f.key === aktiverFeldKey;
                     const farbe = farbeFuer(f.key);
@@ -941,6 +1001,12 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
                       </button>
                     );
                   })}
+                  {feldSigner.length > 0 && ohneFelder.length > 0 && (
+                    <span className="inline-flex h-8 items-center gap-1.5 rounded-full border border-dashed border-[#B5B5B5] bg-white px-2.5 text-[12.5px] font-medium text-[#595959]">
+                      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold text-white" style={{ backgroundColor: OHNE_FARBE }}>?</span>
+                      {ohneFelder.length} Feld{ohneFelder.length === 1 ? "" : "er"} noch ohne Unterzeichner – Feld anklicken
+                    </span>
+                  )}
                 </div>
               )}
               {platzieren && (
@@ -956,7 +1022,9 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
                     </span>
                   )}
                   {werkzeug === "unterschrift"
-                    ? `Auf die Stelle im Dokument klicken, an der ${feldSigner.find((f) => f.key === aktiverFeldKey)?.name ?? "der Unterzeichner"} unterschreiben soll.`
+                    ? aktiverFeldKey === OHNE_KEY
+                      ? "Auf die Stelle im Dokument klicken, an der unterschrieben werden soll. Der erste Unterzeichner, den Sie danach hinzufügen, bekommt das Feld automatisch."
+                      : `Auf die Stelle im Dokument klicken, an der ${feldSigner.find((f) => f.key === aktiverFeldKey)?.name ?? "der Unterzeichner"} unterschreiben soll.${feldSigner.length > 1 ? " Wer unterschreibt, lässt sich am Feld ändern." : ""}`
                     : werkzeug === "vorbelegt"
                     ? "Auf vorausgefüllten Text im Dokument klicken (z. B. Name, Anschrift) – der Unterzeichner darf ihn dann ändern. Angrenzende Wörter anklicken, um zu erweitern."
                     : `Auf die Stelle im Dokument klicken, um ein Feld „${FELD_TYP_LABEL[werkzeug]}“ zu setzen. Feld anklicken, um es zu bearbeiten.`}
@@ -1121,15 +1189,21 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
                               );
                             })}
                             {Object.entries(placements).flatMap(([key, list]) =>
-                              list.map((p, i) => (p.page !== idx ? null : (
+                              list.map((p, i) => {
+                                if (p.page !== idx) return null;
+                                const ohne = key === OHNE_KEY;
+                                const an = platzieren && gewaehltPl?.key === key && gewaehltPl.idx === i;
+                                return (
                                 <div
                                   key={`${key}-${i}`}
                                   className="absolute select-none touch-none rounded-[3px] border-2 border-dashed"
                                   style={{
                                     left: p.x * scale, top: p.y * scale, width: p.w * scale, height: p.h * scale,
                                     borderColor: farbeFuer(key), backgroundColor: farbeFuer(key) + "1A",
+                                    boxShadow: an ? `0 0 0 2px #fff, 0 0 0 4px ${farbeFuer(key)}` : undefined,
                                     cursor: platzieren ? "move" : "default",
                                     pointerEvents: platzieren ? "auto" : "none",
+                                    zIndex: an ? 6 : 3,
                                   }}
                                   onClick={(e) => e.stopPropagation()}
                                   onPointerDown={(e) => onFeldDown(e, key, i, "move")}
@@ -1141,11 +1215,30 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
                                     className="absolute left-1 top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold text-white"
                                     style={{ backgroundColor: farbeFuer(key) }}
                                   >
-                                    {nrFuer(key)}
+                                    {ohne ? "?" : nrFuer(key)}
                                   </span>
-                                  <span className="absolute bottom-0.5 left-1 right-1 truncate text-[10px] font-medium" style={{ color: farbeFuer(key) }}>
-                                    {feldSigner.find((f) => f.key === key)?.name}
+                                  <span className="absolute bottom-0.5 left-1 right-1 truncate text-[10px] font-medium" style={{ color: ohne ? "#595959" : farbeFuer(key) }}>
+                                    {ohne ? "noch ohne Unterzeichner" : feldSigner.find((f) => f.key === key)?.name}
                                   </span>
+                                  {platzieren && (an || (ohne && feldSigner.length > 0)) && feldSigner.length > 0 && (
+                                    <div
+                                      className="absolute left-0 top-full z-10 mt-1.5 flex items-center gap-1 rounded-lg border border-[#E5E5E5] bg-white p-1 shadow-md"
+                                      onPointerDown={(e) => e.stopPropagation()}
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <select
+                                        className="h-7 max-w-[200px] rounded-md border border-[#D6D6D6] bg-white px-1.5 text-[12px] text-[#2B2B2B]"
+                                        value={ohne ? "" : key}
+                                        aria-label="Wer unterschreibt hier?"
+                                        onChange={(e) => e.target.value && feldZuordnen(key, i, e.target.value)}
+                                      >
+                                        {ohne && <option value="">Wer unterschreibt hier?</option>}
+                                        {feldSigner.map((f) => (
+                                          <option key={f.key} value={f.key}>{f.nr}. {f.name}</option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                  )}
                                   {platzieren && (
                                     <>
                                       <button
@@ -1172,7 +1265,8 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
                                     </>
                                   )}
                                 </div>
-                              ))),
+                                );
+                              }),
                             )}
                           </div>
                         </div>
