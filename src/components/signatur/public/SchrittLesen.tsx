@@ -145,6 +145,8 @@ export default function SchrittLesen({ info, gelesen, setGelesen, onWeiter, onPa
     const e = art === "ergaenzung" ? neueErgaenzung(seite, p.x, p.y, masse(seite)) : neueKorrektur(seite, bereich!, masse(seite));
     setErgaenzungen((l) => [...l, e]);
     setErgAktiv(e.id);
+    // Stelle ins obere Drittel holen, damit der Editor unten sie nicht verdeckt
+    zeigeStelle(seite, e.bereich ? Math.min(e.bereich.y, e.y) : e.y);
     setErgEditorId(e.id);
   };
   const ergAendern = (id: string, patch: Partial<SignErgaenzung>) =>

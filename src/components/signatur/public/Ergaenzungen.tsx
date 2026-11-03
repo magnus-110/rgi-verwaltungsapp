@@ -89,9 +89,18 @@ const klemme = (v: number, min: number, max: number) => Math.min(Math.max(v, min
 const r1 = (n: number) => Math.round(n * 10) / 10;
 const neueId = () => `e${Math.random().toString(36).slice(2, 10)}`;
 
-/** Ersatztext einer Korrektur automatisch unter (sonst über) den markierten Bereich setzen. */
+/**
+ * Ersatztext einer Korrektur automatisch platzieren: rechts neben dem markierten Bereich (gleiche Zeile,
+ * liest sich wie „alt → neu“), wenn dort mindestens 120 pt frei sind; sonst darunter (bzw. darüber).
+ */
 export function ersatzPlatzieren(b: Rechteck, seite: { w: number; h: number }, h = 16): Rechteck {
-  const w = klemme(Math.max(b.w, 130), MIN_TEXT.w, seite.w - 8);
+  const rechts = seite.w - 6 - (b.x + b.w + 6);
+  if (rechts >= 120) {
+    const w = Math.min(rechts, 220);
+    const y = klemme(h <= b.h + 2 ? b.y + (b.h - h) / 2 : b.y, 2, seite.h - h - 2);
+    return { x: r1(b.x + b.w + 6), y: r1(y), w: r1(w), h };
+  }
+  const w = klemme(Math.max(b.w, 180), MIN_TEXT.w, seite.w - 8);
   const x = klemme(b.x, 4, seite.w - w - 4);
   let y = b.y + b.h + 2;
   if (y + h > seite.h - 4) y = b.y - h - 2;
@@ -231,6 +240,10 @@ export function ErgaenzungenEbene({
         const aktiv = aktivId === x.id;
         const box = { left: x.x * scale, top: x.y * scale, width: x.w * scale, height: x.h * scale };
         const b = x.bereich;
+        // Werkzeugleiste über Textfeld und Markierung (sonst darunter), rechts neben dem Markierungs-Griff
+        const oben = b ? Math.min(box.top, b.y * scale) : box.top;
+        const unten = b ? Math.max(box.top + box.height, (b.y + b.h) * scale) : box.top + box.height;
+        const links = (b ? Math.min(box.left, b.x * scale) : box.left) + (b ? 20 : 0);
         return (
           <div key={x.id}>
             <Darstellung e={x} scale={scale} eigen aktiv={aktiv} onTipp={() => (aktiv ? onBearbeiten(x.id) : onWaehlen(x.id))} />
@@ -239,7 +252,7 @@ export function ErgaenzungenEbene({
                 {/* Werkzeugleiste über dem Textfeld (unter dem Feld, wenn oben kein Platz ist) */}
                 <div
                   className="pointer-events-auto absolute z-[8] flex items-center gap-0.5 rounded-full border border-[#E5E5E5] bg-white p-0.5 shadow-[0_2px_10px_rgba(0,0,0,0.18)]"
-                  style={{ left: Math.max(0, box.left), top: box.top >= 44 ? box.top - 42 : box.top + box.height + 6 }}
+                  style={{ left: Math.max(0, links), top: oben >= 48 ? oben - 46 : unten + 8 }}
                 >
                   <button type="button" aria-label="Verschieben (ziehen)" title="Verschieben (ziehen)" className="flex h-9 w-9 cursor-grab items-center justify-center rounded-full text-[#1F3A93] hover:bg-[#EEF1FA] active:cursor-grabbing" {...griff(x, "text", "move")}>
                     <Move className="h-[18px] w-[18px]" />
@@ -250,7 +263,7 @@ export function ErgaenzungenEbene({
                   <button type="button" aria-label="Löschen" title="Löschen" onClick={() => onLoeschen(x.id)} className="flex h-9 w-9 items-center justify-center rounded-full text-[#B42318] hover:bg-[#FEF3F2]">
                     <Trash2 className="h-4 w-4" />
                   </button>
-                  <button type="button" aria-label="Fertig" title="Fertig" onClick={() => onWaehlen(null)} className="flex h-9 w-9 items-center justify-center rounded-full text-[#1E6B34] hover:bg-[#F0F7F2]">
+                  <button type="button" aria-label="Auswahl beenden" title="Fertig" onClick={() => onWaehlen(null)} className="flex h-9 w-9 items-center justify-center rounded-full text-[#1E6B34] hover:bg-[#F0F7F2]">
                     <Check className="h-[18px] w-[18px]" strokeWidth={2.5} />
                   </button>
                 </div>
@@ -452,7 +465,7 @@ export function ErgaenzungEditor({
         </label>
         <p className="mt-0.5 text-[12.5px] leading-[17px] text-[#6B6B6B]">
           {korrektur
-            ? "Die markierte Stelle wird durchgestrichen. Ihr Text erscheint darunter in Blau."
+            ? "Die markierte Stelle wird durchgestrichen. Ihr Text erscheint daneben in Blau – Sie können ihn verschieben."
             : `Ihr Text erscheint auf Seite ${e.page + 1} an der gewählten Stelle in Blau.`}
         </p>
         <form
