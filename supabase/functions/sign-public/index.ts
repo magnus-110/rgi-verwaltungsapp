@@ -3,6 +3,7 @@
 // nur dessen SHA-256. Herausgegeben werden nur Daten des einen Unterzeichners/Vorgangs.
 // Aktionen: get · sign · paper_upload · download (Vertrag: /home/claude/esig/API.md)
 import {
+  BUCKET,
   FIRMA,
   Fehler,
   TOKEN_RE,
@@ -14,6 +15,8 @@ import {
   ereignis,
   ipAus,
   json,
+  laden,
+  melden,
   objektLabel,
   pfad,
   sha256Hex,
@@ -30,8 +33,18 @@ import {
   papierSpeichern,
   vorgangLaden,
 } from "../_shared/signatur/ablauf.ts";
-import { PDFDocument, istPng } from "../_shared/signatur/pdf.ts";
+import { PDFDocument, istPng, seitenMasse } from "../_shared/signatur/pdf.ts";
 import { Feld, eingabenPruefen, felderLaden, wertText } from "../_shared/signatur/felder.ts";
+import {
+  ErgaenzungEingabe,
+  angabenText,
+  ergaenzungBeschreibung,
+  ergaenzungenLaden,
+  ergaenzungenPruefen,
+} from "../_shared/signatur/ergaenzungen.ts";
+
+/** Darf dieser Unterzeichner eigene Angaben ergänzen/korrigieren? (Freigabe durch RGI, nicht bei ETV) */
+const darfErgaenzen = (v: Vorgang, s: Signer) => s.darf_ergaenzen === true && s.methode !== "intern" && !istEtv(v);
 
 /** Felder für die öffentliche Seite: eigene bedienbar, fremde/vorab ausgefüllte als fester Inhalt. */
 function felderFuerSeite(felder: Feld[], signerId: string) {
@@ -152,6 +165,13 @@ Deno.serve(async (req) => {
         zustimmung_text: zustimmungsText(v.titel),
         // Ausfüllfelder nur, solange online unterschrieben werden kann (danach steckt alles im PDF)
         felder: z === "ok" ? felderFuerSeite(await felderLaden(db, v.id), s.id) : [],
+        // Eigene Angaben ergänzen/korrigieren (nur mit Freigabe) und Ergänzungen anderer Unterzeichner
+        // (stehen noch nicht in quelle.pdf, werden als fester Inhalt angezeigt)
+        darf_ergaenzen: z === "ok" && darfErgaenzen(v, s),
+        ergaenzungen_andere: z === "ok" && !istEtv(v)
+          ? (await ergaenzungenLaden(db, v.id)).filter((e) => e.signer_id !== s.id)
+            .map((e) => ({ id: e.id, art: e.art, page: e.page, x: e.x, y: e.y, w: e.w, h: e.h, bereich: e.bereich, text: e.text }))
+          : [],
       });
     }
 
@@ -189,6 +209,15 @@ Deno.serve(async (req) => {
       // Ausfüllfelder vollständig prüfen (nur eigene Felder, Typ, Datum, Länge, Gruppe genau eins, Abhängigkeiten)
       const felder = await felderLaden(db, v.id);
       const neueWerte = eingabenPruefen(felder, s.id, body.felder);
+      // Ergänzungen/Korrekturen: nur mit Freigabe; Seite vorhanden, Lage innerhalb der Seite, Länge, Anzahl
+      let ergaenzungen: ErgaenzungEingabe[] = [];
+      const ergRoh = body.ergaenzungen;
+      if (ergRoh != null && !(Array.isArray(ergRoh) && ergRoh.length === 0)) {
+        if (!darfErgaenzen(v, s)) return json({ error: "Ergänzungen sind für dieses Dokument nicht freigegeben." }, 403);
+        if (!Array.isArray(ergRoh)) return json({ error: "Die Ergänzungen sind ungültig." }, 400);
+        const masse = await seitenMasse(await laden(db, BUCKET, pfad.quelle(v.id)));
+        ergaenzungen = ergaenzungenPruefen(ergRoh, masse);
+      }
       const jetzt = new Date().toISOString();
       // Bedingtes Update: verhindert doppeltes Unterschreiben bei parallelen Klicks
       const { data: upd } = await db.from("sign_request_signers").update({
@@ -202,6 +231,35 @@ Deno.serve(async (req) => {
         signed_at: jetzt,
       }).eq("id", s.id).in("status", UNTERSCHREIBBAR).select("id");
       if (!upd?.length) return json({ error: "Dieses Dokument wurde bereits unterschrieben.", zustand: "unterschrieben" }, 409);
+      // Unterschrift zurücknehmen, damit nichts halb gespeichert bleibt
+      const zuruecknehmen = async () => {
+        if (ergaenzungen.length) await db.from("sign_request_ergaenzungen").delete().eq("signer_id", s.id);
+        await db.from("sign_request_signers").update({ status: s.status, signed_at: null, typed_name: null, signature_png: null, consent_text: null })
+          .eq("id", s.id).eq("status", "unterschrieben");
+      };
+      if (ergaenzungen.length) {
+        const erstelltVon = `${name} (online)`;
+        const { error } = await db.from("sign_request_ergaenzungen").insert(ergaenzungen.map((e, i) => ({
+          request_id: v.id,
+          signer_id: s.id,
+          art: e.art,
+          position: i,
+          page: e.page,
+          x: e.x,
+          y: e.y,
+          w: e.w,
+          h: e.h,
+          bereich: e.bereich,
+          text: e.text,
+          erstellt_von: erstelltVon,
+          erstellt_am: jetzt,
+        })));
+        if (error) {
+          console.error("[sign-public] Ergänzungen nicht gespeichert:", error.message);
+          await zuruecknehmen();
+          return json({ error: "Ihre Ergänzungen konnten nicht gespeichert werden. Bitte versuchen Sie es erneut." }, 500);
+        }
+      }
       if (neueWerte.size) {
         const geaendert: string[] = [];
         try {
@@ -218,9 +276,7 @@ Deno.serve(async (req) => {
             if (wert) geaendert.push(`${f.beschriftung || f.feld_key}: ${wertText({ typ: f.typ, wert })}`);
           }
         } catch (e) {
-          // Unterschrift zurücknehmen, damit nichts halb gespeichert bleibt
-          await db.from("sign_request_signers").update({ status: s.status, signed_at: null, typed_name: null, signature_png: null, consent_text: null })
-            .eq("id", s.id).eq("status", "unterschrieben");
+          await zuruecknehmen();
           console.error("[sign-public] Felder nicht gespeichert:", e);
           return json({ error: "Die Angaben konnten nicht gespeichert werden. Bitte versuchen Sie es erneut." }, 500);
         }
@@ -230,6 +286,27 @@ Deno.serve(async (req) => {
             details: { felder: geaendert, am: jetzt },
           });
         }
+      }
+      if (ergaenzungen.length) {
+        // Protokoll: jede Ergänzung/Korrektur mit Seite und Text; Hinweis an RGI (Ersteller)
+        const liste = ergaenzungen.map(ergaenzungBeschreibung);
+        await ereignis(db, v.id, "ergaenzt", `${s.name} hat ${angabenText(ergaenzungen.length)}: ${liste.join("; ")}`.slice(0, 12000), {
+          signerId: s.id,
+          details: {
+            am: jetzt,
+            anzahl: ergaenzungen.length,
+            eintraege: ergaenzungen.map((e) => ({ art: e.art, seite: e.page + 1, text: e.text })),
+          },
+        });
+        await db.from("sign_requests").update({ ergaenzungen_pruefen: true }).eq("id", v.id);
+        await melden(
+          db,
+          v.created_by,
+          "review_due",
+          `${s.name} hat ${angabenText(ergaenzungen.length)} – bitte prüfen`,
+          `${v.nummer} · ${v.titel}${v.buildings?.name ? ` · ${v.buildings.name}` : ""}`,
+          v.id,
+        );
       }
       await ereignis(db, v.id, "unterschrieben", `${s.name} hat unterschrieben`, {
         signerId: s.id,

@@ -52,6 +52,8 @@ const F = {
   rand: farbe("#E5E5E5"),
   box: farbe("#EFEFEF"),
   tinte: rgb(0.04, 0.04, 0.12),
+  // Ergänzungen/Korrekturen der Unterzeichner
+  blau: farbe("#1F3A93"),
 };
 
 export interface Platzierung {
@@ -87,6 +89,12 @@ export interface SignerPdf {
 }
 
 // ---------------------------------------------------------------- Hilfen
+
+/** Größe der angezeigten Seiten (pt, Drehung und CropBox beachtet) – für die Prüfung von Ergänzungen. */
+export async function seitenMasse(bytes: Uint8Array): Promise<{ w: number; h: number }[]> {
+  const d = await PDFDocument.load(bytes, { ignoreEncryption: true, updateMetadata: false });
+  return d.getPages().map((p: Page) => ansichtsGroesse(p));
+}
 
 export async function seitenZaehlen(bytes: Uint8Array): Promise<number> {
   try {
@@ -218,6 +226,80 @@ export interface StempelOptionen {
   standardOrt?: string;
   /** Ausfüllfelder (sign_request_fields): Werte fest einsetzen, Vorlagen-Anker überdecken */
   felder?: FeldPdf[];
+  /** Ergänzungen/Korrekturen der Unterzeichner (sign_request_ergaenzungen): dunkelblau einsetzen */
+  ergaenzungen?: ErgaenzungPdf[];
+}
+
+/** Ergänzung/Korrektur fürs PDF (Auszug aus sign_request_ergaenzungen). */
+export interface ErgaenzungPdf {
+  art: string;
+  page: number;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  bereich?: { x: number; y: number; w: number; h: number } | null;
+  text: string;
+  erstellt_von?: string;
+  erstellt_am?: string;
+}
+
+/** Schrift der Ergänzungen (Helvetica): 10 pt, bei Platzmangel kleiner bis 6 pt; Zeilenabstand 1,2; Innenrand 2 pt. */
+export const ERG_SCHRIFT = { gross: 10, klein: 6, zeile: 1.2, rand: 2 };
+
+/** Zeilen einer Ergänzung (Umbrüche des Unterzeichners bleiben, lange Zeilen werden umbrochen). */
+export function ergaenzungZeilen(font: Font, text: string, size: number, breite: number): string[] {
+  const out: string[] = [];
+  for (const absatz of String(text ?? "").split("\n")) {
+    if (!absatz.trim()) out.push("");
+    else out.push(...umbrechen(font, absatz, size, breite));
+  }
+  return out;
+}
+
+/** Größte Schrift (10 … 6 pt), bei der der Text ins Feld passt. */
+export function ergaenzungSchrift(font: Font, text: string, w: number, h: number): { size: number; zeilen: string[] } {
+  const S = ERG_SCHRIFT;
+  const breite = Math.max(4, w - 2 * S.rand);
+  for (let size = S.gross; size >= S.klein; size -= 0.5) {
+    const zeilen = ergaenzungZeilen(font, text, size, breite);
+    if (zeilen.length * size * S.zeile + 2 * S.rand <= h + 0.5) return { size, zeilen };
+  }
+  return { size: S.klein, zeilen: ergaenzungZeilen(font, text, S.klein, breite) };
+}
+
+/**
+ * Ergänzungen dunkelblau einsetzen: Korrekturbereich dünn durchgestrichen (Original bleibt lesbar),
+ * Text (Ergänzung bzw. „Richtig ist“) auf leicht deckendem Weiß, damit er gut lesbar ist.
+ */
+function ergaenzungenZeichnen(pages: Page[], liste: ErgaenzungPdf[], font: Font, klammern: (idx: number) => void) {
+  for (const e of liste) {
+    const page = pages[e.page];
+    if (!page || !(e.w > 0) || !(e.h > 0)) continue;
+    klammern(e.page);
+    const b = e.bereich;
+    if (e.art === "korrektur" && b && b.w > 0 && b.h > 0) {
+      // eine Linie je ~13 pt Höhe (mehrzeilige Bereiche: jede Zeile durchgestrichen)
+      const n = Math.max(1, Math.round(b.h / 13));
+      imRechteck(page, b, () => {
+        for (let i = 0; i < n; i++) {
+          const y = b.h - (i + 0.5) * (b.h / n);
+          page.drawLine({ start: { x: 0, y }, end: { x: b.w, y }, thickness: 0.9, color: F.blau, opacity: 0.9 });
+        }
+      });
+    }
+    const { size, zeilen } = ergaenzungSchrift(font, e.text, e.w, e.h);
+    const S = ERG_SCHRIFT;
+    imRechteck(page, e, () => {
+      const textH = zeilen.length * size * S.zeile + 2 * S.rand;
+      const hoehe = Math.max(e.h, textH);
+      page.drawRectangle({ x: 0, y: e.h - hoehe, width: e.w, height: hoehe, color: rgb(1, 1, 1), opacity: 0.8 });
+      zeilen.forEach((z, i) => {
+        if (!z) return;
+        page.drawText(z, { x: S.rand, y: e.h - S.rand - size * 0.95 - i * size * S.zeile, size, font, color: F.blau });
+      });
+    });
+  }
 }
 
 /** Ausfüllfeld fürs PDF (Auszug aus sign_request_fields). */
@@ -287,13 +369,13 @@ export async function stempeln(doc: Doc, signers: SignerPdf[], o: StempelOptione
   const f = await fonts(doc);
   const pages = doc.getPages();
   const eingeklammert = new Set<number>();
-  if (o.felder?.length) {
-    felderZeichnen(pages, o.felder, f.normal, (idx) => {
-      if (eingeklammert.has(idx) || !pages[idx]) return;
-      eingeklammert.add(idx);
-      inhaltEinklammern(doc, pages[idx]);
-    });
-  }
+  const klammern = (idx: number) => {
+    if (eingeklammert.has(idx) || !pages[idx]) return;
+    eingeklammert.add(idx);
+    inhaltEinklammern(doc, pages[idx]);
+  };
+  if (o.felder?.length) felderZeichnen(pages, o.felder, f.normal, klammern);
+  if (o.ergaenzungen?.length) ergaenzungenZeichnen(pages, o.ergaenzungen, f.normal, klammern);
   const letzteUnterschrift = new Map<number, string>(); // Seite → späteste Zeit
   const bilder = new Map<string, unknown>();
 
@@ -508,6 +590,8 @@ export interface PruefblattDaten {
   ohneKopie?: boolean;
   /** Ausfüllfelder (wer hat welches Feld wann ausgefüllt) */
   felder?: FeldPdf[];
+  /** Ergänzungen/Korrekturen der Unterzeichner (wer, wann, Seite, Text) */
+  ergaenzungen?: ErgaenzungPdf[];
 }
 
 function rundesRechteck(page: Page, x: number, yOben: number, w: number, h: number, r: number, o: { fill?: unknown; rand?: unknown }) {
@@ -705,6 +789,36 @@ export async function pruefblattAnhaengen(doc: Doc, d: PruefblattDaten) {
       r.v.forEach((z, i) => page.drawText(z, { x: M + 195, y: y - 7.6 - i * 10.2, size: 7.6, font: f.fett, color: F.text }));
       r.wer.forEach((z, i) => page.drawText(z, { x: M + 315, y: y - 7.6 - i * 10.2, size: 7.6, font: f.normal, color: F.text }));
       y -= zh;
+    }
+    y -= 6;
+  }
+
+  // ---- Ergänzungen und Korrekturen der Unterzeichner (wer, wann, Seite, Text)
+  const erg = d.ergaenzungen ?? [];
+  if (erg.length) {
+    const zeilenE = erg.map((x) => ({
+      k: umbrechen(f.normal, `Seite ${x.page + 1} · ${x.art === "korrektur" ? "Korrektur" : "Ergänzung"}`, 7.6, 95),
+      v: umbrechen(f.fett, x.art === "korrektur"
+        ? `markierte Stelle ersetzt durch „${x.text.replace(/\s*\n\s*/g, " / ")}“`
+        : `„${x.text.replace(/\s*\n\s*/g, " / ")}“`, 7.6, 225),
+      wer: umbrechen(f.normal, `${x.erstellt_von || "–"}${x.erstellt_am ? ` · ${datumZeit(x.erstellt_am)} Uhr` : ""}`, 7.6, B - 345),
+    }));
+    platz(60);
+    ueberschrift("Ergänzungen und Korrekturen der Unterzeichner");
+    for (const r of zeilenE) {
+      const zh = Math.max(r.k.length, r.v.length, r.wer.length) * 10.2 + 3;
+      platz(zh + 4);
+      r.k.forEach((z, i) => page.drawText(z, { x: M + 10, y: y - 7.6 - i * 10.2, size: 7.6, font: f.normal, color: F.grau }));
+      r.v.forEach((z, i) => page.drawText(z, { x: M + 110, y: y - 7.6 - i * 10.2, size: 7.6, font: f.fett, color: F.blau }));
+      r.wer.forEach((z, i) => page.drawText(z, { x: M + 345, y: y - 7.6 - i * 10.2, size: 7.6, font: f.normal, color: F.text }));
+      y -= zh;
+    }
+    const hinweis = umbrechen(f.normal, "Diese Angaben haben die Unterzeichner beim Unterschreiben selbst ergänzt bzw. korrigiert. Sie sind im Dokument dunkelblau eingesetzt, korrigierte Stellen sind durchgestrichen.", 7, B - 10);
+    platz(hinweis.length * 9.5 + 4);
+    y -= 3;
+    for (const z of hinweis) {
+      page.drawText(z, { x: M + 10, y: y - 7, size: 7, font: f.normal, color: F.grau });
+      y -= 9.5;
     }
     y -= 6;
   }

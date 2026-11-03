@@ -3,8 +3,12 @@ import { Document, Page, pdfjs } from "react-pdf";
 import { ArrowDown, Loader2 } from "lucide-react";
 import { Fortschritt, Haken, Kopf, PrimaerButton, SekundaerButton, ueberschrift, Fusszeile, FehlerHinweis, knopfSpalte } from "./ui";
 import { PdfAnsicht } from "@/components/shared/PdfAnsicht";
-import { datum, type SignFeld, type SignInfo } from "./api";
+import { datum, type Rechteck, type SignErgaenzung, type SignFeld, type SignInfo } from "./api";
 import { FeldEditor, FelderEbene, OffeneListe, offeneFelder, wertVon, type Offen, type Werte } from "./Felder";
+import {
+  A4, ErgaenzenLeiste, ErgaenzungEditor, ErgaenzungenEbene, ErgaenzungenListe, MAX_ERGAENZUNGEN, MAX_ZEILEN,
+  ersatzPlatzieren, neueErgaenzung, neueKorrektur, textHoehe, textSauber, type Modus,
+} from "./Ergaenzungen";
 
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
@@ -33,10 +37,13 @@ type Props = {
   /** Eingaben in Ausfüllfelder (Feld-ID → Wert) */
   werte: Werte;
   setWert: (f: SignFeld, wert: string | null) => void;
+  /** Eigene Ergänzungen/Korrekturen (nur mit Freigabe), gehen mit der Unterschrift an sign-public */
+  ergaenzungen: SignErgaenzung[];
+  setErgaenzungen: React.Dispatch<React.SetStateAction<SignErgaenzung[]>>;
 };
 
 /** Schritt 1 · Dokument lesen (Mockup v04, ohne „Änderung anfragen“). */
-export default function SchrittLesen({ info, gelesen, setGelesen, onWeiter, onPapier, onDownload, downloadFehler, werte, setWert }: Props) {
+export default function SchrittLesen({ info, gelesen, setGelesen, onWeiter, onPapier, onDownload, downloadFehler, werte, setWert, ergaenzungen, setErgaenzungen }: Props) {
   const felder = info.felder ?? [];
   const offen = offeneFelder(felder, werte);
   const [aktivId, setAktivId] = useState<string | null>(null);
@@ -98,33 +105,114 @@ export default function SchrittLesen({ info, gelesen, setGelesen, onWeiter, onPa
     warGelesen.current = gelesen;
   }, [gelesen]);
 
-  /** Zum Feld springen (große Ansicht: PdfAnsicht, Handy: eigene Liste) und hervorheben. */
+  /** Zu einer Stelle springen (große Ansicht: PdfAnsicht, Handy: eigene Liste). */
+  const zeigeStelle = (page: number, y: number) => {
+    if (gross && !grossFehler) {
+      setZiel((z) => ({ seite: page + 1, y, n: (z?.n ?? 0) + 1 }));
+    } else {
+      const el = seitenEls.current[page];
+      const scroller = box.current?.parentElement;
+      const sk = seitenBreite[page] ? breite / seitenBreite[page] : 1;
+      if (el && scroller) scroller.scrollTo({ top: Math.max(0, el.offsetTop - scroller.offsetTop + y * sk - scroller.clientHeight / 3), behavior: "smooth" });
+      // auch die Seite selbst, falls der Kasten nicht ganz sichtbar ist
+      scroller?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  };
+  /** Zum Feld springen und hervorheben. */
   const springe = (o: Offen) => {
     const f = o.feld;
     setAktivId(f.id);
     setFelderHinweis(false);
-    if (gross && !grossFehler) {
-      setZiel((z) => ({ seite: f.page + 1, y: f.y, n: (z?.n ?? 0) + 1 }));
-    } else {
-      const el = seitenEls.current[f.page];
-      const scroller = box.current?.parentElement;
-      const sk = seitenBreite[f.page] ? breite / seitenBreite[f.page] : 1;
-      if (el && scroller) scroller.scrollTo({ top: Math.max(0, el.offsetTop - scroller.offsetTop + f.y * sk - scroller.clientHeight / 3), behavior: "smooth" });
-      // auch die Seite selbst, falls der Kasten nicht ganz sichtbar ist
-      scroller?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    }
+    zeigeStelle(f.page, f.y);
     if (f.typ === "datum" || f.typ === "text") window.setTimeout(() => setEditor(f), 350);
   };
+
+  // ---- Ergänzungen/Korrekturen (nur mit Freigabe durch RGI)
+  const darf = !!info.darf_ergaenzen;
+  const andere = info.ergaenzungen_andere ?? [];
+  const [modus, setModus] = useState<Modus>(null);
+  const [ergAktiv, setErgAktiv] = useState<string | null>(null);
+  const [ergEditorId, setErgEditorId] = useState<string | null>(null);
+  const [ergHinweis, setErgHinweis] = useState(false);
+  const seitenMasse = useRef<Record<number, { w: number; h: number }>>({});
+  const masse = (page: number) => seitenMasse.current[page] ?? A4;
+  const ergEditor = ergaenzungen.find((e) => e.id === ergEditorId) ?? null;
+  const unvollstaendig = ergaenzungen.filter((e) => !textSauber(e.text) || textSauber(e.text).split("\n").length > MAX_ZEILEN);
+
+  const ergNeu = (seite: number, art: "ergaenzung" | "korrektur", p: { x: number; y: number }, bereich?: Rechteck) => {
+    setModus(null);
+    if (ergaenzungen.length >= MAX_ERGAENZUNGEN) return;
+    const e = art === "ergaenzung" ? neueErgaenzung(seite, p.x, p.y, masse(seite)) : neueKorrektur(seite, bereich!, masse(seite));
+    setErgaenzungen((l) => [...l, e]);
+    setErgAktiv(e.id);
+    setErgEditorId(e.id);
+  };
+  const ergAendern = (id: string, patch: Partial<SignErgaenzung>) =>
+    setErgaenzungen((l) => l.map((e) => {
+      if (e.id !== id) return e;
+      const n = { ...e, ...patch };
+      // Ersatztext folgt der Markierung, solange er nicht von Hand verschoben wurde
+      if (patch.bereich && n.bereich && !n.manuell) Object.assign(n, ersatzPlatzieren(n.bereich, masse(n.page), n.h));
+      return n;
+    }));
+  const ergText = (id: string, text: string) =>
+    setErgaenzungen((l) => l.map((e) => {
+      if (e.id !== id) return e;
+      const m = masse(e.page);
+      // Feld wächst mit dem Text (10 pt), höchstens bis zum Seitenende
+      const n = { ...e, text, h: Math.max(16, Math.min(textHoehe(text, e.w), Math.floor(m.h - e.y - 2))) };
+      if (n.art === "korrektur" && n.bereich && !n.manuell) Object.assign(n, ersatzPlatzieren(n.bereich, m, n.h));
+      return n;
+    }));
+  const ergLoeschen = (id: string) => {
+    setErgaenzungen((l) => l.filter((e) => e.id !== id));
+    setErgAktiv((a) => (a === id ? null : a));
+    setErgEditorId((a) => (a === id ? null : a));
+  };
+  const ergEditorZu = () => {
+    // Ohne Text wird die Ergänzung verworfen
+    if (ergEditor && !textSauber(ergEditor.text)) ergLoeschen(ergEditor.id);
+    setErgEditorId(null);
+  };
+  const ergZeigen = (e: SignErgaenzung, bearbeiten: boolean) => {
+    setModus(null);
+    setErgAktiv(e.id);
+    setErgHinweis(false);
+    zeigeStelle(e.page, e.bereich ? Math.min(e.bereich.y, e.y) : e.y);
+    if (bearbeiten) window.setTimeout(() => setErgEditorId(e.id), 350);
+  };
+
+  const mitEbene = felder.length > 0 || darf || andere.length > 0;
   const ebene = (seite: number, sk: number) => (
-    <FelderEbene
-      felder={felder}
-      werte={werte}
-      seite={seite}
-      scale={sk}
-      aktivId={aktivId}
-      onWert={(f, w) => { setAktivId(f.id); setWert(f, w); }}
-      onBearbeiten={(f) => { setAktivId(f.id); setEditor(f); }}
-    />
+    <>
+      {felder.length > 0 && (
+        <FelderEbene
+          felder={felder}
+          werte={werte}
+          seite={seite}
+          scale={sk}
+          aktivId={aktivId}
+          onWert={(f, w) => { setAktivId(f.id); setWert(f, w); }}
+          onBearbeiten={(f) => { setAktivId(f.id); setEditor(f); }}
+        />
+      )}
+      {(darf || andere.length > 0) && (
+        <ErgaenzungenEbene
+          seite={seite}
+          scale={sk}
+          eigene={darf ? ergaenzungen : []}
+          andere={andere}
+          modus={darf ? modus : null}
+          aktivId={ergAktiv}
+          seitenMasse={seitenMasse}
+          onNeu={ergNeu}
+          onAendern={ergAendern}
+          onWaehlen={setErgAktiv}
+          onBearbeiten={(id) => { setErgAktiv(id); setErgEditorId(id); }}
+          onLoeschen={ergLoeschen}
+        />
+      )}
+    </>
   );
 
   const n = info.seitenzahl || seiten;
@@ -141,9 +229,16 @@ export default function SchrittLesen({ info, gelesen, setGelesen, onWeiter, onPa
       springe(offen[0]);
       return;
     }
+    if (unvollstaendig.length) {
+      setErgHinweis(true);
+      ergZeigen(unvollstaendig[0], true);
+      return;
+    }
+    setModus(null);
+    setErgAktiv(null);
     onWeiter();
   };
-  const bereit = gelesen && !offen.length;
+  const bereit = gelesen && !offen.length && !unvollstaendig.length;
 
   return (
     <>
@@ -153,6 +248,16 @@ export default function SchrittLesen({ info, gelesen, setGelesen, onWeiter, onPa
         <div className="px-5 pb-[11px] pt-[11px] min-[641px]:px-10 min-[641px]:pb-4 min-[641px]:pt-5">
           <h1 className={`${ueberschrift} text-[20px] leading-[25px] min-[641px]:text-[26px] min-[641px]:leading-[32px]`}>{info.titel}</h1>
           <p className="mt-0 text-[13px] leading-[17px] text-[#6B6B6B] min-[641px]:mt-1 min-[641px]:text-[14px]">{zeile}</p>
+          {darf && (
+            <div className="mt-3 min-[641px]:max-w-[560px]">
+              <ErgaenzenLeiste
+                modus={modus}
+                setModus={(m) => { setModus(m); setErgAktiv(null); }}
+                anzahl={ergaenzungen.length}
+                gross={gross && !grossFehler}
+              />
+            </div>
+          )}
         </div>
 
         <div className="border-b border-[#EEEEEE] bg-[#E9E9E7] px-4 pt-4 min-[641px]:px-6">
@@ -166,7 +271,7 @@ export default function SchrittLesen({ info, gelesen, setGelesen, onWeiter, onPa
                 scrollWeitergeben
                 onFehler={() => setGrossFehler(true)}
                 className="bg-[#E9E9E7]"
-                overlay={felder.length ? ebene : undefined}
+                overlay={mitEbene ? ebene : undefined}
                 ziel={ziel}
               />
             </div>
@@ -200,7 +305,7 @@ export default function SchrittLesen({ info, gelesen, setGelesen, onWeiter, onPa
                           onRenderSuccess={() => setGerendert((g) => g + 1)}
                           loading={<div className="bg-white" style={{ width: breite, height: Math.round(breite * 1.414) }} />}
                         />
-                        {felder.length > 0 && seitenBreite[i] && (
+                        {mitEbene && seitenBreite[i] && (
                           <div className="pointer-events-none absolute inset-0 z-[3]">{ebene(i, breite / seitenBreite[i])}</div>
                         )}
                       </div>
@@ -253,6 +358,22 @@ export default function SchrittLesen({ info, gelesen, setGelesen, onWeiter, onPa
               <OffeneListe offen={offen} onSprung={springe} />
             </>
           )}
+          {darf && (
+            <>
+              {ergHinweis && unvollstaendig.length > 0 && (
+                <p className="text-[13px] font-semibold leading-[18px] text-[#B35300]">
+                  Bitte geben Sie bei jeder Ergänzung bzw. Korrektur einen Text ein – oder löschen Sie sie.
+                </p>
+              )}
+              <ErgaenzungenListe
+                liste={ergaenzungen}
+                aktivId={ergAktiv}
+                onSprung={(e) => ergZeigen(e, false)}
+                onBearbeiten={(e) => ergZeigen(e, true)}
+                onLoeschen={(e) => ergLoeschen(e.id)}
+              />
+            </>
+          )}
           {downloadFehler && <FehlerHinweis>{downloadFehler}</FehlerHinweis>}
           <PrimaerButton
             onClick={weiter}
@@ -265,6 +386,14 @@ export default function SchrittLesen({ info, gelesen, setGelesen, onWeiter, onPa
         </div>
         <Fusszeile className="mt-auto" />
       </div>
+      {ergEditor && (
+        <ErgaenzungEditor
+          e={ergEditor}
+          onText={(t) => ergText(ergEditor.id, t)}
+          onFertig={ergEditorZu}
+          onLoeschen={() => ergLoeschen(ergEditor.id)}
+        />
+      )}
       {editor && (
         <FeldEditor
           feld={editor}

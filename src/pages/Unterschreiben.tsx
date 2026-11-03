@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { Rahmen } from "@/components/signatur/public/ui";
-import { holeDownload, holeInfo, NetzFehler, oeffnePdf, unterschreiben, type SignErgebnis, type SignFeld, type SignInfo } from "@/components/signatur/public/api";
+import { holeDownload, holeInfo, NetzFehler, oeffnePdf, unterschreiben, type SignErgaenzung, type SignErgebnis, type SignFeld, type SignInfo } from "@/components/signatur/public/api";
 import { istAktiv, type Werte } from "@/components/signatur/public/Felder";
 import SchrittLesen from "@/components/signatur/public/SchrittLesen";
 import SchrittUnterschreiben from "@/components/signatur/public/SchrittUnterschreiben";
@@ -48,6 +48,9 @@ export default function Unterschreiben() {
     });
   }, [info]);
 
+  /** Eigene Ergänzungen/Korrekturen (nur mit Freigabe); gehen mit der Unterschrift an sign-public */
+  const [ergaenzungen, setErgaenzungen] = useState<SignErgaenzung[]>([]);
+
   const [dlBusy, setDlBusy] = useState(false);
   const [dlFehler, setDlFehler] = useState<string | null>(null);
 
@@ -73,7 +76,7 @@ export default function Unterschreiben() {
   }, []);
 
   // Warnung beim Verlassen, solange gezeichnet, aber noch nicht abgeschickt
-  const ungesendet = !!png && schritt === "unterschreiben" && !ergebnis;
+  const ungesendet = (!!png || ergaenzungen.length > 0) && ["lesen", "unterschreiben"].includes(schritt) && !ergebnis;
   useEffect(() => {
     if (!ungesendet) return;
     const warnen = (e: BeforeUnloadEvent) => {
@@ -140,7 +143,7 @@ export default function Unterschreiben() {
       const felder = info?.felder ?? [];
       const eingaben: Record<string, string | null> = {};
       for (const f of felder.filter((x) => x.eigen)) eingaben[f.id] = istAktiv(f, felder, werte) ? werte[f.id] ?? null : null;
-      const r = await unterschreiben(token, name.trim(), png, eingaben);
+      const r = await unterschreiben(token, name.trim(), png, eingaben, info?.darf_ergaenzen ? ergaenzungen : undefined);
       setErgebnis(r);
       geheZu("fertig");
     } catch (e: any) {
@@ -190,6 +193,7 @@ export default function Unterschreiben() {
         onZurueck={() => geheZu("lesen")}
         onSenden={senden}
         werte={werte}
+        ergaenzungen={info.darf_ergaenzen ? ergaenzungen : []}
       />
     );
   } else {
@@ -204,6 +208,8 @@ export default function Unterschreiben() {
         downloadFehler={dlFehler}
         werte={werte}
         setWert={setWert}
+        ergaenzungen={ergaenzungen}
+        setErgaenzungen={setErgaenzungen}
       />
     );
   }

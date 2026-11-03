@@ -286,6 +286,9 @@ export default function Unterschriften() {
                           <td className="px-3 py-3.5 align-middle">
                             <div className="flex flex-wrap items-center gap-1.5">
                               <SignaturStatusBadge request={r} />
+                              {r.ergaenzungen_pruefen && (
+                                <Pill color="#1F3A93" bg="#EEF1FA" className="border border-[#C9D3EE]">Ergänzt – prüfen</Pill>
+                              )}
                               {nochNichtImDms(r) && (
                                 <Pill color={SIG.button} bg="#FDEBD8" className="border border-[#F5C79A]">Noch nicht im DMS</Pill>
                               )}

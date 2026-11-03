@@ -19,6 +19,7 @@ import {
   signerName, signerStatusLang, SIG, TON_FARBE, useSignEvents, useSignInvalidate, useSignRequest,
   aktiveSigner, erinnernMeldung, istNurLink, kannNeuenLink, oeffneQuellePdf, istFirmenQuelle, nochNichtImDms,
   type SignEvent, type SignRequest, type SignSigner, FELD_TYP_LABEL, feldWertText, useSignFields,
+  type SignErgaenzung, ERGAENZUNG_ART_LABEL, useSignErgaenzungen,
 } from "@/lib/signatur";
 import { DmsAblegenDialog, FIRMA_NAME } from "./DmsAblegenDialog";
 import { NeuerLinkDialog } from "./LinkKopieren";
@@ -51,6 +52,7 @@ export function VorgangDetail({ requestId, onClose, imSheet }: { requestId: stri
   const { data: r, isLoading } = useSignRequest(requestId);
   const { data: events = [] } = useSignEvents(requestId);
   const { data: felder = [] } = useSignFields(requestId);
+  const { data: ergaenzungen = [] } = useSignErgaenzungen(requestId);
   const [busy, setBusy] = useState<string | null>(null);
   const [zurueckFrage, setZurueckFrage] = useState(false);
   const [linkSigner, setLinkSigner] = useState<SignSigner | null>(null);
@@ -104,6 +106,22 @@ export function VorgangDetail({ requestId, onClose, imSheet }: { requestId: stri
   const endfassung = () =>
     ausfuehren("final", () => oeffneSignUrl(async () => (await signAction<{ final?: string }>("urls", { request_id: r.id }))?.final));
 
+  /** Endfassung (bzw. Kopie des Unterzeichners) an der Seite der Ergänzung öffnen. */
+  const ergaenzungOeffnen = (e: SignErgaenzung) =>
+    ausfuehren(`erg-${e.id}`, () =>
+      oeffneSignUrl(async () => {
+        const u = await signAction<{ final_ansicht?: string | null; kopie?: string | null }>("urls", { request_id: r.id, signer_id: e.signer_id });
+        const url = u?.final_ansicht || u?.kopie;
+        return url ? `${url}#page=${e.page + 1}` : null;
+      }));
+
+  const geprueft = () =>
+    ausfuehren("geprueft", async () => {
+      await signAction("ergaenzungen_geprueft", { request_id: r.id });
+      toast.success("Als geprüft markiert");
+      await invalidate();
+    });
+
   const nachweis = () =>
     ausfuehren("nachweis", () => oeffneSignUrl(async () => (await signAction<{ url: string }>("nachweis", { request_id: r.id }))?.url));
 
@@ -130,6 +148,7 @@ export function VorgangDetail({ requestId, onClose, imSheet }: { requestId: stri
           <Pill color={fertig ? SIG.gruen : SIG.button} bg={fertig ? SIG.gruenBg : SIG.orangeBg}>
             {f.fertig} von {f.gesamt} unterschrieben
           </Pill>
+          {r.ergaenzungen_pruefen && <Pill color="#1F3A93" bg="#EEF1FA">Ergänzt – prüfen</Pill>}
           {r.status === "zurueckgezogen" && <Pill color={SIG.grau} bg="#EFEFEF">Zurückgezogen</Pill>}
           {r.status === "abgelaufen" && <Pill color={SIG.grau} bg="#EFEFEF">Abgelaufen</Pill>}
           {r.frist && r.status === "offen" && <span className="text-[12.5px] text-[#6B6B6B]">Frist {formatDate(r.frist)}</span>}
@@ -209,6 +228,55 @@ export function VorgangDetail({ requestId, onClose, imSheet }: { requestId: stri
             }}
             onEndfassung={endfassung}
           />
+        )}
+
+        {/* ERGÄNZUNGEN DER UNTERZEICHNER */}
+        {ergaenzungen.length > 0 && (
+          <div>
+            <Abschnitt className="mb-2">Ergänzungen des Unterzeichners ({ergaenzungen.length})</Abschnitt>
+            {r.ergaenzungen_pruefen && (
+              <div className="mb-2 rounded-[10px] border border-[#C9D3EE] bg-[#EEF1FA] px-3 py-2.5">
+                <p className="text-[13px] leading-snug text-[#1F3A93]">
+                  Diese Angaben hat der Unterzeichner selbst ergänzt bzw. korrigiert. Bitte prüfen und übernehmen
+                  (z. B. Stammdaten, Bankverbindung).
+                </p>
+                <SigButton variante="primaer" klein className="mt-2" onClick={geprueft} loading={busy === "geprueft"}>
+                  <Check className="h-3.5 w-3.5" /> Geprüft
+                </SigButton>
+              </div>
+            )}
+            <ul className="divide-y divide-[#EEEEEE] rounded-xl border border-[#E5E5E5] bg-white">
+              {ergaenzungen.map((e) => {
+                const wer = r.signers.find((x) => x.id === e.signer_id)?.name ?? e.erstellt_von;
+                return (
+                  <li key={e.id}>
+                    <button
+                      type="button"
+                      onClick={() => ergaenzungOeffnen(e)}
+                      disabled={busy === `erg-${e.id}`}
+                      title="Im Dokument an dieser Seite öffnen"
+                      className="flex w-full items-start gap-3 px-3 py-2 text-left text-[13px] hover:bg-[#FAFAFA]"
+                    >
+                      <span className="mt-[5px] h-2 w-2 shrink-0 rounded-full bg-[#1F3A93]" aria-hidden />
+                      <div className="min-w-0 flex-1">
+                        <div className="break-words text-[#1F3A93]">
+                          {e.art === "korrektur" ? <>ersetzt durch „{e.text}“</> : <>„{e.text}“</>}
+                        </div>
+                        <div className="text-[12px] text-[#6B6B6B]">
+                          Seite {e.page + 1} · {ERGAENZUNG_ART_LABEL[e.art]} · {wer} · {formatDateTime(e.erstellt_am)}
+                        </div>
+                      </div>
+                      {busy === `erg-${e.id}` ? (
+                        <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-[#6B6B6B]" />
+                      ) : (
+                        <ExternalLink className="mt-0.5 h-4 w-4 shrink-0 text-[#B35300]" />
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
         )}
 
         {/* AUSFÜLLFELDER */}

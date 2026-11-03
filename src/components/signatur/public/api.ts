@@ -23,6 +23,22 @@ export type SignFeld = {
   vorab: boolean;
 };
 
+export type Rechteck = { x: number; y: number; w: number; h: number };
+
+/**
+ * Ergänzung/Korrektur des Unterzeichners (nur mit Freigabe). Koordinaten wie Felder (pt, oben links, page 0-basiert).
+ * x/y/w/h = Textfeld (Ergänzung bzw. „Richtig ist“), bereich = durchgestrichene Stelle (nur Korrektur).
+ */
+export type SignErgaenzung = Rechteck & {
+  id: string;
+  art: "ergaenzung" | "korrektur";
+  page: number;
+  bereich: Rechteck | null;
+  text: string;
+  /** nur im Browser: Ersatztext wurde von Hand verschoben (dann nicht mehr automatisch platzieren) */
+  manuell?: boolean;
+};
+
 /** Antwort von sign-public {action:"get"} – siehe /esig/API.md. */
 export type SignInfo = {
   zustand: "ok" | "abgelaufen" | "zurueckgezogen" | "unterschrieben" | "unbekannt" | "papier_eingegangen";
@@ -47,6 +63,10 @@ export type SignInfo = {
   anrede?: string | null;
   /** Ausfüllfelder (eigene bedienbar, übrige als fester Inhalt) */
   felder?: SignFeld[];
+  /** RGI hat freigegeben: eigene Angaben ergänzen/korrigieren */
+  darf_ergaenzen?: boolean;
+  /** Ergänzungen anderer Unterzeichner (fester Inhalt) */
+  ergaenzungen_andere?: SignErgaenzung[];
 };
 
 export type SignErgebnis = {
@@ -94,13 +114,22 @@ async function call<T>(body: Record<string, unknown>): Promise<T> {
 
 export const holeInfo = (token: string) => call<SignInfo>({ action: "get", token });
 
-export const unterschreiben = (token: string, typed_name: string, signature_png: string | null, felder?: Record<string, string | null>) =>
+export const unterschreiben = (
+  token: string,
+  typed_name: string,
+  signature_png: string | null,
+  felder?: Record<string, string | null>,
+  ergaenzungen?: SignErgaenzung[],
+) =>
   call<SignErgebnis>({
     action: "sign",
     token,
     typed_name,
     ...(signature_png ? { signature_png } : {}),
     ...(felder && Object.keys(felder).length ? { felder } : {}),
+    ...(ergaenzungen?.length
+      ? { ergaenzungen: ergaenzungen.map(({ art, page, x, y, w, h, bereich, text }) => ({ art, page, x, y, w, h, bereich, text })) }
+      : {}),
     consent: true,
   });
 

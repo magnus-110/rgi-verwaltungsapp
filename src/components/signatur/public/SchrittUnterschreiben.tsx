@@ -2,7 +2,8 @@ import { useRef, useState } from "react";
 import { RotateCw, X } from "lucide-react";
 import { FehlerHinweis, Fortschritt, Fusszeile, Haken, Kopf, PrimaerButton, Spalte, UntenLeiste, ueberschrift } from "./ui";
 import { Zeichenflaeche, type ZeichenflaecheRef } from "./Zeichenflaeche";
-import { datum, type SignInfo } from "./api";
+import { datum, type SignErgaenzung, type SignInfo } from "./api";
+import { ergaenzungKurz } from "./Ergaenzungen";
 import { istAktiv, wertVon, type Werte } from "./Felder";
 
 type Props = {
@@ -18,6 +19,7 @@ type Props = {
   onZurueck: () => void;
   onSenden: () => void;
   werte?: Werte;
+  ergaenzungen?: SignErgaenzung[];
 };
 
 /** Schritt 2 · Online unterschreiben (Mockup v05). */
@@ -51,6 +53,19 @@ export default function SchrittUnterschreiben(p: Props) {
               <ul className="mt-1 space-y-0.5 text-[13px] leading-[18px] text-[#595959]">
                 {angaben.map((a) => (
                   <li key={a.id}>{a.text}</li>
+                ))}
+              </ul>
+              <button type="button" onClick={p.onZurueck} className="mt-1 text-[13px] text-[#B35300] underline underline-offset-2">Ändern</button>
+            </div>
+          )}
+          {(p.ergaenzungen?.length ?? 0) > 0 && (
+            <div className="mt-3 rounded-[10px] border border-[#E5E5E5] bg-[#FAFAFA] px-3 py-2.5 [@media(orientation:landscape)_and_(max-height:500px)]:hidden">
+              <div className="text-[13px] font-semibold leading-[18px] text-[#2B2B2B]">
+                Ihre Ergänzungen ({p.ergaenzungen!.length}) – werden mit Ihrer Unterschrift gespeichert
+              </div>
+              <ul className="mt-1 space-y-0.5 text-[13px] leading-[18px] text-[#1F3A93]">
+                {p.ergaenzungen!.map((e) => (
+                  <li key={e.id} className="break-words">Seite {e.page + 1} · {ergaenzungKurz(e)}</li>
                 ))}
               </ul>
               <button type="button" onClick={p.onZurueck} className="mt-1 text-[13px] text-[#B35300] underline underline-offset-2">Ändern</button>

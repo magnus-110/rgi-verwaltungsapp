@@ -162,6 +162,8 @@ export async function anlegen(db: Db, b: Body, userId: string | null, test: bool
       rolle_key: rolleKey ?? (typ === "etv_protokoll" ? "eigentuemer" : null),
       anrede: zeile(s?.anrede, 120) || null,
       ort_datum: s?.ort_datum === false ? false : true,
+      // Darf beim Unterschreiben eigene Angaben ergänzen/korrigieren (nur online, nicht bei ETV-Protokollen)
+      darf_ergaenzen: methode === "online" && typ !== "etv_protokoll" && s?.darf_ergaenzen === true,
       _placements: s?.placements,
     };
   });
@@ -283,6 +285,13 @@ export async function anlegen(db: Db, b: Body, userId: string | null, test: bool
     userId,
     details: { quelle_typ: quelleTyp, quelle_label: v.quelle_label, unterzeichner: signers.length },
   });
+  const freigegeben = signers.filter((s: Signer) => s.darf_ergaenzen);
+  if (freigegeben.length) {
+    await ereignis(db, id, "ergaenzen_freigegeben", `Eigene Angaben ergänzen/korrigieren freigegeben für: ${freigegeben.map((s: Signer) => s.name).join(", ")}`, {
+      userId,
+      details: { signer_ids: freigegeben.map((s: Signer) => s.id) },
+    });
+  }
   if (feldAnzahl) {
     await ereignis(db, id, "felder_angelegt", `${feldAnzahl} Ausfüllfeld${feldAnzahl === 1 ? "" : "er"} angelegt${vorab.length ? ` – vorab von RGI ausgefüllt: ${vorab.join("; ")}` : ""}`.slice(0, 900), {
       userId,
@@ -326,7 +335,7 @@ export async function anlegen(db: Db, b: Body, userId: string | null, test: bool
 }
 
 /** Name des Mitarbeiters (für „ausgefüllt von“ bei Vorab-Werten). */
-async function mitarbeiterName(db: Db, userId: string | null): Promise<string | null> {
+export async function mitarbeiterName(db: Db, userId: string | null): Promise<string | null> {
   if (!uuidOderNull(userId)) return null;
   const { data } = await db.from("profiles").select("first_name, last_name").eq("user_id", userId).maybeSingle();
   const n = [data?.first_name, data?.last_name].filter(Boolean).join(" ").trim();

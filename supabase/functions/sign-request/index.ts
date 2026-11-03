@@ -7,7 +7,8 @@
 //           reject_paper · assign_paper_email · urls · nachweis · neuer_link · cron ·
 //           create_incoming · complete_incoming (Fall B, eingehende Dokumente selbst unterschreiben) ·
 //           dms_ablegen (Endfassung eines ausgehenden Vorgangs von Hand im DMS ablegen, _shared/signatur/ablage.ts) ·
-//           felder_erkennen (Ausfüllfelder: Vorlagen-Anker bzw. Vorschläge in fremden PDFs, _shared/signatur/felderkennung.ts)
+//           felder_erkennen (Ausfüllfelder: Vorlagen-Anker bzw. Vorschläge in fremden PDFs, _shared/signatur/felderkennung.ts) ·
+//           ergaenzungen_geprueft (Hinweis „Ergänzt – prüfen“ zurücksetzen, Ereignis ergaenzungen_geprueft)
 //
 // Testmodus (nur mit x-cron-secret): body.test_user_id handelt als dieser Mitarbeiter,
 // body.test = true liefert bei create/remind/reject_paper die Klartext-Links zurück.
@@ -52,11 +53,12 @@ import {
   vorgangLaden,
 } from "../_shared/signatur/ablauf.ts";
 import { absenderKontoId, einladungMail } from "../_shared/signatur/mail.ts";
-import { anlegen, erinnern, neuerLink, selbstErinnern } from "../_shared/signatur/vorgang.ts";
+import { anlegen, erinnern, mitarbeiterName, neuerLink, selbstErinnern } from "../_shared/signatur/vorgang.ts";
 import { eingehendAbschliessen, eingehendAnlegen } from "../_shared/signatur/eingehend.ts";
 import { dmsAblegen } from "../_shared/signatur/ablage.ts";
 import { istHeic, istJpg, istPdf, istPng, nachweisPdf } from "../_shared/signatur/pdf.ts";
 import { felderLaden } from "../_shared/signatur/felder.ts";
+import { ergaenzungenLaden } from "../_shared/signatur/ergaenzungen.ts";
 import { ausfuellfelderErkennen } from "../_shared/signatur/felderkennung.ts";
 import { ERLAUBTE_BUCKETS } from "../_shared/signatur/vorgang.ts";
 
@@ -107,6 +109,8 @@ Deno.serve(async (req) => {
         return json(await dmsAblegen(db, body, userId));
       case "felder_erkennen":
         return json(await felderErkennen(db, body));
+      case "ergaenzungen_geprueft":
+        return json(await ergaenzungenGeprueft(db, body, userId));
       case "cron":
         if (!istCron) return json({ error: "Nur für den Zeitplan." }, 403);
         return json(await zeitplan(db));
@@ -323,6 +327,19 @@ async function felderErkennen(db: Db, b: Body) {
   }
 }
 
+// ================================================================ ergaenzungen_geprueft
+
+/** RGI hat die Ergänzungen/Korrekturen der Unterzeichner geprüft → Hinweis in der Übersicht ausblenden. */
+async function ergaenzungenGeprueft(db: Db, b: Body, userId: string | null) {
+  const { req: v } = await vorgangLaden(db, String(b.request_id || ""));
+  const { data: upd } = await db.from("sign_requests").update({ ergaenzungen_pruefen: false })
+    .eq("id", v.id).eq("ergaenzungen_pruefen", true).select("id");
+  if (!upd?.length) return { ok: true, schon_geprueft: true };
+  const wer = await mitarbeiterName(db, userId);
+  await ereignis(db, v.id, "ergaenzungen_geprueft", `Ergänzungen der Unterzeichner geprüft${wer ? ` von ${wer.replace(/ \(RGI Immobilien\)$/, "")}` : ""}`, { userId });
+  return { ok: true };
+}
+
 // ================================================================ urls / nachweis
 
 async function vorhanden(db: Db, path: string): Promise<boolean> {
@@ -338,6 +355,8 @@ async function urls(db: Db, b: Body) {
   return {
     quelle: await signierteUrl(db, pfad.quelle(v.id), 600),
     final: v.final_path ? await signierteUrl(db, v.final_path, 600, dateiname(`${v.titel} (unterschrieben)`)) : null,
+    // zum Ansehen im Browser (ohne Download-Namen, z. B. mit #page=… an eine Seite springen)
+    final_ansicht: v.final_path ? await signierteUrl(db, v.final_path, 600) : null,
     papier: s?.paper_path ? await signierteUrl(db, s.paper_path, 600) : null,
     kopie: s && (await vorhanden(db, pfad.kopie(v.id, s.id))) ? await signierteUrl(db, pfad.kopie(v.id, s.id), 600) : null,
     nachweis: (await vorhanden(db, pfad.nachweis(v.id))) ? await signierteUrl(db, pfad.nachweis(v.id), 600) : null,
@@ -357,6 +376,7 @@ async function nachweis(db: Db, b: Body, userId: string | null) {
     zeitstempel: v.zeitstempel_zeit ? { zeit: v.zeitstempel_zeit, dienst: v.zeitstempel_dienst || "" } : null,
     ohneKopie: istEtv(v),
     felder: await felderLaden(db, v.id),
+    ergaenzungen: await ergaenzungenLaden(db, v.id),
   });
   await speichern(db, pfad.nachweis(v.id), bytes);
   await ereignis(db, v.id, "nachweis", "Nachweis als PDF erstellt", { userId });

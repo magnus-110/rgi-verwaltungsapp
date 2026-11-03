@@ -122,6 +122,29 @@ export const feldWertText = (f: Pick<SignField, "typ" | "wert">) => {
   return f.wert;
 };
 
+/** Ergänzung/Korrektur eines Unterzeichners (sign_request_ergaenzungen, nur Lesen). */
+export interface SignErgaenzung {
+  id: string;
+  request_id: string;
+  signer_id: string;
+  art: "ergaenzung" | "korrektur";
+  position: number;
+  page: number;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  bereich: { x: number; y: number; w: number; h: number } | null;
+  text: string;
+  erstellt_von: string;
+  erstellt_am: string;
+}
+
+export const ERGAENZUNG_ART_LABEL: Record<SignErgaenzung["art"], string> = {
+  ergaenzung: "Ergänzung",
+  korrektur: "Korrektur",
+};
+
 export interface SignSigner {
   id: string;
   request_id: string;
@@ -153,6 +176,8 @@ export interface SignSigner {
   paper_eingang_at: string | null;
   paper_pruefung: Record<string, boolean> | null;
   copy_sent_at: string | null;
+  /** Darf beim elektronischen Unterschreiben eigene Angaben ergänzen/korrigieren */
+  darf_ergaenzen?: boolean;
   reminder_count: number;
   last_reminder_at: string | null;
   created_at: string;
@@ -185,6 +210,8 @@ export interface SignRequest {
   final_path: string | null;
   final_file_id: string | null;
   final_sha256: string | null;
+  /** Ein Unterzeichner hat Angaben ergänzt/korrigiert – Prüfung durch RGI steht aus */
+  ergaenzungen_pruefen?: boolean;
   completed_at: string | null;
   email_id: string | null;
   zugewiesen_an: string | null;
@@ -626,6 +653,23 @@ export const useSignFields = (requestId: string | null | undefined) =>
     },
   });
 
+/** Ergänzungen/Korrekturen der Unterzeichner eines Vorgangs (Büro, RLS is_rgi_staff). */
+export const useSignErgaenzungen = (requestId: string | null | undefined) =>
+  useQuery({
+    queryKey: [...SIGNATUR_KEY, "ergaenzungen", requestId],
+    enabled: !!requestId,
+    queryFn: async (): Promise<SignErgaenzung[]> => {
+      const { data, error } = await db
+        .from("sign_request_ergaenzungen")
+        .select("*")
+        .eq("request_id", requestId)
+        .order("erstellt_am", { ascending: true })
+        .order("position", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as SignErgaenzung[];
+    },
+  });
+
 export const useSignEvents = (requestId: string | null | undefined) =>
   useQuery({
     queryKey: [...SIGNATUR_KEY, "events", requestId],
@@ -726,7 +770,7 @@ export const useBueroMitarbeiter = () =>
 export type SignActionName =
   | "create" | "preview_mail" | "sign_internal" | "remind" | "withdraw"
   | "accept_paper" | "reject_paper" | "assign_paper_email" | "urls" | "nachweis"
-  | "create_incoming" | "complete_incoming" | "neuer_link" | "dms_ablegen" | "felder_erkennen";
+  | "create_incoming" | "complete_incoming" | "neuer_link" | "dms_ablegen" | "felder_erkennen" | "ergaenzungen_geprueft";
 
 /**
  * Abgeschlossener ausgehender Vorgang, dessen Endfassung noch nicht im DMS liegt

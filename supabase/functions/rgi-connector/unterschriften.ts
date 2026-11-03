@@ -252,6 +252,7 @@ export function unterschriftTools({ db, log, uploaderId }: Deps) {
       unterzeichner: signers.map((s) => ({
         id: s.id, name: s.name, rolle: s.rolle, art: ART_TEXT(s), email: s.email, status: SIGNER_STATUS[s.status] ?? s.status,
         unterschrieben_am: s.signed_at ? new Date(s.signed_at).toLocaleString("de-DE", { timeZone: "Europe/Berlin" }) : null,
+        ...(s.darf_ergaenzen ? { darf_ergaenzen: true } : {}),
         felder: Array.isArray(s.placements) ? s.placements.map((p: any) => ({ seite: p.page + 1, x: p.x, y: p.y, w: p.w, h: p.h })) : [],
         link_gueltig_bis: s.methode !== "intern" && s.expires_at ? datum(s.expires_at) : null,
         erinnerungen: s.reminder_count ?? 0,
@@ -299,7 +300,7 @@ export function unterschriftTools({ db, log, uploaderId }: Deps) {
     },
     {
       name: "unterschrift_vorbereiten",
-      description: "Legt einen Unterschriften-Vorgang an (wie „Unterschrift anfordern“ in der App): Quelle, Unterzeichner mit Unterschriftsfeldern, Frist, Reihenfolge, Mailtext (Standard aus der Vorlage der Dokumentart). Unterzeichner-art: 'link' = es wird KEINE Mail verschickt, du bekommst einen persönlichen Link (14 Tage gültig), den der Nutzer selbst weitergibt bzw. in eine eigene E-Mail einfügt (z. B. mit mail_entwurf_anlegen) – der Link wird nur JETZT im Klartext angezeigt; 'email' = die App schickt SOFORT eine Einladungsmail an diese externe Person; 'intern' = RGI-Mitarbeiter unterschreibt in der App mit seiner hinterlegten Unterschrift. Felder am besten aus unterschrift_dokument_analysieren übernehmen (ohne Felder wird an das Endergebnis ein Prüfblatt angehängt). Ausfüllfelder (Ankreuzfeld, Auswahl „genau eins“, Datum, Text) über felder: Der Unterzeichner füllt sie beim Unterschreiben aus (serverseitig geprüft: Pflicht, genau eine Option, Abhängigkeiten, gültiges Datum, Länge), Werte werden fest ins PDF gesetzt und im Nachweis/Protokoll mit Name und Zeit geführt; ausfueller 'rgi' + wert schreibt den Wert sofort fest. Stammt das PDF aus unserer Vorlage und felder fehlt, werden die Vorlagen-Felder automatisch übernommen (felder: [] = bewusst keine). WICHTIG: Ist ein Unterzeichner mit art 'email' dabei, zuerst ohne bestaetigt aufrufen – das liefert nur eine Vorschau (Empfänger, Betreff, Mailtext, Felder). Diese dem Nutzer zeigen und erst nach seiner ausdrücklichen Zustimmung mit bestaetigt=true erneut aufrufen. testlauf=true prüft nur und legt nie etwas an.",
+      description: "Legt einen Unterschriften-Vorgang an (wie „Unterschrift anfordern“ in der App): Quelle, Unterzeichner mit Unterschriftsfeldern, Frist, Reihenfolge, Mailtext (Standard aus der Vorlage der Dokumentart). Unterzeichner-art: 'link' = es wird KEINE Mail verschickt, du bekommst einen persönlichen Link (14 Tage gültig), den der Nutzer selbst weitergibt bzw. in eine eigene E-Mail einfügt (z. B. mit mail_entwurf_anlegen) – der Link wird nur JETZT im Klartext angezeigt; 'email' = die App schickt SOFORT eine Einladungsmail an diese externe Person; 'intern' = RGI-Mitarbeiter unterschreibt in der App mit seiner hinterlegten Unterschrift. Felder am besten aus unterschrift_dokument_analysieren übernehmen (ohne Felder wird an das Endergebnis ein Prüfblatt angehängt). Ausfüllfelder (Ankreuzfeld, Auswahl „genau eins“, Datum, Text) über felder: Der Unterzeichner füllt sie beim Unterschreiben aus (serverseitig geprüft: Pflicht, genau eine Option, Abhängigkeiten, gültiges Datum, Länge), Werte werden fest ins PDF gesetzt und im Nachweis/Protokoll mit Name und Zeit geführt; ausfueller 'rgi' + wert schreibt den Wert sofort fest. Mit unterzeichner[].darf_ergaenzen=true darf diese Person beim Unterschreiben eigene Angaben ergänzen oder korrigieren (Standard aus; nur wenn der Nutzer es möchte). Stammt das PDF aus unserer Vorlage und felder fehlt, werden die Vorlagen-Felder automatisch übernommen (felder: [] = bewusst keine). WICHTIG: Ist ein Unterzeichner mit art 'email' dabei, zuerst ohne bestaetigt aufrufen – das liefert nur eine Vorschau (Empfänger, Betreff, Mailtext, Felder). Diese dem Nutzer zeigen und erst nach seiner ausdrücklichen Zustimmung mit bestaetigt=true erneut aufrufen. testlauf=true prüft nur und legt nie etwas an.",
       inputSchema: S({
         quelle: QUELLE_SCHEMA,
         titel: str("Titel des Vorgangs (Standard: aus Dateiname/Angebot/Vertrag)"),
@@ -324,6 +325,7 @@ export function unterschriftTools({ db, log, uploaderId }: Deps) {
               art: { type: "string", enum: ["email", "link", "intern"] },
               mitarbeiter: str("bei art 'intern': Name oder E-Mail des RGI-Mitarbeiters"),
               felder: { type: "array", maxItems: 20, items: FELD_SCHEMA, description: "Unterschriftsfelder dieses Unterzeichners" },
+              darf_ergaenzen: { type: "boolean", description: "Nur art 'email'/'link' (nicht bei ETV-Protokollen): true = die Person darf beim Unterschreiben selbst Angaben im Dokument ergänzen (Text an beliebiger Stelle) oder korrigieren (Stelle durchstreichen + „Richtig ist“), z. B. bei SEPA-Mandat oder Eigentümer-Stammdatenblatt. Standard false. Ergänzungen erscheinen dunkelblau im PDF und im Nachweis; der Ersteller bekommt eine Meldung zum Prüfen." },
             },
           },
         },
@@ -372,6 +374,7 @@ export function unterschriftTools({ db, log, uploaderId }: Deps) {
             name, email, methode: "online", versand: art === "link" ? "link" : "mail", contact_id: u.contact_id ?? null,
             rolle: zeile(u.rolle, 80) || null, anrede: zeile(u.anrede, 120) || k?.anrede || null,
             placements: felderUmwandeln(u.felder, groessen, name),
+            darf_ergaenzen: u.darf_ergaenzen === true,
           });
         }
 
@@ -435,6 +438,7 @@ export function unterschriftTools({ db, log, uploaderId }: Deps) {
             unterzeichner: signers.map((s) => ({
               name: s.name, art: s.methode === "intern" ? `intern (${s._email})` : s.versand === "link" ? "Link (keine Mail)" : "E-Mail", email: s.email ?? null,
               rolle: s.rolle, felder: (s.placements ?? []).map((p: any) => ({ seite: p.page + 1, x: p.x, y: p.y, w: p.w, h: p.h })),
+              ...(s.darf_ergaenzen ? { darf_ergaenzen: true } : {}),
             })),
             ...(m ? { einladungsmail: { betreff: m.subject, text: m.text } } : {}),
             ausfuellfelder: { quelle: felderQuelle, anzahl: felder.length, felder: felder.map((f: any) => `${f.typ} · ${f.beschriftung || f.feld_key || ""} · Seite ${f.page + 1}${f.pflicht ? " · Pflicht" : ""}${f.ausfueller === "rgi" ? ` · vorab: ${f.wert ?? "–"}` : ""}`) },
@@ -485,7 +489,7 @@ export function unterschriftTools({ db, log, uploaderId }: Deps) {
     },
     {
       name: "unterschriften_status",
-      description: "Status von Unterschriften-Vorgängen. Mit vorgang (Nummer oder ID): Details mit allen Unterzeichnern, Feldern, Ausfüllfeldern (Wert, wer/wann) und Protokoll. Sonst Liste (Filter building_id, nur_offen, text im Titel) mit Fortschritt „x von y“, Frist und Status je Unterzeichner.",
+      description: "Status von Unterschriften-Vorgängen. Mit vorgang (Nummer oder ID): Details mit allen Unterzeichnern, Feldern, Ausfüllfeldern (Wert, wer/wann), Ergänzungen/Korrekturen der Unterzeichner und Protokoll. Sonst Liste (Filter building_id, nur_offen, text im Titel) mit Fortschritt „x von y“, Frist und Status je Unterzeichner.",
       inputSchema: S({
         vorgang: str("Vorgangsnummer oder ID (Details)"),
         building_id: uuid("nur Vorgänge dieses Objekts"),
@@ -498,9 +502,17 @@ export function unterschriftTools({ db, log, uploaderId }: Deps) {
         if (a.vorgang) {
           const { req: v, signers } = await vorgangFinden(a.vorgang);
           const { data: ev } = await db.from("sign_request_events").select("ereignis, details, created_at").eq("request_id", v.id).order("created_at", { ascending: true }).limit(200);
+          const { data: eg } = await db.from("sign_request_ergaenzungen").select("art, page, text, erstellt_von, erstellt_am, signer_id").eq("request_id", v.id).order("erstellt_am").order("position");
           const { data: fe } = await db.from("sign_request_fields").select("feld_key, typ, beschriftung, gruppe, option, pflicht, ausfueller, signer_id, wert, wert_gesetzt_von, wert_gesetzt_am, page").eq("request_id", v.id).order("position");
           return {
             ...vorgangKurz(v, signers, ev ?? []),
+            ...(eg?.length ? {
+              ergaenzungen_pruefen: v.ergaenzungen_pruefen === true,
+              ergaenzungen: eg.map((e: any) => ({
+                art: e.art === "korrektur" ? "Korrektur (Stelle durchgestrichen, ersetzt durch text)" : "Ergänzung", seite: e.page + 1, text: e.text,
+                von: e.erstellt_von, am: new Date(e.erstellt_am).toLocaleString("de-DE", { timeZone: "Europe/Berlin" }),
+              })),
+            } : {}),
             ...(fe?.length ? {
               ausfuellfelder: fe.map((f: any) => ({
                 feld_key: f.feld_key, typ: f.typ, beschriftung: f.beschriftung, seite: f.page + 1, pflicht: f.pflicht,

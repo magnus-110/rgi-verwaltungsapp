@@ -102,6 +102,8 @@ interface EntwurfSigner {
   user_id?: string | null;
   rolle_key?: string | null;
   optionen?: VorschlagOption[];
+  /** Darf beim Unterschreiben eigene Angaben ergänzen/korrigieren (Standard aus) */
+  darf_ergaenzen?: boolean;
 }
 
 /** Auswahl „Wie wird unterschrieben?“ → methode + versand */
@@ -640,6 +642,7 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
                 methode: "online" as const,
                 anrede: s.anrede || undefined,
                 placements: placements[s.key]?.length ? placements[s.key] : undefined,
+                ...(!etv && s.darf_ergaenzen ? { darf_ergaenzen: true } : {}),
               },
         ),
         ...(rgiAuch && mitRgiZeile
@@ -1078,6 +1081,7 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
                       mitarbeiter={mitarbeiter}
                       farbe={platzieren ? farbeFuer(s.key) : undefined}
                       felder={placements[s.key]?.length ?? 0}
+                      ergaenzenMoeglich={!etv}
                       onRemove={() => entfernen(s.key)}
                       onChange={(patch) => aendern(s.key, patch)}
                     />
@@ -1334,13 +1338,15 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
 // ---------------------------------------------------------------
 
 function SignerKarte({
-  nr, signer, mitarbeiter, farbe, felder, onRemove, onChange,
+  nr, signer, mitarbeiter, farbe, felder, ergaenzenMoeglich, onRemove, onChange,
 }: {
   nr: number;
   signer: EntwurfSigner;
   mitarbeiter: { user_id: string; name: string }[];
   farbe?: string;
   felder: number;
+  /** Schalter „Darf eigene Angaben ergänzen“ anzeigen (nicht bei ETV-Protokollen) */
+  ergaenzenMoeglich?: boolean;
   onRemove: () => void;
   onChange: (p: Partial<EntwurfSigner>) => void;
 }) {
@@ -1403,6 +1409,22 @@ function SignerKarte({
             );
           })}
         </div>
+      )}
+      {!intern && ergaenzenMoeglich && (
+        <label className="mt-2 flex cursor-pointer items-start gap-2.5 pl-10 text-[12.5px] leading-snug text-[#595959]">
+          <Switch
+            checked={!!signer.darf_ergaenzen}
+            onCheckedChange={(v) => onChange({ darf_ergaenzen: v })}
+            aria-label="Darf eigene Angaben ergänzen"
+            className="mt-px shrink-0"
+          />
+          <span>
+            <span className="font-medium text-[#2B2B2B]">Darf eigene Angaben ergänzen</span>
+            <span className="block text-[11.5px] text-[#6B6B6B]">
+              z. B. SEPA-Mandat oder Stammdatenblatt: Text ergänzen oder Stellen korrigieren, erscheint blau im Dokument
+            </span>
+          </span>
+        </label>
       )}
       {auswahl && (
         <div className="mt-2.5 pl-10">

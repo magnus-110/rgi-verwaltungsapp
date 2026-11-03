@@ -47,6 +47,7 @@ import {
 } from "./pdf.ts";
 import { zeitstempelHolen } from "./zeitstempel.ts";
 import { felderLaden } from "./felder.ts";
+import { ergaenzungenLaden } from "./ergaenzungen.ts";
 import { StandardFonts } from "https://esm.sh/pdf-lib@1.17.1";
 
 // deno-lint-ignore no-explicit-any
@@ -324,6 +325,8 @@ export async function dokumentBauen(db: Db, req: Vorgang, signers: Signer[], o: 
   const quelle = await laden(db, BUCKET, pfad.quelle(req.id));
   const ps = signers.map(alsPdfSigner);
   const felder = await felderLaden(db, req.id);
+  // Ergänzungen/Korrekturen der Unterzeichner (gibt es nur bei ausgehenden Vorgängen, nicht bei ETV)
+  const ergaenzungen = istEtv(req) ? [] : await ergaenzungenLaden(db, req.id);
   let doc;
 
   if (istEtv(req)) {
@@ -361,6 +364,7 @@ export async function dokumentBauen(db: Db, req: Vorgang, signers: Signer[], o: 
       nummer: req.nummer,
       standardOrt: req.buildings?.city || "Pfronten",
       felder: felder.filter((f) => f.ausfueller !== "rgi").map((f) => ({ ...f, anker: null })),
+      ergaenzungen,
     });
   }
 
@@ -388,6 +392,7 @@ export async function dokumentBauen(db: Db, req: Vorgang, signers: Signer[], o: 
       zeitstempel: null,
       ohneKopie: istEtv(req),
       felder,
+      ergaenzungen,
     });
   }
   doc.setTitle(req.titel);
