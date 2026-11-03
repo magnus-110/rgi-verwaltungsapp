@@ -58,6 +58,8 @@ let START = Date.now(); // Beginn der aktuellen Anfrage
 const BANKEN: Record<string, { name: string; url: string }> = {
   "72090000": { name: "VR Bank Augsburg-Ostallgäu", url: "https://fints1.atruvia.de/cgi-bin/hbciservlet" },
   "73350000": { name: "Sparkasse Allgäu", url: "https://banking-by1.s-fints-pt-by.de/fints30" },
+  // Volks- und Raiffeisenbanken laufen über das gemeinsame Rechenzentrum (Atruvia)
+  "73369933": { name: "Raiffeisenbank Südliches Ostallgäu", url: "https://fints1.atruvia.de/cgi-bin/hbciservlet" },
 };
 
 const corsHeaders = {

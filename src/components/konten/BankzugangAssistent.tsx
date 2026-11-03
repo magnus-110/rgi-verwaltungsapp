@@ -13,6 +13,7 @@ import { ibanFormatiert } from "@/lib/bankInfo";
 export const FINTS_BANKEN = [
   { blz: "72090000", name: "VR Bank Augsburg-Ostallgäu", anmeldename: "VR-NetKey oder Alias", app: "SecureGo plus" },
   { blz: "73350000", name: "Sparkasse Allgäu", anmeldename: "Anmeldename oder Legitimations-ID", app: "S-pushTAN" },
+  { blz: "73369933", name: "Raiffeisenbank Südliches Ostallgäu", anmeldename: "VR-NetKey oder Alias", app: "SecureGo plus" },
 ];
 
 type Schritt = "zugang" | "verfahren" | "freigabe" | "fertig";

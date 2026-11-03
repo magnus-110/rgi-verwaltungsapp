@@ -10,6 +10,7 @@
 const BANKEN: Record<string, string> = {
   "72090000": "VR Bank Augsburg-Ostallgäu",
   "73350000": "Sparkasse Allgäu",
+  "73369933": "Raiffeisenbank Südliches Ostallgäu",
 };
 
 export function cleanIban(iban: string | null | undefined): string {
