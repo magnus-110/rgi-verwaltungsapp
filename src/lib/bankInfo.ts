@@ -3,8 +3,9 @@
  *
  * Der Bankname steht in den Auszügen oft gar nicht (dort steht der
  * Kontoinhaber, z. B. „WEG Achweg 3-5"). Bei deutschen IBANs steckt die
- * Bankleitzahl an Stelle 5–12 – darüber erkennen wir die beiden Banken,
- * bei denen die WEG-Konten liegen.
+ * Bankleitzahl an Stelle 5–12 – darüber erkennen wir die Banken aus der
+ * Liste der Bankzugänge (Tabelle fints_banken, geladen über
+ * useFintsBanken). Bis die Liste da ist, gilt die feste Liste.
  */
 
 const BANKEN: Record<string, string> = {
@@ -12,6 +13,24 @@ const BANKEN: Record<string, string> = {
   "73350000": "Sparkasse Allgäu",
   "73369933": "Raiffeisenbank Südliches Ostallgäu",
 };
+let banken: { genau: Record<string, string>; muster: { re: RegExp; name: string }[] } = { genau: BANKEN, muster: [] };
+
+/** Banken aus der Tabelle fints_banken übernehmen (genaue BLZ und BLZ-Muster). */
+export function bankNamenSetzen(liste: { blz: string; name: string; blz_muster?: string | null }[]) {
+  const genau: Record<string, string> = { ...BANKEN };
+  const muster: { re: RegExp; name: string }[] = [];
+  for (const b of liste) {
+    genau[b.blz] = b.name;
+    if (b.blz_muster) {
+      try {
+        muster.push({ re: new RegExp(b.blz_muster), name: b.name });
+      } catch {
+        // ungültiges Muster – ignorieren
+      }
+    }
+  }
+  banken = { genau, muster };
+}
 
 export function cleanIban(iban: string | null | undefined): string {
   return (iban ?? "").replace(/\s+/g, "").toUpperCase();
@@ -25,7 +44,9 @@ export function blzAusIban(iban: string | null | undefined): string | null {
 
 export function bankName(iban: string | null | undefined, fallback?: string | null): string {
   const blz = blzAusIban(iban);
-  if (blz && BANKEN[blz]) return BANKEN[blz];
+  if (blz && banken.genau[blz]) return banken.genau[blz];
+  const m = blz ? banken.muster.find((x) => x.re.test(blz)) : null;
+  if (m) return m.name;
   return fallback?.trim() || "Bank";
 }
 

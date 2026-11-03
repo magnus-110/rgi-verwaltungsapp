@@ -55,12 +55,91 @@ const GESAMT_MS = 135_000; // länger darf ein Aufruf insgesamt nicht auf Freiga
 const MAX_TAGE_ZURUECK = 85;
 let START = Date.now(); // Beginn der aktuellen Anfrage
 
-const BANKEN: Record<string, { name: string; url: string }> = {
+// Die Banken stehen in der Tabelle fints_banken (Pflege durch Admins in den
+// Einstellungen). Diese feste Liste gilt nur, wenn die Tabelle nicht lesbar ist.
+const BANKEN_RUECKFALL: Record<string, { name: string; url: string }> = {
   "72090000": { name: "VR Bank Augsburg-Ostallgäu", url: "https://fints1.atruvia.de/cgi-bin/hbciservlet" },
   "73350000": { name: "Sparkasse Allgäu", url: "https://banking-by1.s-fints-pt-by.de/fints30" },
   // Volks- und Raiffeisenbanken laufen über das gemeinsame Rechenzentrum (Atruvia)
   "73369933": { name: "Raiffeisenbank Südliches Ostallgäu", url: "https://fints1.atruvia.de/cgi-bin/hbciservlet" },
 };
+
+/** Bank zur BLZ: genauer Eintrag vor BLZ-Muster (z. B. alle Commerzbank-Filialen). */
+async function bankFinden(admin: any, blz: string): Promise<{ name: string; url: string } | { error: string }> {
+  if (!/^\d{8}$/.test(blz)) return { error: "Die Bankleitzahl muss 8 Ziffern haben." };
+  const { data, error } = await admin
+    .from("fints_banken")
+    .select("blz, name, fints_url, aktiv, blz_muster, created_at")
+    .or(`blz.eq.${blz},blz_muster.not.is.null`)
+    .order("created_at");
+  if (error) {
+    console.error("fints_banken nicht lesbar – feste Liste:", error.message);
+    const b = BANKEN_RUECKFALL[blz];
+    return b ?? { error: "Diese Bank wird (noch) nicht unterstützt." };
+  }
+  const passt = (muster: string | null) => {
+    try {
+      return !!muster && new RegExp(muster).test(blz);
+    } catch {
+      return false;
+    }
+  };
+  const zeilen = (data ?? []) as any[];
+  const bank = zeilen.find((z) => z.blz === blz) ?? zeilen.find((z) => z.aktiv && passt(z.blz_muster));
+  if (!bank) return { error: "Diese Bank ist noch nicht eingetragen. Ein Admin kann sie unter Einstellungen › Kontoauszüge abrufen › Banken hinzufügen." };
+  if (!bank.aktiv) return { error: `${bank.name} ist in der Liste der Banken abgeschaltet.` };
+  return { name: bank.name, url: bank.fints_url };
+}
+
+const PRIVATE_V4 = [
+  [0x00000000, 8], [0x0a000000, 8], [0x64400000, 10], [0x7f000000, 8], [0xa9fe0000, 16],
+  [0xac100000, 12], [0xc0000000, 24], [0xc0a80000, 16], [0xc6120000, 15], [0xe0000000, 3],
+] as const;
+function v4Privat(ip: string) {
+  const t = ip.split(".").map(Number);
+  if (t.length !== 4 || t.some((x) => !Number.isInteger(x) || x < 0 || x > 255)) return true;
+  const n = ((t[0] << 24) >>> 0) + (t[1] << 16) + (t[2] << 8) + t[3];
+  return PRIVATE_V4.some(([netz, bits]) => (n >>> (32 - bits)) === (netz >>> (32 - bits)));
+}
+function v6Privat(ip: string) {
+  const x = ip.toLowerCase();
+  return x === "::" || x === "::1" || /^f[cd]/.test(x) || /^fe[89ab]/.test(x) || x.startsWith("::ffff:") || x.startsWith("64:ff9b:");
+}
+
+/**
+ * Schutz davor, dass die Funktion interne Adressen aufruft (SSRF): nur https,
+ * Port 443, ein echter Servername (keine IP, kein localhost) und der Name
+ * darf nicht auf ein privates Netz zeigen.
+ */
+async function fintsUrlPruefen(url: string): Promise<string | null> {
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    return "Die FinTS-Adresse der Bank ist ungültig.";
+  }
+  const host = u.hostname.toLowerCase();
+  if (u.protocol !== "https:" || u.username || u.password || (u.port && u.port !== "443")) {
+    return "Die FinTS-Adresse der Bank muss mit https:// beginnen (Port 443).";
+  }
+  if (
+    /^[\d.]+$/.test(host) || host.includes(":") || host.startsWith("[") ||
+    !/^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$/.test(host) ||
+    /(^|\.)(localhost|local|internal|intranet|lan|home|corp)$/.test(host) ||
+    host.endsWith(".supabase.co") || host.endsWith(".supabase.in")
+  ) {
+    return "Die FinTS-Adresse der Bank ist nicht erlaubt.";
+  }
+  try {
+    const v4 = await Deno.resolveDns(host, "A").catch(() => [] as string[]);
+    const v6 = await Deno.resolveDns(host, "AAAA").catch(() => [] as string[]);
+    if (!v4.length && !v6.length) return "Den Server der Bank gibt es nicht (FinTS-Adresse prüfen).";
+    if (v4.some(v4Privat) || v6.some(v6Privat)) return "Die FinTS-Adresse der Bank zeigt auf ein internes Netz.";
+  } catch {
+    // Namensauflösung hier nicht verfügbar – die Prüfung des Namens oben genügt
+  }
+  return null;
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -231,8 +310,10 @@ Deno.serve(async (req) => {
 
 async function anlegen(admin: any, body: any, userId: string | null, persoenlich = false) {
   const blz = String(body.blz ?? "").replace(/\s/g, "");
-  const bank = BANKEN[blz];
-  if (!bank) return { error: "Diese Bank wird (noch) nicht unterstützt." };
+  const bank = await bankFinden(admin, blz);
+  if ("error" in bank) return bank;
+  const urlFehler = await fintsUrlPruefen(bank.url);
+  if (urlFehler) return { error: urlFehler };
   const anmeldename = String(body.anmeldename ?? "").trim();
   const pin = String(body.pin ?? "");
   const kundenId = body.kundenId ? String(body.kundenId).trim() : null;
@@ -240,7 +321,13 @@ async function anlegen(admin: any, body: any, userId: string | null, persoenlich
 
   const config = FinTSConfig.forFirstTimeUse(PRODUKT_ID, PRODUKT_VERSION, bank.url, blz, anmeldename, pin, kundenId ?? undefined);
   const client = new FinTSClient(config);
-  const antwort = await client.synchronize();
+  let antwort: any;
+  try {
+    antwort = await client.synchronize();
+  } catch (e) {
+    console.error("fints anlegen:", (e as Error).message);
+    return { error: `Der Server von ${bank.name} antwortet nicht wie erwartet. Bitte die FinTS-Adresse in der Liste der Banken prüfen.` };
+  }
   if (!antwort.success) {
     // Falsche Zugangsdaten werden gar nicht erst gespeichert.
     return { error: bankText(antwort) };
@@ -274,7 +361,9 @@ async function anlegen(admin: any, body: any, userId: string | null, persoenlich
     ok: true,
     id: zugang.id,
     tanVerfahren: verfahren,
-    hinweis: verfahren.some((v: any) => v.appFreigabe) ? null : "Die Bank bietet für diesen Zugang kein Verfahren mit Freigabe in der App an.",
+    hinweis: verfahren.some((v: any) => v.appFreigabe)
+      ? null
+      : `${bank.name} bietet für diesen Zugang kein Verfahren mit Freigabe in der App an. Die App kann damit nicht arbeiten – bitte bei der Bank nach einer Freigabe per App (z. B. photoTAN-Push, pushTAN) fragen.`,
   };
 }
 
@@ -294,8 +383,15 @@ async function ladeZugang(admin: any, id: string) {
       zugang.tan_media_name ?? undefined,
       zugang.kunden_id ?? undefined,
     )
-    : FinTSConfig.forFirstTimeUse(PRODUKT_ID, PRODUKT_VERSION, zugang.fints_url, zugang.blz, zugang.anmeldename, pin, zugang.kunden_id ?? undefined);
-  return { zugang, config };
+    : null;
+  if (!config) {
+    const urlFehler = await fintsUrlPruefen(zugang.fints_url);
+    if (urlFehler) throw new Error(urlFehler);
+  }
+  return {
+    zugang,
+    config: config ?? FinTSConfig.forFirstTimeUse(PRODUKT_ID, PRODUKT_VERSION, zugang.fints_url, zugang.blz, zugang.anmeldename, pin, zugang.kunden_id ?? undefined),
+  };
 }
 
 /**

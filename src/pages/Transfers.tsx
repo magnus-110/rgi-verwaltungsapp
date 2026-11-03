@@ -35,11 +35,13 @@ import { HausgeldAendern } from "@/components/zahlungen/HausgeldAendern";
 import { ErledigtLaeufe } from "@/components/zahlungen/ErledigtLaeufe";
 import type { AuftragVorlage } from "@/components/zahlungen/NeuerAuftrag";
 import { cn } from "@/lib/utils";
+import { useFintsBanken } from "@/lib/fintsBanken";
 
 
 type Direction = "outgoing" | "incoming";
 
 export function Transfers() {
+  useFintsBanken(); // Banknamen aus der Liste der Bankzugänge
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
 

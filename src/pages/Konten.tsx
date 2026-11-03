@@ -15,6 +15,7 @@ import { AuszugImport } from "@/components/konten/AuszugImport";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { BewegungsListe } from "@/components/konten/BewegungsListe";
 import { BEWEGUNG_SELECT, type KontoZeile } from "@/components/konten/kontenTypes";
+import { useFintsBanken } from "@/lib/fintsBanken";
 
 const STORAGE_KEY = "konten:auswahl:v1";
 
@@ -36,6 +37,7 @@ function ladeAuswahl(): { filter?: string; offen?: string[]; tab?: Record<string
  * die Bank läuft) liegt unter Einstellungen › Bankzugänge.
  */
 export default function Konten() {
+  useFintsBanken(); // Banknamen aus der Liste der Bankzugänge
   const { managementMode } = useManagementMode();
   const [importOffen, setImportOffen] = useState(false);
   const gespeichert = useMemo(ladeAuswahl, []);

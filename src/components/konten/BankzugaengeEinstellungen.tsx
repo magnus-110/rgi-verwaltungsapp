@@ -14,6 +14,7 @@ import { BankAccountMappingDialog } from "@/components/finance/BankAccountMappin
 import { cn } from "@/lib/utils";
 import { cleanIban } from "@/lib/bankInfo";
 import { BankzugangAssistent } from "./BankzugangAssistent";
+import { BankenVerwaltung } from "./BankenVerwaltung";
 import { ZugangKonten } from "./ZugangKonten";
 import { AbrufKnopf } from "./AbrufKnopf";
 import { kontenNeuLaden } from "./BewegungsListe";
@@ -30,7 +31,7 @@ export { abrufMeldung, bankAbrufStarten } from "./AbrufKnopf";
 
 /**
  * Einstellungen › „Mein Bankzugang" (bereich="mein") und
- * „Kontoauszüge abrufen" (bereich="buero", nur Admins).
+ * „Kontoauszüge abrufen" (bereich="buero", nur Admins, mit der Liste der Banken).
  *
  * Büro-Zugänge (FinTS) holen täglich um 06:00 und 13:00 Uhr die Umsätze;
  * der eigene Zugang dient nur zum Freigeben von Zahlungen per TAN. Die
@@ -271,6 +272,8 @@ export function BankzugaengeEinstellungen({ bereich }: { bereich: "mein" | "buer
           </div>
         </CardContent>
       </Card>
+
+      <BankenVerwaltung />
 
       {protokoll.length > 0 && (
         <Card>
