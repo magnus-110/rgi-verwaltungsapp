@@ -879,7 +879,7 @@ export async function pruefblattAnhaengen(doc: Doc, d: PruefblattDaten) {
     const zeilenE = [
       ...geaendert.map((x) => ({
         k: umbrechen(f.normal, `Seite ${x.page + 1} · Änderung`, 7.6, 95),
-        v: umbrechen(f.fett, `${x.beschriftung || "Angabe"}: ${x.ausgangswert ?? ""} → ${x.wert}`, 7.6, 225),
+        v: umbrechen(f.fett, `${x.beschriftung || "Angabe"}: ${x.ausgangswert ?? ""} » ${x.wert}`, 7.6, 225), // „→“ kann die Standardschrift nicht
         wer: wer(x.wert_gesetzt_von, x.wert_gesetzt_am),
       })),
       ...erg.map((x) => ({

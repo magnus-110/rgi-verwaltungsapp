@@ -78,7 +78,8 @@ const gruppenTitel = (g: string, felder: SignFeld[]) => {
 };
 
 /** Ausgefüllt? (Fortschritt) – vorbelegte Angaben zählen nicht mit. */
-const ausgefuellt = (e: Eintrag, werte: Werte) => e.felder.some((f) => !!wertVon(f, werte));
+const ausgefuellt = (e: Eintrag, werte: Werte) =>
+  e.felder.some((f) => !!wertVon(f, werte) && !(istIbanFeld(f) && ibanFehler(wertVon(f, werte)!)));
 
 export function fortschritt(alle: SignFeld[], werte: Werte) {
   const l = eintraege(alle, werte).filter((e) => e.felder[0].typ !== "vorbelegt");

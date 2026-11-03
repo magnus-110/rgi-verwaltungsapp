@@ -64,7 +64,7 @@ export default function SchrittUnterschreiben(p: Props) {
           {(p.ergaenzungen?.length ?? 0) > 0 && (
             <div className="mt-3 rounded-[10px] border border-[#E5E5E5] bg-[#FAFAFA] px-3 py-2.5 [@media(orientation:landscape)_and_(max-height:500px)]:hidden">
               <div className="text-[13px] font-semibold leading-[18px] text-[#2B2B2B]">
-                Ihre Ergänzungen ({p.ergaenzungen!.length}) – werden mit Ihrer Unterschrift gespeichert
+                Ihre Korrekturen und Ergänzungen ({p.ergaenzungen!.length}) – werden mit Ihrer Unterschrift gespeichert
               </div>
               <ul className="mt-1 space-y-0.5 text-[13px] leading-[18px] text-[#1F3A93]">
                 {p.ergaenzungen!.map((e) => (

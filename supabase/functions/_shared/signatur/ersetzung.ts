@@ -148,7 +148,10 @@ export function ersetzungLayout(e: Pick<Ersetzung, "zeilen" | "frei" | "neu">, s
 
   // 3. Fußnote
   const r = Math.max(2.6, Math.min(4.2, s * 0.36));
-  const mx = Math.min(seite.w - 2 * r - 1, letzte.x + letzte.w + 1);
+  // Zeichen direkt hinter der Stelle, wenn dort Platz ist – sonst im rechten Seitenrand derselben Zeile
+  // (nie über fremdem Text)
+  const platz = rechtsGrenze - (letzte.x + letzte.w);
+  const mx = platz >= 2 * r + 2 ? letzte.x + letzte.w + 1 : Math.max(letzte.x + letzte.w + 1, seite.w - 8 - 2 * r);
   const my = letzte.basis - 0.62 * s;
   return {
     art: "fussnote", striche, text: null,

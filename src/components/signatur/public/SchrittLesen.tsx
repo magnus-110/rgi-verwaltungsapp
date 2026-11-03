@@ -378,8 +378,20 @@ export default function SchrittLesen({ info, gelesen, setGelesen, onWeiter, onPa
     onWeiter();
   };
 
+  // Modus „Korrigieren/Ergänzen“: Dokument ins Bild, Leiste sichtbar halten
+  const leisteUnten = !!modus && !nebeneinander;
+  useEffect(() => {
+    if (!modus) return;
+    if (nebeneinander) document.getElementById("sig-leiste")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    else document.getElementById("sig-pdf")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modus]);
+  useEffect(() => {
+    if (modus && nebeneinander && markierId) document.getElementById("sig-leiste")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [markierId, modus, nebeneinander]);
+
   const leiste = darf ? (
-    <>
+    <div id="sig-leiste" className="space-y-2">
       <ErgaenzenLeiste
         modus={modus}
         setModus={(m) => { setModus(m); setErgAktiv(null); }}
@@ -395,7 +407,7 @@ export default function SchrittLesen({ info, gelesen, setGelesen, onWeiter, onPa
       {modus === "korrigieren" && text === null && (
         <p className="flex items-center gap-2 text-[13px] text-[#595959]"><Loader2 className="h-4 w-4 animate-spin" /> Text im Dokument wird erkannt …</p>
       )}
-    </>
+    </div>
   ) : undefined;
 
   const formular = mitFormular ? (
@@ -410,12 +422,12 @@ export default function SchrittLesen({ info, gelesen, setGelesen, onWeiter, onPa
       aktivId={aktivId}
       onFokus={fokusEintrag}
       pruefen={pruefen}
-      leiste={leiste}
+      leiste={leisteUnten ? undefined : leiste}
     />
   ) : null;
 
   const pdfBereich = (
-    <div className="border-b border-[#EEEEEE] bg-[#E9E9E7] px-4 pt-4 min-[641px]:px-6 min-[1024px]:rounded-[12px] min-[1024px]:border-b-0">
+    <div id="sig-pdf" className="scroll-mt-2 border-b border-[#EEEEEE] bg-[#E9E9E7] px-4 pt-4 min-[641px]:px-6 min-[1024px]:rounded-[12px] min-[1024px]:border-b-0">
       {pdfGross ? (
         <div className="h-[max(600px,calc(100dvh-260px))] overflow-hidden rounded-[6px]" aria-label="Dokument">
           <PdfAnsicht
@@ -540,8 +552,14 @@ export default function SchrittLesen({ info, gelesen, setGelesen, onWeiter, onPa
             {knopfBereich}
           </>
         )}
-        <Fusszeile className="mt-auto" />
+        <Fusszeile className={cn("mt-auto", leisteUnten && "pb-[220px]")} />
       </div>
+      {leisteUnten && (
+        // Handy/Tablet: Leiste beim Markieren unten fest, damit Dokument und „Fertig“ gleichzeitig sichtbar sind
+        <div className="fixed inset-x-0 bottom-0 z-50 flex justify-center px-3 pb-[max(10px,env(safe-area-inset-bottom))]">
+          <div className="w-full max-w-[520px] rounded-[12px] border border-[#E5E5E5] bg-white p-2 shadow-[0_10px_40px_rgba(0,0,0,0.25)]">{leiste}</div>
+        </div>
+      )}
     </>
   );
 }

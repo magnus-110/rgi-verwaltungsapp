@@ -155,6 +155,8 @@ export function angrenzend(s: SeiteText, auswahl: Wort[], w: Wort): boolean {
   const ids = auswahl.map(idx);
   const i = idx(w);
   if (ids.includes(i)) return false;
+  // im selben Abschnitt (gleiche Zeile bis zur nächsten Spalte): Wörter dazwischen werden mitgenommen
+  if (auswahl.some((x) => x.abschnitt === w.abschnitt)) return true;
   // im Lesefluss direkt davor oder danach (auch über den Zeilenwechsel)
   const min = Math.min(...ids), max = Math.max(...ids);
   if (i === min - 1 || i === max + 1) {

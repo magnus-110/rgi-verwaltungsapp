@@ -436,7 +436,7 @@ export function ErgaenzenLeiste({
           {modus === "ergaenzen"
             ? `${tippen} Sie im Dokument auf die Stelle, an der Sie Text ergänzen möchten.`
             : markiert
-              ? <>Markiert: „<b className="font-semibold">{markiert}</b>“. {tippen} Sie auf ein angrenzendes Wort, um die Markierung zu erweitern.</>
+              ? <>Markiert: „<b className="font-semibold">{markiert}</b>“. Weitere Wörter daneben antippen, um die Markierung zu erweitern. Dann „Fertig“ und den richtigen Text eingeben.</>
               : scan
                 ? gross
                   ? "Dieses Dokument hat keinen erkennbaren Text. Ziehen Sie ein Rechteck über die falsche Stelle (oder klicken Sie darauf)."
@@ -446,7 +446,7 @@ export function ErgaenzenLeiste({
         <div className="flex gap-2">
           {markiert && onMarkierFertig && (
             <button type="button" onClick={onMarkierFertig} className="h-[44px] flex-1 rounded-[10px] bg-[#1F3A93] px-3.5 text-[14.5px] font-semibold text-white hover:bg-[#182F78]">
-              Fertig – richtigen Text eingeben
+              Fertig
             </button>
           )}
           <button type="button" onClick={() => setModus(null)} className={cn("h-[44px] shrink-0 rounded-[10px] border border-[#D6D6D6] bg-white px-3.5 text-[14px] font-semibold text-[#2B2B2B] hover:bg-[#FAFAFA]", !markiert && "ml-auto")}>
