@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Download, Trash2, X, History, Sparkles, ExternalLink, Wrench, RefreshCw, PenLine, Mail, Send, Eye } from "lucide-react";
+import { Download, Trash2, X, History, Sparkles, ExternalLink, Wrench, RefreshCw, PenLine, Mail, Send, Eye, Stamp } from "lucide-react";
 import { kannVorschau, useDokumentVorschau } from "@/components/shared/PdfAnsicht";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -25,6 +25,8 @@ import { useComposeEmail } from "@/contexts/ComposeEmailContext";
 import { UnterschriftenBox } from "@/components/signatur/UnterschriftenBox";
 import { UnterschriftAnfordernDialog, type UnterschriftStartInfo } from "@/components/signatur/UnterschriftAnfordernDialog";
 import { dokumentartAusName, titelAusDateiname } from "@/lib/signatur";
+import { BezahltStempelDialog } from "@/components/documents/BezahltStempelDialog";
+import { bezahltAlsDmsDokument } from "@/lib/bezahltStempel";
 
 interface DocumentDetailPanelProps {
   file: DocFile | null;
@@ -43,6 +45,7 @@ export function DocumentDetailPanel({ file, buildingId, onClose, onChanged }: Do
   const vorschau = useDokumentVorschau();
   const { openCompose } = useComposeEmail();
   const [anfordernOffen, setAnfordernOffen] = useState(false);
+  const [stempelOffen, setStempelOffen] = useState(false);
 
   // Objektname für „Objekt / Quelle“ in der Unterschriften-Übersicht
   const { data: objektName } = useQuery({
@@ -453,6 +456,9 @@ export function DocumentDetailPanel({ file, buildingId, onClose, onChanged }: Do
               <Button size="sm" variant="outline" className="w-full gap-1.5" onClick={() => setAnfordernOffen(true)}>
                 <Send className="h-3.5 w-3.5" /> Unterschrift anfordern
               </Button>
+              <Button size="sm" variant="outline" className="w-full gap-1.5" onClick={() => setStempelOffen(true)}>
+                <Stamp className="h-3.5 w-3.5" /> Bezahlt-Stempel
+              </Button>
             </>
           )}
           <div className="flex gap-2">
@@ -481,6 +487,23 @@ export function DocumentDetailPanel({ file, buildingId, onClose, onChanged }: Do
         />
       )}
       {vorschau.dialog}
+      {isPdfFile && (
+        <BezahltStempelDialog
+          open={stempelOffen}
+          onOpenChange={setStempelOffen}
+          quelle={{
+            bucket: getFileBucket(file.source, file.storage_bucket),
+            path: file.file_path,
+            name: file.display_name || file.file_path.split("/").pop() || "Rechnung.pdf",
+          }}
+          ortHinweis="Sie liegt jetzt im selben Ordner wie das Original."
+          onSave={async ({ blob, fileName, isoDatum }) => {
+            await bezahltAlsDmsDokument({ file: file as unknown as BuildingFileLike, blob, fileName, isoDatum });
+            onChanged();
+          }}
+          onPerMail={(f) => openCompose({ attachments: [f] })}
+        />
+      )}
       <SignPdfDialog
         open={!!signUrl}
         onOpenChange={(o) => !o && setSignUrl(null)}
