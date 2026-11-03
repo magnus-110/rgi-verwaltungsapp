@@ -40,11 +40,11 @@ export function useQuestrial() {
  * Heller Hintergrund, weiße Karte max. 430 px; auf dem Handy volle Breite.
  * Ab 641 px (Tablet/Computer) deutlich breiter (max. 980 px).
  */
-export function Rahmen({ children }: { children: ReactNode }) {
+export function Rahmen({ children, breit }: { children: ReactNode; /** ab 1024 px breiter (PDF + Formular nebeneinander) */ breit?: boolean }) {
   useQuestrial();
   return (
     <div className="min-h-[100dvh] bg-[#F4F2EE] font-sans text-[#2B2B2B] [letter-spacing:0]">
-      <div className="mx-auto flex min-h-[100dvh] w-full max-w-[430px] flex-col bg-white min-[431px]:shadow-[0_1px_3px_rgba(0,0,0,0.08)] min-[641px]:max-w-[980px]">
+      <div className={cn("mx-auto flex min-h-[100dvh] w-full max-w-[430px] flex-col bg-white min-[431px]:shadow-[0_1px_3px_rgba(0,0,0,0.08)] min-[641px]:max-w-[980px]", breit && "min-[1024px]:max-w-[1360px]")}>
         {children}
       </div>
     </div>

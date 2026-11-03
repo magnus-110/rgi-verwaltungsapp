@@ -53,6 +53,7 @@ export function VorgangDetail({ requestId, onClose, imSheet }: { requestId: stri
   const { data: events = [] } = useSignEvents(requestId);
   const { data: felder = [] } = useSignFields(requestId);
   const { data: ergaenzungen = [] } = useSignErgaenzungen(requestId);
+  const geaenderteFelder = felder.filter((f) => f.typ === "vorbelegt" && f.wert);
   const [busy, setBusy] = useState<string | null>(null);
   const [zurueckFrage, setZurueckFrage] = useState(false);
   const [linkSigner, setLinkSigner] = useState<SignSigner | null>(null);
@@ -231,13 +232,13 @@ export function VorgangDetail({ requestId, onClose, imSheet }: { requestId: stri
         )}
 
         {/* ERGÄNZUNGEN DER UNTERZEICHNER */}
-        {ergaenzungen.length > 0 && (
+        {(ergaenzungen.length > 0 || geaenderteFelder.length > 0) && (
           <div>
-            <Abschnitt className="mb-2">Ergänzungen des Unterzeichners ({ergaenzungen.length})</Abschnitt>
+            <Abschnitt className="mb-2">Änderungen und Ergänzungen der Unterzeichner ({ergaenzungen.length + geaenderteFelder.length})</Abschnitt>
             {r.ergaenzungen_pruefen && (
               <div className="mb-2 rounded-[10px] border border-[#C9D3EE] bg-[#EEF1FA] px-3 py-2.5">
                 <p className="text-[13px] leading-snug text-[#1F3A93]">
-                  Diese Angaben hat der Unterzeichner selbst ergänzt bzw. korrigiert. Bitte prüfen und übernehmen
+                  Diese Angaben hat der Unterzeichner selbst geändert, korrigiert bzw. ergänzt. Bitte prüfen und übernehmen
                   (z. B. Stammdaten, Bankverbindung).
                 </p>
                 <SigButton variante="primaer" klein className="mt-2" onClick={geprueft} loading={busy === "geprueft"}>
@@ -246,6 +247,19 @@ export function VorgangDetail({ requestId, onClose, imSheet }: { requestId: stri
               </div>
             )}
             <ul className="divide-y divide-[#EEEEEE] rounded-xl border border-[#E5E5E5] bg-white">
+              {geaenderteFelder.map((f) => (
+                <li key={f.id} className="flex items-start gap-3 px-3 py-2 text-[13px]">
+                  <span className="mt-[5px] h-2 w-2 shrink-0 rounded-full bg-[#1F3A93]" aria-hidden />
+                  <div className="min-w-0 flex-1">
+                    <div className="break-words text-[#1F3A93]">
+                      {f.beschriftung || "Angabe"}: <span className="text-[#595959] line-through">{f.ausgangswert}</span> → {f.wert}
+                    </div>
+                    <div className="text-[12px] text-[#6B6B6B]">
+                      Seite {f.page + 1} · Änderung · {f.wert_gesetzt_von ?? ""}{f.wert_gesetzt_am ? ` · ${formatDateTime(f.wert_gesetzt_am)}` : ""}
+                    </div>
+                  </div>
+                </li>
+              ))}
               {ergaenzungen.map((e) => {
                 const wer = r.signers.find((x) => x.id === e.signer_id)?.name ?? e.erstellt_von;
                 return (
@@ -260,7 +274,11 @@ export function VorgangDetail({ requestId, onClose, imSheet }: { requestId: stri
                       <span className="mt-[5px] h-2 w-2 shrink-0 rounded-full bg-[#1F3A93]" aria-hidden />
                       <div className="min-w-0 flex-1">
                         <div className="break-words text-[#1F3A93]">
-                          {e.art === "korrektur" ? <>ersetzt durch „{e.text}“</> : <>„{e.text}“</>}
+                          {e.art === "korrektur"
+                            ? e.original_text
+                              ? <>Statt „<span className="text-[#595959] line-through">{e.original_text}</span>“: {e.text}</>
+                              : <>ersetzt durch „{e.text}“</>
+                            : <>„{e.text}“</>}
                         </div>
                         <div className="text-[12px] text-[#6B6B6B]">
                           Seite {e.page + 1} · {ERGAENZUNG_ART_LABEL[e.art]} · {wer} · {formatDateTime(e.erstellt_am)}
@@ -296,7 +314,7 @@ export function VorgangDetail({ requestId, onClose, imSheet }: { requestId: stri
                       </div>
                     </div>
                     <div className={`shrink-0 text-right font-semibold ${f.wert ? "text-[#2B2B2B]" : "text-[#9A9A9A]"}`}>
-                      {f.wert ? feldWertText(f) : "offen"}
+                      {f.typ === "vorbelegt" ? (f.wert ? feldWertText(f) : "unverändert") : f.wert ? feldWertText(f) : "offen"}
                     </div>
                   </li>
                 );

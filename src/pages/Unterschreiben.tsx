@@ -3,6 +3,7 @@ import { useParams, useSearchParams } from "react-router-dom";
 import { Rahmen } from "@/components/signatur/public/ui";
 import { holeDownload, holeInfo, NetzFehler, oeffnePdf, unterschreiben, type SignErgaenzung, type SignErgebnis, type SignFeld, type SignInfo } from "@/components/signatur/public/api";
 import { istAktiv, type Werte } from "@/components/signatur/public/Felder";
+import { startWerte } from "@/components/signatur/public/Formular";
 import SchrittLesen from "@/components/signatur/public/SchrittLesen";
 import SchrittUnterschreiben from "@/components/signatur/public/SchrittUnterschreiben";
 import SchrittFertig from "@/components/signatur/public/SchrittFertig";
@@ -101,6 +102,8 @@ export default function Unterschreiben() {
         if (!aktiv) return;
         setInfo(d);
         setName((n) => n || d.name || "");
+        // Datum „heute“ und vorbelegte Angaben (Text aus dem Dokument) als Startwerte
+        setWerte((alt) => ({ ...startWerte(d.felder ?? []), ...alt }));
       })
       .catch((e) => {
         if (!aktiv) return;
@@ -214,5 +217,6 @@ export default function Unterschreiben() {
     );
   }
 
-  return <Rahmen>{inhalt}</Rahmen>;
+  const formular = !!info && info.zustand === "ok" && schritt === "lesen" && ((info.felder ?? []).some((f) => f.eigen) || !!info.darf_ergaenzen);
+  return <Rahmen breit={formular}>{inhalt}</Rahmen>;
 }

@@ -16,6 +16,7 @@ import {
   rgb,
 } from "https://esm.sh/pdf-lib@1.17.1";
 import { FIRMA_ZEILE, Fehler, LOGO_URL, base64ZuBytes, datum, datumZeit, geraet } from "./basis.ts";
+import { ersetzungenSortieren, fussnotenText, helvSicher, seiteLayout, type Ersetzung, type Frei, type TextZeile } from "./ersetzung.ts";
 
 // Logo (728×274) einmal je Instanz von der öffentlichen Logo-Adresse laden; ohne Netz geht es ohne Logo weiter.
 let logoBytes: Uint8Array | null | undefined;
@@ -242,6 +243,10 @@ export interface ErgaenzungPdf {
   text: string;
   erstellt_von?: string;
   erstellt_am?: string;
+  /** Korrektur per Antippen: Originaltext und seine Zeilen (exakt durchgestrichen) */
+  original_text?: string | null;
+  zeilen?: TextZeile[] | null;
+  frei?: Frei | null;
 }
 
 /** Schrift der Ergänzungen (Helvetica): 10 pt, bei Platzmangel kleiner bis 6 pt; Zeilenabstand 1,2; Innenrand 2 pt. */
@@ -273,7 +278,8 @@ export function ergaenzungSchrift(font: Font, text: string, w: number, h: number
  * Text (Ergänzung bzw. „Richtig ist“) auf leicht deckendem Weiß, damit er gut lesbar ist.
  */
 function ergaenzungenZeichnen(pages: Page[], liste: ErgaenzungPdf[], font: Font, klammern: (idx: number) => void) {
-  for (const e of liste) {
+  // Korrekturen per Antippen (mit zeilen) zeichnet ersetzungenZeichnen
+  for (const e of liste.filter((x) => !(x.art === "korrektur" && Array.isArray(x.zeilen) && x.zeilen.length))) {
     const page = pages[e.page];
     if (!page || !(e.w > 0) || !(e.h > 0)) continue;
     klammern(e.page);
@@ -302,6 +308,69 @@ function ergaenzungenZeichnen(pages: Page[], liste: ErgaenzungPdf[], font: Font,
   }
 }
 
+/**
+ * Ersetzungen zeichnen (geänderte vorbelegte Angaben + Korrekturen per Antippen), Lage aus ersetzung.ts –
+ * dieselbe Berechnung wie die Vorschau auf der Unterschriftsseite. Alter Text exakt durchgestrichen,
+ * neuer Text dunkelblau dahinter/darüber bzw. als Fußnote unten auf der Seite.
+ */
+function ersetzungenZeichnen(pages: Page[], liste: Ersetzung[], font: Font, klammern: (idx: number) => void) {
+  const proSeite = new Map<number, Ersetzung[]>();
+  for (const e of ersetzungenSortieren(liste)) {
+    if (!pages[e.page] || !e.zeilen.length || !e.neu.trim()) continue;
+    proSeite.set(e.page, [...(proSeite.get(e.page) ?? []), e]);
+  }
+  for (const [idx, l] of proSeite) {
+    const page = pages[idx];
+    klammern(idx);
+    const v = ansichtsGroesse(page);
+    const { layouts, fussnoten } = seiteLayout(l, v);
+    // ganze Seite als Rechteck: innen y nach oben → yl = v.h − y
+    imRechteck(page, { x: 0, y: 0, w: v.w, h: v.h }, () => {
+      const Y = (y: number) => v.h - y;
+      for (const lay of layouts) {
+        for (const st of lay.striche) {
+          page.drawLine({ start: { x: st.x1, y: Y(st.y) }, end: { x: st.x2, y: Y(st.y) }, thickness: st.dicke, color: F.blau });
+        }
+        if (lay.text) {
+          const t = lay.text;
+          if (t.hintergrund) {
+            page.drawRectangle({ x: t.x - 1, y: Y(lay.kasten.y + lay.kasten.h) - 1, width: lay.kasten.w + 2, height: lay.kasten.h + 2, color: rgb(1, 1, 1), opacity: 0.85 });
+          }
+          page.drawText(helvSicher(t.inhalt), { x: t.x, y: Y(t.basis), size: t.size, font, color: F.blau });
+        }
+        if (lay.marke) nummerKreis(page, font, lay.marke.x, Y(lay.marke.y), lay.marke.r, lay.marke.nr);
+      }
+      for (const fn of fussnoten) {
+        page.drawRectangle({ x: fn.kasten.x, y: Y(fn.kasten.y + fn.kasten.h), width: fn.kasten.w, height: fn.kasten.h, color: rgb(1, 1, 1), opacity: 0.9 });
+        nummerKreis(page, font, fn.marke.x, Y(fn.marke.y), fn.marke.r, fn.nr);
+        for (const z of fn.zeilen) page.drawText(helvSicher(z.inhalt), { x: z.x, y: Y(z.basis), size: fn.size, font, color: F.blau });
+      }
+    });
+  }
+}
+
+/** Kreis mit Ziffer (Fußnote ①), Mittelpunkt cx/cy (y nach oben). */
+function nummerKreis(page: Page, font: Font, cx: number, cy: number, r: number, nr: number) {
+  page.drawCircle({ x: cx, y: cy, size: r, borderColor: F.blau, borderWidth: Math.max(0.45, r * 0.14) });
+  const t = String(nr);
+  const size = r * (t.length > 1 ? 1.15 : 1.45);
+  page.drawText(t, { x: cx - font.widthOfTextAtSize(t, size) / 2, y: cy - size * 0.36, size, font, color: F.blau });
+}
+
+/** Ersetzungen aus Feldern (vorbelegt, geändert) und Korrekturen per Antippen. */
+export function ersetzungenAus(felder: FeldPdf[], ergaenzungen: ErgaenzungPdf[]): Ersetzung[] {
+  const out: Ersetzung[] = [];
+  for (const f of felder) {
+    if (f.typ !== "vorbelegt" || !f.wert || !Array.isArray(f.text_zeilen) || !f.text_zeilen.length) continue;
+    out.push({ page: f.page, zeilen: f.text_zeilen, frei: f.frei ?? { bis: 0, oben: 0 }, alt: f.ausgangswert ?? "", neu: f.wert, label: f.beschriftung || "Angabe" });
+  }
+  for (const e of ergaenzungen) {
+    if (e.art !== "korrektur" || !Array.isArray(e.zeilen) || !e.zeilen.length) continue;
+    out.push({ page: e.page, zeilen: e.zeilen, frei: e.frei ?? { bis: 0, oben: 0 }, alt: e.original_text ?? "", neu: e.text });
+  }
+  return out;
+}
+
 /** Ausfüllfeld fürs PDF (Auszug aus sign_request_fields). */
 export interface FeldPdf {
   typ: string;
@@ -317,6 +386,10 @@ export interface FeldPdf {
   wert_gesetzt_am?: string | null;
   ausfueller?: string;
   anker?: { page: number; x: number; y: number; w: number; h: number } | null;
+  /** nur vorbelegt */
+  ausgangswert?: string | null;
+  text_zeilen?: TextZeile[] | null;
+  frei?: Frei | null;
 }
 
 const ISO_DATUM = /^\d{4}-\d{2}-\d{2}$/;
@@ -333,6 +406,8 @@ function felderZeichnen(pages: Page[], felder: FeldPdf[], font: Font, klammern: 
       });
     }
     const page = pages[f.page];
+    // vorbelegte Angaben: zeichnet ersetzungenZeichnen (nur wenn geändert)
+    if (f.typ === "vorbelegt") continue;
     if (!page || !f.wert || !(f.w > 0) || !(f.h > 0)) continue;
     klammern(f.page);
     if (f.typ === "ankreuz" || f.typ === "auswahl") {
@@ -376,6 +451,8 @@ export async function stempeln(doc: Doc, signers: SignerPdf[], o: StempelOptione
   };
   if (o.felder?.length) felderZeichnen(pages, o.felder, f.normal, klammern);
   if (o.ergaenzungen?.length) ergaenzungenZeichnen(pages, o.ergaenzungen, f.normal, klammern);
+  const ersetzungen = ersetzungenAus(o.felder ?? [], o.ergaenzungen ?? []);
+  if (ersetzungen.length) ersetzungenZeichnen(pages, ersetzungen, f.normal, klammern);
   const letzteUnterschrift = new Map<number, string>(); // Seite → späteste Zeit
   const bilder = new Map<string, unknown>();
 
@@ -771,7 +848,7 @@ export async function pruefblattAnhaengen(doc: Doc, d: PruefblattDaten) {
   }
 
   // ---- Ausgefüllte Felder (wer hat welches Feld wann ausgefüllt)
-  const gefuellt = (d.felder ?? []).filter((x) => x.wert);
+  const gefuellt = (d.felder ?? []).filter((x) => x.wert && x.typ !== "vorbelegt");
   if (gefuellt.length) {
     const wertTxt = (x: FeldPdf) => x.typ === "datum" && ISO_DATUM.test(x.wert!) ? x.wert!.split("-").reverse().join(".")
       : x.typ === "ankreuz" || x.typ === "auswahl" ? "angekreuzt" : x.wert!;
@@ -794,17 +871,29 @@ export async function pruefblattAnhaengen(doc: Doc, d: PruefblattDaten) {
   }
 
   // ---- Ergänzungen und Korrekturen der Unterzeichner (wer, wann, Seite, Text)
+  // geänderte vorbelegte Angaben („Name: alt → neu“) + Korrekturen („Statt „…“: …“) + Ergänzungen
+  const geaendert = (d.felder ?? []).filter((x) => x.typ === "vorbelegt" && x.wert);
   const erg = d.ergaenzungen ?? [];
-  if (erg.length) {
-    const zeilenE = erg.map((x) => ({
-      k: umbrechen(f.normal, `Seite ${x.page + 1} · ${x.art === "korrektur" ? "Korrektur" : "Ergänzung"}`, 7.6, 95),
-      v: umbrechen(f.fett, x.art === "korrektur"
-        ? `markierte Stelle ersetzt durch „${x.text.replace(/\s*\n\s*/g, " / ")}“`
-        : `„${x.text.replace(/\s*\n\s*/g, " / ")}“`, 7.6, 225),
-      wer: umbrechen(f.normal, `${x.erstellt_von || "–"}${x.erstellt_am ? ` · ${datumZeit(x.erstellt_am)} Uhr` : ""}`, 7.6, B - 345),
-    }));
+  if (erg.length || geaendert.length) {
+    const wer = (von?: string | null, am?: string | null) => umbrechen(f.normal, `${von || "–"}${am ? ` · ${datumZeit(am)} Uhr` : ""}`, 7.6, B - 345);
+    const zeilenE = [
+      ...geaendert.map((x) => ({
+        k: umbrechen(f.normal, `Seite ${x.page + 1} · Änderung`, 7.6, 95),
+        v: umbrechen(f.fett, `${x.beschriftung || "Angabe"}: ${x.ausgangswert ?? ""} → ${x.wert}`, 7.6, 225),
+        wer: wer(x.wert_gesetzt_von, x.wert_gesetzt_am),
+      })),
+      ...erg.map((x) => ({
+        k: umbrechen(f.normal, `Seite ${x.page + 1} · ${x.art === "korrektur" ? "Korrektur" : "Ergänzung"}`, 7.6, 95),
+        v: umbrechen(f.fett, x.art === "korrektur"
+          ? x.original_text
+            ? fussnotenText({ alt: x.original_text, neu: x.text })
+            : `markierte Stelle ersetzt durch „${x.text.replace(/\s*\n\s*/g, " / ")}“`
+          : `„${x.text.replace(/\s*\n\s*/g, " / ")}“`, 7.6, 225),
+        wer: wer(x.erstellt_von, x.erstellt_am),
+      })),
+    ];
     platz(60);
-    ueberschrift("Ergänzungen und Korrekturen der Unterzeichner");
+    ueberschrift("Änderungen, Korrekturen und Ergänzungen der Unterzeichner");
     for (const r of zeilenE) {
       const zh = Math.max(r.k.length, r.v.length, r.wer.length) * 10.2 + 3;
       platz(zh + 4);
@@ -813,7 +902,7 @@ export async function pruefblattAnhaengen(doc: Doc, d: PruefblattDaten) {
       r.wer.forEach((z, i) => page.drawText(z, { x: M + 345, y: y - 7.6 - i * 10.2, size: 7.6, font: f.normal, color: F.text }));
       y -= zh;
     }
-    const hinweis = umbrechen(f.normal, "Diese Angaben haben die Unterzeichner beim Unterschreiben selbst ergänzt bzw. korrigiert. Sie sind im Dokument dunkelblau eingesetzt, korrigierte Stellen sind durchgestrichen.", 7, B - 10);
+    const hinweis = umbrechen(f.normal, "Diese Angaben haben die Unterzeichner beim Unterschreiben selbst geändert, korrigiert bzw. ergänzt. Sie sind im Dokument dunkelblau eingesetzt, der ursprüngliche Text ist durchgestrichen (bei wenig Platz als Fußnote unten auf der Seite).", 7, B - 10);
     platz(hinweis.length * 9.5 + 4);
     y -= 3;
     for (const z of hinweis) {

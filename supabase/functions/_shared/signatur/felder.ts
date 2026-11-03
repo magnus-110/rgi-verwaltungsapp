@@ -4,8 +4,10 @@
 // Anlegen dorthin umgesetzt). Koordinaten wie placements: page 0-basiert, PDF-Punkte, oben links.
 import { Fehler, uuidOderNull, zeile } from "./basis.ts";
 import type { Db } from "./basis.ts";
+import { freiPruefen, ibanFehler, ibanGruppiert, istIbanFeld, zeilenPruefen, type Frei, type TextZeile } from "./ersetzung.ts";
 
-export const FELD_TYPEN = ["ankreuz", "auswahl", "datum", "text"] as const;
+// vorbelegt = Angabe steht schon im PDF (ausgangswert an text_zeilen); der Unterzeichner darf sie ändern.
+export const FELD_TYPEN = ["ankreuz", "auswahl", "datum", "text", "vorbelegt"] as const;
 export type FeldTyp = typeof FELD_TYPEN[number];
 export const MAX_FELDER = 60;
 export const TEXT_MAX = 200;
@@ -40,7 +42,19 @@ export interface Feld {
   wert_gesetzt_am: string | null;
   quelle: string;
   anker: { page: number; x: number; y: number; w: number; h: number } | null;
+  /** Reihenfolge im Formular (null = Lesereihenfolge) */
+  reihenfolge?: number | null;
+  /** Untertyp eines Textfeldes: „iban“ */
+  format?: string | null;
+  /** Datum mit heute vorbelegen (null = automatisch bei Beschriftung „Datum“) */
+  heute_vorbelegen?: boolean | null;
+  /** nur vorbelegt: Text im PDF, seine Zeilen und der freie Platz daneben */
+  ausgangswert?: string | null;
+  text_zeilen?: TextZeile[] | null;
+  frei?: Frei | null;
 }
+
+export const VORBELEGT_MAX = 300;
 
 const KEY_RE = /^[a-z0-9][a-z0-9_.-]{0,59}$/;
 const DATUM_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -62,7 +76,7 @@ export const datumDe = (v: string) => {
 };
 
 /** Wert in die gespeicherte Form bringen (oder Fehlermeldung). null = leer. */
-export function wertNormalisieren(f: Pick<Feld, "typ" | "beschriftung" | "max_laenge">, roh: unknown): string | null {
+export function wertNormalisieren(f: Pick<Feld, "typ" | "beschriftung" | "max_laenge"> & { format?: string | null }, roh: unknown): string | null {
   if (roh === undefined || roh === null || roh === "" || roh === false) return null;
   const name = f.beschriftung || "Feld";
   switch (f.typ) {
@@ -82,7 +96,19 @@ export function wertNormalisieren(f: Pick<Feld, "typ" | "beschriftung" | "max_la
       const max = Math.min(f.max_laenge ?? TEXT_MAX, 500);
       const s = zeile(roh, 2000);
       if (!s) return null;
+      if (istIbanFeld(f)) {
+        // IBAN: Prüfziffer prüfen, in 4er-Blöcken speichern
+        const fehler = ibanFehler(s);
+        if (fehler) throw new Fehler(400, `„${name}“: ${fehler}`);
+        return ibanGruppiert(s);
+      }
       if (s.length > max) throw new Fehler(400, `„${name}“: höchstens ${max} Zeichen.`);
+      return s;
+    }
+    case "vorbelegt": {
+      const s = zeile(roh, 2000);
+      if (!s) return null;
+      if (s.length > VORBELEGT_MAX) throw new Fehler(400, `„${name}“: höchstens ${VORBELEGT_MAX} Zeichen.`);
       return s;
     }
   }
@@ -203,7 +229,7 @@ export interface FeldPlan {
  * Felder aus create prüfen. Unterschriftsfelder (typ „unterschrift“) werden zurückgegeben, damit sie als
  * placements des Unterzeichners gespeichert werden. Vorab-Werte („rgi“) werden hier festgeschrieben.
  */
-export function felderPlanen(roh: unknown, seiten: number, signers: SignerRef[], userId: string | null, userName: string | null): {
+export function felderPlanen(roh: unknown, seiten: number, signers: SignerRef[], userId: string | null, userName: string | null, masse?: { w: number; h: number }[]): {
   felder: FeldPlan[];
   unterschriften: { signerIndex: number | "rgi"; page: number; x: number; y: number; w: number; h: number }[];
 } {
@@ -248,7 +274,31 @@ export function felderPlanen(roh: unknown, seiten: number, signers: SignerRef[],
       if (a.feld_key) abh = { feld_key: zeile(a.feld_key, 60).toLowerCase() };
       else if (a.gruppe && a.option) abh = { gruppe: zeile(a.gruppe, 60).toLowerCase(), option: zeile(a.option, 60).toLowerCase() };
     }
-    const basis = { typ, beschriftung, max_laenge: max } as Pick<Feld, "typ" | "beschriftung" | "max_laenge">;
+    const format = typ === "text" && f?.format === "iban" ? "iban" : null;
+    if (f?.format != null && f.format !== "" && !format) throw new Fehler(400, `${name}: unbekannter Untertyp „${zeile(f.format, 20)}“ (nur „iban“ bei Textfeldern).`);
+    const heute = typ === "datum" && typeof f?.heute_vorbelegen === "boolean" ? f.heute_vorbelegen : null;
+    let reihenfolge: number | null = null;
+    if (f?.reihenfolge !== undefined && f?.reihenfolge !== null && f?.reihenfolge !== "") {
+      const r = Number(f.reihenfolge);
+      if (!Number.isInteger(r) || r < 0 || r > 9999) throw new Fehler(400, `${name}: ungültige Reihenfolge.`);
+      reihenfolge = r;
+    }
+    // Vorbelegte, änderbare Angabe: Text steht im PDF; Zeilen und freier Platz aus der Textebene
+    let vorbelegt: { ausgangswert: string; text_zeilen: TextZeile[]; frei: Frei } | null = null;
+    if (typ === "vorbelegt") {
+      if (wer.art === "rgi") throw new Fehler(400, `${name}: Eine änderbare Angabe muss einem Unterzeichner gehören.`);
+      const ausgangswert = zeile(f?.ausgangswert, 1000);
+      if (!ausgangswert) throw new Fehler(400, `${name}: Der Text aus dem Dokument fehlt.`);
+      if (ausgangswert.length > VORBELEGT_MAX) throw new Fehler(400, `${name}: höchstens ${VORBELEGT_MAX} Zeichen.`);
+      const seite = masse?.[z.page] ?? { w: 3000, h: 3000 };
+      try {
+        const text_zeilen = zeilenPruefen(f?.text_zeilen, seite, name);
+        vorbelegt = { ausgangswert, text_zeilen, frei: freiPruefen(f?.frei, text_zeilen, seite) };
+      } catch (e) {
+        throw new Fehler(400, e instanceof Error ? e.message : String(e));
+      }
+    }
+    const basis = { typ, beschriftung, max_laenge: max, format } as Pick<Feld, "typ" | "beschriftung" | "max_laenge" | "format">;
     const wert = wer.art === "rgi" ? wertNormalisieren(basis, f?.wert) : null;
     const anker = f?.anker && typeof f.anker === "object" && Number.isInteger(Number(f.anker.page))
       ? { page: Number(f.anker.page), x: Number(f.anker.x) || 0, y: Number(f.anker.y) || 0, w: Number(f.anker.w) || 1, h: Number(f.anker.h) || 1 }
@@ -274,9 +324,40 @@ export function felderPlanen(roh: unknown, seiten: number, signers: SignerRef[],
         wert_gesetzt_am: wert ? jetzt : null,
         quelle: ["vorlage", "vorschlag"].includes(f?.quelle) ? f.quelle : "manuell",
         anker,
+        reihenfolge,
+        format,
+        heute_vorbelegen: heute,
+        ausgangswert: vorbelegt?.ausgangswert ?? null,
+        text_zeilen: vorbelegt?.text_zeilen ?? null,
+        frei: vorbelegt?.frei ?? null,
       },
     });
   });
+
+  // Reihenfolge im Formular: angegebene Werte zuerst, sonst Lesereihenfolge (Seite, y, x).
+  // Möglichkeiten einer Auswahl bleiben zusammen (Rang der Gruppe = kleinster Rang einer Möglichkeit).
+  {
+    const lese = [...felder].sort((a, b) => {
+      const p = a.zeile as Record<string, number>, q = b.zeile as Record<string, number>;
+      return p.page - q.page || Math.round(p.y) - Math.round(q.y) || p.x - q.x;
+    });
+    const rang = new Map<FeldPlan, number>();
+    lese.forEach((p, i) => {
+      const r = p.zeile.reihenfolge as number | null;
+      rang.set(p, r !== null ? r : 10000 + i);
+    });
+    const gruppenRang = new Map<string, number>();
+    for (const p of felder) {
+      const g = p.zeile.gruppe as string | null;
+      if (p.zeile.typ === "auswahl" && g) gruppenRang.set(g, Math.min(gruppenRang.get(g) ?? Infinity, rang.get(p)!));
+    }
+    const sortiert = [...lese].sort((a, b) => {
+      const ga = a.zeile.typ === "auswahl" ? gruppenRang.get(a.zeile.gruppe as string) : undefined;
+      const gb = b.zeile.typ === "auswahl" ? gruppenRang.get(b.zeile.gruppe as string) : undefined;
+      return (ga ?? rang.get(a)!) - (gb ?? rang.get(b)!) || rang.get(a)! - rang.get(b)!;
+    });
+    sortiert.forEach((p, i) => { p.zeile.reihenfolge = i + 1; });
+  }
 
   // Abhängigkeiten müssen auf vorhandene Felder zeigen
   const alle = felder.map((p) => p.zeile as unknown as Feld);
@@ -318,21 +399,37 @@ export function eingabenPruefen(felder: Feld[], signerId: string, roh: unknown):
     if (!f) throw new Fehler(400, "Unbekanntes Feld.");
     if (!eigene.includes(f)) throw new Fehler(403, `„${f.beschriftung || "Feld"}“ füllt jemand anderes aus.`);
   }
-  const werte = new Map<string, string | null>(felder.map((f) => [f.feld_key, f.wert ?? null]));
+  const werte = new Map<string, string | null>(felder.map((f) => [f.feld_key, f.typ === "vorbelegt" ? f.wert ?? f.ausgangswert ?? null : f.wert ?? null]));
   for (const f of eigene) {
     const v = eingabe[f.id] ?? eingabe[f.feld_key];
+    if (f.typ === "vorbelegt") {
+      // nicht übermittelt = unverändert; leer ist nicht erlaubt (der Text steht ja im Dokument)
+      const n = v === undefined ? f.ausgangswert ?? null : wertNormalisieren(f, v);
+      if (!n) throw new Fehler(400, `„${f.beschriftung || "Angabe"}“ darf nicht leer sein. Bitte den richtigen Wert eintragen.`);
+      werte.set(f.feld_key, n);
+      continue;
+    }
     werte.set(f.feld_key, wertNormalisieren(f, v));
   }
   const fehler = vollstaendigPruefen(felder, (f) => eigene.includes(f), werte);
   if (fehler) throw new Fehler(400, fehler);
   const w = (k: string) => werte.get(k) ?? null;
   const out = new Map<string, string | null>();
-  for (const f of eigene) out.set(f.id, istAktiv(f, felder, w) ? w(f.feld_key) : null);
+  for (const f of eigene) {
+    if (f.typ === "vorbelegt") {
+      // gespeichert wird nur ein geänderter Wert (null = unverändert)
+      const n = w(f.feld_key);
+      out.set(f.id, n && n !== (f.ausgangswert ?? "").trim() ? n : null);
+      continue;
+    }
+    out.set(f.id, istAktiv(f, felder, w) ? w(f.feld_key) : null);
+  }
   return out;
 }
 
 /** Text eines Wertes für Nachweis/Protokoll. */
-export function wertText(f: Pick<Feld, "typ" | "wert">): string {
+export function wertText(f: Pick<Feld, "typ" | "wert"> & { ausgangswert?: string | null }): string {
+  if (f.typ === "vorbelegt") return f.wert ? `${f.ausgangswert ?? ""} → ${f.wert}` : "unverändert";
   if (!f.wert) return "–";
   if (f.typ === "datum") return datumDe(f.wert);
   if (f.typ === "ankreuz" || f.typ === "auswahl") return "angekreuzt";

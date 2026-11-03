@@ -66,6 +66,12 @@ function felderFuerSeite(felder: Feld[], signerId: string) {
     wert: f.wert,
     eigen: f.ausfueller === "unterzeichner" && f.signer_id === signerId,
     vorab: f.ausfueller === "rgi",
+    reihenfolge: f.reihenfolge ?? null,
+    format: f.format ?? null,
+    heute_vorbelegen: f.heute_vorbelegen ?? null,
+    ausgangswert: f.ausgangswert ?? null,
+    text_zeilen: f.text_zeilen ?? null,
+    frei: f.frei ?? null,
   }));
 }
 
@@ -170,7 +176,10 @@ Deno.serve(async (req) => {
         darf_ergaenzen: z === "ok" && darfErgaenzen(v, s),
         ergaenzungen_andere: z === "ok" && !istEtv(v)
           ? (await ergaenzungenLaden(db, v.id)).filter((e) => e.signer_id !== s.id)
-            .map((e) => ({ id: e.id, art: e.art, page: e.page, x: e.x, y: e.y, w: e.w, h: e.h, bereich: e.bereich, text: e.text }))
+            .map((e) => ({
+              id: e.id, art: e.art, page: e.page, x: e.x, y: e.y, w: e.w, h: e.h, bereich: e.bereich, text: e.text,
+              original_text: e.original_text ?? null, zeilen: e.zeilen ?? null, frei: e.frei ?? null,
+            }))
           : [],
       });
     }
@@ -253,12 +262,19 @@ Deno.serve(async (req) => {
           text: e.text,
           erstellt_von: erstelltVon,
           erstellt_am: jetzt,
+          ...(e.zeilen ? { original_text: e.original_text, zeilen: e.zeilen, frei: e.frei, darstellung: e.darstellung } : {}),
         })));
         if (error) {
           console.error("[sign-public] Ergänzungen nicht gespeichert:", error.message);
           await zuruecknehmen();
           return json({ error: "Ihre Ergänzungen konnten nicht gespeichert werden. Bitte versuchen Sie es erneut." }, 500);
         }
+      }
+      // Geänderte vorbelegte Angaben („Name: alt → neu“) – gehen wie Ergänzungen als Hinweis an RGI
+      const aenderungen: string[] = [];
+      for (const [id, wert] of neueWerte) {
+        const f = felder.find((x) => x.id === id)!;
+        if (f.typ === "vorbelegt" && wert) aenderungen.push(`${f.beschriftung || "Angabe"}: ${f.ausgangswert ?? ""} → ${wert}`);
       }
       if (neueWerte.size) {
         const geaendert: string[] = [];
@@ -273,7 +289,7 @@ Deno.serve(async (req) => {
             }).eq("id", id).eq("signer_id", s.id);
             if (error) throw error;
             const f = felder.find((x) => x.id === id)!;
-            if (wert) geaendert.push(`${f.beschriftung || f.feld_key}: ${wertText({ typ: f.typ, wert })}`);
+            if (wert && f.typ !== "vorbelegt") geaendert.push(`${f.beschriftung || f.feld_key}: ${wertText({ typ: f.typ, wert })}`);
           }
         } catch (e) {
           await zuruecknehmen();
@@ -287,6 +303,12 @@ Deno.serve(async (req) => {
           });
         }
       }
+      if (aenderungen.length) {
+        await ereignis(db, v.id, "geaendert", `${s.name} hat Angaben geändert: ${aenderungen.join("; ")}`.slice(0, 12000), {
+          signerId: s.id,
+          details: { am: jetzt, anzahl: aenderungen.length, aenderungen },
+        });
+      }
       if (ergaenzungen.length) {
         // Protokoll: jede Ergänzung/Korrektur mit Seite und Text; Hinweis an RGI (Ersteller)
         const liste = ergaenzungen.map(ergaenzungBeschreibung);
@@ -295,15 +317,22 @@ Deno.serve(async (req) => {
           details: {
             am: jetzt,
             anzahl: ergaenzungen.length,
-            eintraege: ergaenzungen.map((e) => ({ art: e.art, seite: e.page + 1, text: e.text })),
+            eintraege: ergaenzungen.map((e) => ({ art: e.art, seite: e.page + 1, text: e.text, ...(e.original_text ? { statt: e.original_text } : {}) })),
           },
         });
+      }
+      if (ergaenzungen.length || aenderungen.length) {
         await db.from("sign_requests").update({ ergaenzungen_pruefen: true }).eq("id", v.id);
+        const teile = [
+          aenderungen.length ? `hat Angaben geändert: ${aenderungen.join("; ")}` : "",
+          ergaenzungen.length ? `hat ${angabenText(ergaenzungen.length)}` : "",
+        ].filter(Boolean);
+        const titel = `${s.name} ${teile.join(" und ")} – bitte prüfen`;
         await melden(
           db,
           v.created_by,
           "review_due",
-          `${s.name} hat ${angabenText(ergaenzungen.length)} – bitte prüfen`,
+          titel.length > 300 ? `${titel.slice(0, 280)}… – bitte prüfen` : titel,
           `${v.nummer} · ${v.titel}${v.buildings?.name ? ` · ${v.buildings.name}` : ""}`,
           v.id,
         );

@@ -570,7 +570,7 @@ const tools: Tool[] = [
 ];
 
 // ---------------------------------------------------------------- MCP
-const SERVER_INFO = { name: "rgi-verwaltungsapp", version: "1.9.0" };
+const SERVER_INFO = { name: "rgi-verwaltungsapp", version: "1.10.0" };
 async function mcp(msg: any): Promise<any | null> {
   const { id, method, params } = msg ?? {};
   const ok = (result: unknown) => ({ jsonrpc: "2.0", id, result });

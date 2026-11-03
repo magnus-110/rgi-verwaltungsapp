@@ -1,10 +1,14 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { Frei, TextZeile } from "@shared/signatur/ersetzung.ts";
+
+export type { Frei, TextZeile };
 
 /** Ausfüllfeld auf der Unterschriftsseite (sign-public „get“). Koordinaten in PDF-Punkten, oben links, page 0-basiert. */
 export type SignFeld = {
   id: string;
   feld_key: string;
-  typ: "ankreuz" | "auswahl" | "datum" | "text";
+  /** vorbelegt = Angabe steht schon im PDF (ausgangswert), darf geändert werden */
+  typ: "ankreuz" | "auswahl" | "datum" | "text" | "vorbelegt";
   page: number;
   x: number;
   y: number;
@@ -21,6 +25,15 @@ export type SignFeld = {
   /** true = dieser Unterzeichner füllt aus */
   eigen: boolean;
   vorab: boolean;
+  /** Reihenfolge im Formular (null/fehlt = Lesereihenfolge) */
+  reihenfolge?: number | null;
+  /** „iban“ = IBAN-Feld */
+  format?: string | null;
+  heute_vorbelegen?: boolean | null;
+  /** nur vorbelegt */
+  ausgangswert?: string | null;
+  text_zeilen?: TextZeile[] | null;
+  frei?: Frei | null;
 };
 
 export type Rechteck = { x: number; y: number; w: number; h: number };
@@ -37,6 +50,12 @@ export type SignErgaenzung = Rechteck & {
   text: string;
   /** nur im Browser: Ersatztext wurde von Hand verschoben (dann nicht mehr automatisch platzieren) */
   manuell?: boolean;
+  /** Korrektur per Antippen: markierter Originaltext, seine Zeilen und der freie Platz daneben */
+  original_text?: string | null;
+  zeilen?: TextZeile[] | null;
+  frei?: Frei | null;
+  /** nur im Browser: markierte Wörter (Textebene) */
+  woerter?: string[];
 };
 
 /** Antwort von sign-public {action:"get"} – siehe /esig/API.md. */
@@ -128,7 +147,14 @@ export const unterschreiben = (
     ...(signature_png ? { signature_png } : {}),
     ...(felder && Object.keys(felder).length ? { felder } : {}),
     ...(ergaenzungen?.length
-      ? { ergaenzungen: ergaenzungen.map(({ art, page, x, y, w, h, bereich, text }) => ({ art, page, x, y, w, h, bereich, text })) }
+      ? {
+          ergaenzungen: ergaenzungen.map(({ art, page, x, y, w, h, bereich, text, original_text, zeilen, frei }) =>
+            art === "korrektur" && zeilen?.length
+              ? (frei?.scan
+                ? { art, page, neu: true, bereich, frei, text } // Scan ohne Textebene: Rechteck, Durchstreichung mittig
+                : { art, page, original_text, zeilen, frei, text })
+              : { art, page, x, y, w, h, bereich, text }),
+        }
       : {}),
     consent: true,
   });

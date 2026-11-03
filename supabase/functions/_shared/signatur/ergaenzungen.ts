@@ -4,8 +4,12 @@
 //  - ergaenzung: freier Text an einer Stelle der Seite (Textfeld x/y/w/h)
 //  - korrektur:  durchgestrichener Bereich (bereich) + Ersatztext „Richtig ist: …“ (Textfeld x/y/w/h)
 // Koordinaten wie placements: page 0-basiert, PDF-Punkte, Ursprung oben links der angezeigten Seite.
+//  - korrektur per Antippen (neu): original_text + zeilen (Textzeilen des Originals, exakt durchgestrichen)
+//    + frei; der neue Text steht dahinter/darüber/als Fußnote (ersetzung.ts). Bei Scans ohne Textebene:
+//    nur bereich (Rechteck) → daraus eine Zeile, Durchstreichung mittig.
 import { Fehler } from "./basis.ts";
 import type { Db } from "./basis.ts";
+import { ersetzungLayout, freiPruefen, zeileAusBereich, zeilenPruefen, type Darstellung, type Frei, type TextZeile } from "./ersetzung.ts";
 
 export const MAX_ERGAENZUNGEN = 30;
 export const ERGAENZUNG_MAX_ZEICHEN = 300;
@@ -31,6 +35,10 @@ export interface Ergaenzung extends Rechteck {
   text: string;
   erstellt_von: string;
   erstellt_am: string;
+  original_text?: string | null;
+  zeilen?: TextZeile[] | null;
+  frei?: Frei | null;
+  darstellung?: Darstellung | null;
 }
 
 /** Geprüfte Eingabe (ohne IDs). */
@@ -39,7 +47,13 @@ export interface ErgaenzungEingabe extends Rechteck {
   page: number;
   bereich: Rechteck | null;
   text: string;
+  original_text: string | null;
+  zeilen: TextZeile[] | null;
+  frei: Frei | null;
+  darstellung: Darstellung | null;
 }
+
+export const ORIGINAL_MAX = 500;
 
 const r1 = (n: number) => Math.round(n * 10) / 10;
 
@@ -92,9 +106,44 @@ export function ergaenzungenPruefen(roh: unknown, seiten: { w: number; h: number
     }
     if (text.length > ERGAENZUNG_MAX_ZEICHEN) throw new Fehler(400, `${name}: höchstens ${ERGAENZUNG_MAX_ZEICHEN} Zeichen.`);
     if (text.split("\n").length > ERGAENZUNG_MAX_ZEILEN) throw new Fehler(400, `${name}: höchstens ${ERGAENZUNG_MAX_ZEILEN} Zeilen.`);
+    // Neue Korrektur (per Antippen bzw. Scan-Rechteck): Lage des neuen Textes berechnet der Server
+    if (art === "korrektur" && (o.zeilen != null || o.neu === true)) {
+      let zeilen: TextZeile[];
+      let original: string | null = null;
+      let scan = false;
+      if (o.zeilen != null) {
+        try {
+          zeilen = zeilenPruefen(o.zeilen, seite, name);
+        } catch (e) {
+          throw new Fehler(400, e instanceof Error ? e.message : String(e));
+        }
+        original = String(o.original_text ?? "").replace(/\s+/g, " ").trim();
+        if (!original) throw new Fehler(400, `${name}: Der markierte Text fehlt.`);
+        if (original.length > ORIGINAL_MAX) throw new Fehler(400, `${name}: Die Markierung ist zu lang (höchstens ${ORIGINAL_MAX} Zeichen).`);
+      } else {
+        // Scan ohne Textebene: markiertes Rechteck, Durchstreichung mittig
+        const b = rechteckPruefen(o.bereich, seite, { w: 4, h: 4 }, `Der markierte Bereich von ${name}`);
+        zeilen = [zeileAusBereich(b)];
+        scan = true;
+      }
+      const einzeilig = text.replace(/\s*\n\s*/g, " ");
+      const frei = freiPruefen(scan ? { ...(o.frei as object ?? {}), scan: true } : o.frei, zeilen, seite);
+      if (scan) frei.scan = true;
+      const l = ersetzungLayout({ zeilen, frei, neu: einzeilig }, seite, 1);
+      const minX = Math.min(...zeilen.map((z) => z.x)), minY = Math.min(...zeilen.map((z) => z.y));
+      const bereich = {
+        x: r1(minX), y: r1(minY),
+        w: r1(Math.max(...zeilen.map((z) => z.x + z.w)) - minX) || 0.1, h: r1(Math.max(...zeilen.map((z) => z.y + z.h)) - minY) || 0.1,
+      };
+      const k = l.kasten;
+      return {
+        art, page, bereich, text: einzeilig, original_text: original, zeilen, frei, darstellung: l.art,
+        x: r1(Math.max(0, k.x)), y: r1(Math.max(0, k.y)), w: Math.max(0.1, r1(k.w)), h: Math.max(0.1, r1(k.h)),
+      };
+    }
     const box = rechteckPruefen(o, seite, { w: 12, h: 8 }, art === "korrektur" ? `Der Text zu ${name}` : name);
     const bereich = art === "korrektur" ? rechteckPruefen(o.bereich, seite, { w: 4, h: 4 }, `Der markierte Bereich von ${name}`) : null;
-    return { art, page, ...box, bereich, text };
+    return { art, page, ...box, bereich, text, original_text: null, zeilen: null, frei: null, darstellung: null };
   });
 }
 
@@ -106,12 +155,13 @@ export async function ergaenzungenLaden(db: Db, requestId: string): Promise<Erga
     console.error("[ergaenzungen] laden:", error.message);
     return [];
   }
-  return (data ?? []).map((e: Ergaenzung) => ({ ...e, x: Number(e.x), y: Number(e.y), w: Number(e.w), h: Number(e.h) }));
+  return (data ?? []).map((e: Ergaenzung) => ({ ...e, x: Number(e.x), y: Number(e.y), w: Number(e.w), h: Number(e.h), zeilen: Array.isArray(e.zeilen) ? e.zeilen : null }));
 }
 
 /** „Seite 2 · Ergänzung: „…““ bzw. „Seite 1 · Korrektur: markierte Stelle ersetzt durch „…““ */
-export function ergaenzungBeschreibung(e: Pick<ErgaenzungEingabe, "art" | "page" | "text">): string {
+export function ergaenzungBeschreibung(e: Pick<ErgaenzungEingabe, "art" | "page" | "text"> & { original_text?: string | null; zeilen?: unknown }): string {
   const t = e.text.replace(/\s*\n\s*/g, " / ");
+  if (e.art === "korrektur" && e.original_text) return `Seite ${e.page + 1} · Statt „${e.original_text}“: ${t}`;
   return e.art === "korrektur"
     ? `Seite ${e.page + 1} · Korrektur: markierte Stelle ersetzt durch „${t}“`
     : `Seite ${e.page + 1} · Ergänzung: „${t}“`;

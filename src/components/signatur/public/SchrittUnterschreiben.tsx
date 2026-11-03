@@ -5,6 +5,7 @@ import { Zeichenflaeche, type ZeichenflaecheRef } from "./Zeichenflaeche";
 import { datum, type SignErgaenzung, type SignInfo } from "./api";
 import { ergaenzungKurz } from "./Ergaenzungen";
 import { istAktiv, wertVon, type Werte } from "./Felder";
+import { sortierteFelder } from "./Formular";
 
 type Props = {
   info: SignInfo;
@@ -28,11 +29,13 @@ export default function SchrittUnterschreiben(p: Props) {
   const bereit = p.name.trim().length >= 2 && p.zustimmung;
   const [tippZu, setTippZu] = useState(false);
   const felder = p.info.felder ?? [];
-  const angaben = felder
+  const angaben = sortierteFelder(felder)
     .filter((f) => f.eigen && istAktiv(f, felder, p.werte ?? {}) && wertVon(f, p.werte ?? {}))
+    .filter((f) => f.typ !== "vorbelegt" || (wertVon(f, p.werte ?? {}) ?? "").trim() !== (f.ausgangswert ?? "").trim())
     .map((f) => {
       const w = wertVon(f, p.werte ?? {})!;
-      return { id: f.id, text: f.typ === "ankreuz" || f.typ === "auswahl" ? `☒ ${f.beschriftung}` : `${f.beschriftung}: ${f.typ === "datum" ? datum(w) : w}` };
+      if (f.typ === "vorbelegt") return { id: f.id, text: `${f.beschriftung || "Angabe"}: ${f.ausgangswert} → ${w.trim()}` };
+      return { id: f.id, text: f.typ === "ankreuz" || f.typ === "auswahl" ? `☒ ${f.beschriftung || f.option}` : `${f.beschriftung}: ${f.typ === "datum" ? datum(w) : w}` };
     });
 
   const loeschen = () => {

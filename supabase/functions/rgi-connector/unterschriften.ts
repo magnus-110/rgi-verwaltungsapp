@@ -62,6 +62,9 @@ const AUSFUELLFELD_SCHEMA = {
     },
     max_laenge: { type: "integer", minimum: 1, maximum: 500, description: "nur text (Standard 200)" },
     wert: str("nur bei ausfueller 'rgi': Vorab-Wert (ankreuz/auswahl: 'ja'; datum: JJJJ-MM-TT; text)"),
+    reihenfolge: { type: "integer", minimum: 1, maximum: 9999, description: "optional: Reihenfolge im Formular des Unterzeichners (1 = zuerst). Fehlt sie, gilt die Lesereihenfolge im Dokument (Seite, oben → unten, links → rechts)" },
+    format: { type: "string", enum: ["iban"], description: "nur text: 'iban' = IBAN-Feld (4er-Blöcke, Prüfziffer wird geprüft, Kreditinstitut/BIC werden aus der BLZ in gleichnamige Felder eingetragen). Beschriftung „IBAN“ wirkt genauso." },
+    heute_vorbelegen: { type: "boolean", description: "nur datum: mit dem heutigen Datum vorbelegen (änderbar). Standard: automatisch, wenn die Beschriftung „Datum“ ist" },
   },
 };
 const DOKUMENTART_SCHEMA = { type: "string", enum: DOKUMENTARTEN, description: "Bestimmt Mailvorlage, Standardfrist und den vorgeschlagenen DMS-Ordner der Endfassung" };

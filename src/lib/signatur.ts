@@ -45,7 +45,8 @@ export interface SignPlacement {
 // Ausfüllfelder (Tabelle sign_request_fields)
 // ---------------------------------------------------------------
 
-export type FeldTyp = "ankreuz" | "auswahl" | "datum" | "text";
+/** vorbelegt = Angabe steht schon im PDF, der Unterzeichner darf sie ändern („Kunde darf ändern“) */
+export type FeldTyp = "ankreuz" | "auswahl" | "datum" | "text" | "vorbelegt";
 export type WerkzeugTyp = FeldTyp | "unterschrift";
 
 export const FELD_TYP_LABEL: Record<WerkzeugTyp, string> = {
@@ -54,6 +55,7 @@ export const FELD_TYP_LABEL: Record<WerkzeugTyp, string> = {
   auswahl: "Auswahl",
   datum: "Datum",
   text: "Text",
+  vorbelegt: "Änderbare Angabe",
 };
 
 export type FeldAbhaengigkeit = { feld_key: string } | { gruppe: string; option: string };
@@ -83,6 +85,11 @@ export interface SignField {
   wert_gesetzt_von: string | null;
   wert_gesetzt_am: string | null;
   quelle: "manuell" | "vorlage" | "vorschlag";
+  reihenfolge?: number | null;
+  format?: string | null;
+  heute_vorbelegen?: boolean | null;
+  /** nur vorbelegt: Text im Dokument (wert = geänderter Wert, null = unverändert) */
+  ausgangswert?: string | null;
 }
 
 /** Ergebnis von sign-request „felder_erkennen“ (Vorlagen-Anker bzw. Vorschläge). */
@@ -115,7 +122,8 @@ export interface FelderErkennung {
 }
 
 /** Wert eines Feldes als Text (Liste, Nachweis). */
-export const feldWertText = (f: Pick<SignField, "typ" | "wert">) => {
+export const feldWertText = (f: Pick<SignField, "typ" | "wert"> & { ausgangswert?: string | null }) => {
+  if (f.typ === "vorbelegt") return f.wert ? `${f.ausgangswert ?? ""} → ${f.wert}` : "unverändert";
   if (!f.wert) return "–";
   if (f.typ === "datum") return /^\d{4}-\d{2}-\d{2}$/.test(f.wert) ? f.wert.split("-").reverse().join(".") : f.wert;
   if (f.typ === "ankreuz" || f.typ === "auswahl") return "angekreuzt";
@@ -138,6 +146,9 @@ export interface SignErgaenzung {
   text: string;
   erstellt_von: string;
   erstellt_am: string;
+  /** Korrektur per Antippen: ersetzter Originaltext */
+  original_text?: string | null;
+  zeilen?: { x: number; y: number; w: number; h: number; basis: number; groesse: number }[] | null;
 }
 
 export const ERGAENZUNG_ART_LABEL: Record<SignErgaenzung["art"], string> = {

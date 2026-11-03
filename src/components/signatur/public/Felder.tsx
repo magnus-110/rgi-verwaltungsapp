@@ -35,6 +35,10 @@ export function offeneFelder(felder: SignFeld[], werte: Werte): Offen[] {
   const out: Offen[] = [];
   const gesehen = new Set<string>();
   for (const f of felder.filter((x) => x.eigen)) {
+    if (f.typ === "vorbelegt") {
+      if (!(wertVon(f, werte) ?? "").trim()) out.push({ id: f.id, text: `${f.beschriftung || "Angabe"}: Wert eintragen`, feld: f });
+      continue;
+    }
     if (f.typ === "auswahl" && f.gruppe) {
       if (gesehen.has(f.gruppe)) continue;
       gesehen.add(f.gruppe);
@@ -80,6 +84,27 @@ export function FelderEbene({
         const w = wertVon(f, werte);
         const box = { left: f.x * scale, top: f.y * scale, width: f.w * scale, height: f.h * scale };
         const kaestchen = f.typ === "ankreuz" || f.typ === "auswahl";
+        // Vorbelegte Angabe: steht im PDF; geändert zeichnet ErsetzungenSvg. Eigene: Rahmen zum Antippen.
+        if (f.typ === "vorbelegt") {
+          if (!f.eigen) return null;
+          const markiert = aktivId === f.id;
+          return (
+            <button
+              key={f.id}
+              type="button"
+              id={`sig-feld-${f.id}`}
+              onClick={() => onBearbeiten(f)}
+              aria-label={`${f.beschriftung || "Angabe"}: ändern`}
+              className="pointer-events-auto absolute rounded-[3px] outline-none focus-visible:ring-2 focus-visible:ring-[#ee7202]"
+              style={{
+                left: box.left - 2, top: box.top - 2, width: box.width + 4, height: box.height + 4,
+                border: `1.5px dashed ${ORANGE}`,
+                backgroundColor: markiert ? "rgba(238,114,2,0.12)" : "transparent",
+                boxShadow: markiert ? `0 0 0 2px ${ORANGE}` : undefined,
+              }}
+            />
+          );
+        }
         // Fester Inhalt: Felder anderer Unterzeichner. Vorab-Werte von RGI stehen schon im PDF (quelle.pdf).
         if (!f.eigen) {
           if (!w || f.vorab) return null;

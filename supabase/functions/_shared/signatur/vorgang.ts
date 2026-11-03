@@ -34,7 +34,7 @@ import {
   vorgangLaden,
   vorlageLaden,
 } from "./ablauf.ts";
-import { PDFDocument, istPdf, seitenZaehlen, stempeln } from "./pdf.ts";
+import { PDFDocument, istPdf, seitenMasse, seitenZaehlen, stempeln } from "./pdf.ts";
 import { felderPlanen, wertText } from "./felder.ts";
 
 // deno-lint-ignore no-explicit-any
@@ -212,6 +212,8 @@ export async function anlegen(db: Db, b: Body, userId: string | null, test: bool
       signerZeilen.map((s: Body, i: number) => ({ index: i, methode: s.methode, rolle_key: s.rolle_key, rolle: s.rolle })),
       userId,
       await mitarbeiterName(db, userId),
+      // Seitengrößen für änderbare Angaben (Lage der Textzeilen prüfen)
+      Array.isArray(b.felder) && b.felder.some((f: Body) => f?.typ === "vorbelegt") ? await seitenMasse(quelle) : undefined,
     );
     const extraPl = new Map<number, Body[]>();
     for (const u of plan.unterschriften) {

@@ -395,33 +395,76 @@ function Darstellung({ e, scale, eigen, aktiv, onTipp }: { e: SignErgaenzung; sc
 // ---------------------------------------------------------------- Werkzeugleiste, Editor, Liste
 
 /** Knöpfe „Text ergänzen“ / „Korrigieren“ bzw. Hinweis, solange eine Stelle gewählt wird. */
-export function ErgaenzenLeiste({ modus, setModus, anzahl, gross }: { modus: Modus; setModus: (m: Modus) => void; anzahl: number; gross: boolean }) {
+export function ErgaenzenLeiste({
+  modus, setModus, anzahl, gross, korrArt, setKorrArt, markiert, onMarkierFertig, scan,
+}: {
+  modus: Modus;
+  setModus: (m: Modus) => void;
+  anzahl: number;
+  gross: boolean;
+  /** Korrigieren: ein Wort oder die ganze Zeile markieren */
+  korrArt?: "wort" | "zeile";
+  setKorrArt?: (a: "wort" | "zeile") => void;
+  /** gerade markierter Text (Korrektur) */
+  markiert?: string | null;
+  onMarkierFertig?: () => void;
+  /** Dokument ohne Textebene (Scan): Rechteck markieren */
+  scan?: boolean;
+}) {
   const voll = anzahl >= MAX_ERGAENZUNGEN;
+  const tippen = gross ? "Klicken" : "Tippen";
   if (modus) {
     return (
-      <div className="flex items-center gap-3 rounded-[10px] border border-[#C9D3EE] bg-[#EEF1FA] px-3 py-2" role="status">
-        <p className="min-w-0 flex-1 text-[13.5px] leading-[18px] text-[#1F3A93]">
+      <div className="space-y-2 rounded-[10px] border border-[#C9D3EE] bg-[#EEF1FA] px-3 py-2.5" role="status">
+        {modus === "korrigieren" && !scan && setKorrArt && (
+          <div className="grid grid-cols-2 gap-1 rounded-[10px] bg-white p-1" role="radiogroup" aria-label="Was markieren?">
+            {(["wort", "zeile"] as const).map((a) => (
+              <button
+                key={a}
+                type="button"
+                role="radio"
+                aria-checked={korrArt === a}
+                onClick={() => setKorrArt(a)}
+                className={cn("h-[38px] rounded-[8px] text-[14px] font-semibold", korrArt === a ? "bg-[#1F3A93] text-white" : "text-[#1F3A93] hover:bg-[#F7F8FC]")}
+              >
+                {a === "wort" ? "Wort" : "Ganze Zeile"}
+              </button>
+            ))}
+          </div>
+        )}
+        <p className="text-[13.5px] leading-[18px] text-[#1F3A93]">
           {modus === "ergaenzen"
-            ? `${gross ? "Klicken" : "Tippen"} Sie im Dokument auf die Stelle, an der Sie Text ergänzen möchten.`
-            : gross
-              ? "Ziehen Sie mit der Maus ein Rechteck über den falschen Text (oder klicken Sie darauf)."
-              : "Tippen Sie im Dokument auf den falschen Text. Die Markierung können Sie danach anpassen."}
+            ? `${tippen} Sie im Dokument auf die Stelle, an der Sie Text ergänzen möchten.`
+            : markiert
+              ? <>Markiert: „<b className="font-semibold">{markiert}</b>“. {tippen} Sie auf ein angrenzendes Wort, um die Markierung zu erweitern.</>
+              : scan
+                ? gross
+                  ? "Dieses Dokument hat keinen erkennbaren Text. Ziehen Sie ein Rechteck über die falsche Stelle (oder klicken Sie darauf)."
+                  : "Dieses Dokument hat keinen erkennbaren Text. Tippen Sie auf die falsche Stelle."
+                : `${tippen} Sie im Dokument auf ${korrArt === "zeile" ? "die falsche Zeile" : "das falsche Wort"}.`}
         </p>
-        <button type="button" onClick={() => setModus(null)} className="h-[44px] shrink-0 rounded-[10px] border border-[#D6D6D6] bg-white px-3.5 text-[14px] font-semibold text-[#2B2B2B] hover:bg-[#FAFAFA]">
-          Abbrechen
-        </button>
+        <div className="flex gap-2">
+          {markiert && onMarkierFertig && (
+            <button type="button" onClick={onMarkierFertig} className="h-[44px] flex-1 rounded-[10px] bg-[#1F3A93] px-3.5 text-[14.5px] font-semibold text-white hover:bg-[#182F78]">
+              Fertig – richtigen Text eingeben
+            </button>
+          )}
+          <button type="button" onClick={() => setModus(null)} className={cn("h-[44px] shrink-0 rounded-[10px] border border-[#D6D6D6] bg-white px-3.5 text-[14px] font-semibold text-[#2B2B2B] hover:bg-[#FAFAFA]", !markiert && "ml-auto")}>
+            {markiert ? "Abbrechen" : "Abbrechen"}
+          </button>
+        </div>
       </div>
     );
   }
   return (
     <div>
       <p className="mb-1.5 text-[13px] leading-[18px] text-[#595959]">
-        Stimmt etwas nicht oder fehlt eine Angabe? Sie können das Dokument selbst ergänzen oder korrigieren.
+        Stimmt etwas nicht oder fehlt eine Angabe? Sie können das Dokument selbst korrigieren oder ergänzen.
       </p>
       <div className="grid grid-cols-2 gap-2">
         {([
-          ["ergaenzen", "Text ergänzen", <Pencil key="i" className="h-4 w-4" />],
           ["korrigieren", "Korrigieren", <span key="i" className="text-[15px] font-semibold leading-none line-through decoration-2">Ab</span>],
+          ["ergaenzen", "Text ergänzen", <Pencil key="i" className="h-4 w-4" />],
         ] as const).map(([m, text, icon]) => (
           <button
             key={m}
@@ -509,6 +552,7 @@ export function ErgaenzungEditor({
 export const ergaenzungKurz = (e: SignErgaenzung) => {
   const t = textSauber(e.text).replace(/\s*\n\s*/g, " / ");
   if (!t) return e.art === "korrektur" ? "Korrektur – „Richtig ist“ fehlt noch" : "Ergänzung – Text fehlt noch";
+  if (e.art === "korrektur" && e.original_text) return `Statt „${e.original_text}“: ${t}`;
   return e.art === "korrektur" ? `Korrektur: ersetzt durch „${t}“` : `Ergänzung: „${t}“`;
 };
 

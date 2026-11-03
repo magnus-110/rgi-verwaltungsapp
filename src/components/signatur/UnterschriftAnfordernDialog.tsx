@@ -26,9 +26,13 @@ import {
   type FelderErkennung, type QuelleTyp, type SignPlacement, type SignTyp, type SignerVersand, type WerkzeugTyp,
 } from "@/lib/signatur";
 import {
-  FELD_GROESSE, FELD_MIN, FeldEigenschaften, FeldListe, RGI_FARBE, Werkzeugleiste,
+  FELD_GROESSE, FELD_MIN, FeldEigenschaften, FeldListe, ReihenfolgeListe, RGI_FARBE, Werkzeugleiste, reihenEintraege,
   type AusfuellerOption, type EntwurfFeld,
 } from "./FeldWerkzeuge";
+import {
+  abschnittVon, angrenzend, auswahlMit, auswahlText, auswahlZeilen, freiBerechnen, textLaden, wortBei,
+  type SeiteText, type Wort,
+} from "./textEbene";
 import { LinkHinweis, LinkZeile } from "./LinkKopieren";
 import { Abschnitt, eingabeKlasse, FeldLabel, NummerKreis, SigButton, SIGNER_FARBEN } from "./ui";
 import { LazySeite, PdfDocument, PdfPage, seitenGroessen, useElementBreite } from "./pdf";
@@ -208,6 +212,10 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
   /** Ausfüllfelder (Ankreuzfeld, Auswahl, Datum, Text) */
   const [felder, setFelder] = useState<EntwurfFeld[]>([]);
   const [werkzeug, setWerkzeug] = useState<WerkzeugTyp>("unterschrift");
+  /** Änderbare Angabe: ganze Textzeile oder nur ein Wort markieren */
+  const [textArt, setTextArt] = useState<"zeile" | "wort">("zeile");
+  const [dlgText, setDlgText] = useState<SeiteText[] | null>(null);
+  const [textHinweis, setTextHinweis] = useState<string | null>(null);
   const [gewaehlt, setGewaehlt] = useState<string | null>(null);
   const [vorschlaegeZeigen, setVorschlaegeZeigen] = useState(false);
   /** Unterschrifts-Anker der Vorlage, die schon einmal angewendet wurden */
@@ -364,7 +372,15 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
   useEffect(() => {
     setSeiten([]);
     setPdfFehler(null);
+    setDlgText(null);
   }, [quelleUrl]);
+  // Textebene erst laden, wenn „Änderbare Angabe“ gewählt ist
+  useEffect(() => {
+    if (!open || !quelleUrl || werkzeug !== "vorbelegt" || dlgText) return;
+    let aktiv = true;
+    textLaden(quelleUrl).then((t) => aktiv && setDlgText(t));
+    return () => { aktiv = false; };
+  }, [open, quelleUrl, werkzeug, dlgText]);
 
   // ---------- Unterzeichner ----------
   const externe = signer;
@@ -446,10 +462,67 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
     ? aktivFeldSigner
     : feldSigner[0]?.key ?? null;
 
+  /** Änderbare Angabe aus Wörtern der Textebene (Feld genau über dem Text). */
+  const vorbelegtAus = (S: SeiteText, woerter: Wort[]) => {
+    const zeilen = auswahlZeilen(woerter);
+    const x = Math.min(...zeilen.map((z) => z.x)), y = Math.min(...zeilen.map((z) => z.y));
+    const r = (n: number) => Math.round(n * 10) / 10;
+    return {
+      ausgangswert: auswahlText(woerter), text_zeilen: zeilen, frei: freiBerechnen(S, woerter, zeilen), woerter: woerter.map((w) => w.id),
+      x: r(x), y: r(y), w: Math.max(1, r(Math.max(...zeilen.map((z) => z.x + z.w)) - x)), h: Math.max(1, r(Math.max(...zeilen.map((z) => z.y + z.h)) - y)),
+    };
+  };
+  const vorbelegtSetzen = (page: number, px: number, py: number) => {
+    const S = dlgText?.[page];
+    setTextHinweis(null);
+    if (!dlgText) { setTextHinweis("Text im Dokument wird noch erkannt …"); return; }
+    if (!S || !S.woerter.length) { setTextHinweis("Auf dieser Seite wurde kein Text erkannt (z. B. Scan). Bitte ein Textfeld verwenden."); return; }
+    const w = wortBei(S, px, py);
+    if (!w) { setTextHinweis("Hier wurde kein Text erkannt. Bitte direkt auf den Text klicken."); return; }
+    // Gewählte Angabe um angrenzende Wörter erweitern
+    const alt = felder.find((f) => f.key === gewaehlt && f.typ === "vorbelegt" && f.page === page);
+    if (alt?.woerter?.length) {
+      const auswahl = alt.woerter.map((id) => S.woerter.find((x) => x.id === id)!).filter(Boolean);
+      if (auswahl.some((x) => x.id === w.id)) return;
+      if (angrenzend(S, auswahl, w)) {
+        feldPatch(alt.key, vorbelegtAus(S, auswahlMit(S, auswahl, w)));
+        return;
+      }
+    }
+    const woerter = textArt === "zeile" ? abschnittVon(S, w) : [w];
+    // Beschriftung vorschlagen: Text links davon in derselben Zeile, der mit „:“ endet (z. B. „Name:“)
+    const davor = S.abschnitte.map((a) => a.map((i) => S.woerter[i]))
+      .filter((a) => Math.abs(a[0].basis - w.basis) < 0.35 * w.groesse && a[a.length - 1].x + a[a.length - 1].w <= woerter[0].x + 0.5)
+      .sort((a, b) => b[0].x - a[0].x)[0];
+    let vorschlag = "";
+    if (davor) {
+      const t = auswahlText(davor);
+      if (/:\s*$/.test(t)) vorschlag = t.replace(/:\s*$/, "").slice(0, 60);
+    } else {
+      const wi = woerter[0];
+      const vor = S.woerter.filter((x) => Math.abs(x.basis - wi.basis) < 0.35 * wi.groesse && x.x < wi.x && !woerter.includes(x)).pop();
+      if (vor && /:$/.test(vor.text)) vorschlag = vor.text.replace(/:$/, "");
+    }
+    const n = felder.length + 1;
+    let key = `angabe_${n}`;
+    while (felder.some((f) => f.feld_key === key)) key = `${key}_x`;
+    const neu: EntwurfFeld = {
+      key: neuerKey(), feld_key: key, typ: "vorbelegt", page, ...vorbelegtAus(S, woerter),
+      beschriftung: vorschlag, gruppe: "", option: "", ausfueller: ersterExterner?.key ?? "", pflicht: false, abhaengig: "",
+      wert: "", max_laenge: null, quelle: "manuell",
+    };
+    setFelder((prev) => [...prev, neu]);
+    setGewaehlt(neu.key);
+  };
+
   const feldSetzen = (page: number, px: number, py: number) => {
     if (!platzieren) return;
     const size = seiten[page];
     if (!size) return;
+    if (werkzeug === "vorbelegt") {
+      vorbelegtSetzen(page, px, py);
+      return;
+    }
     if (gewaehlt) {
       // Erst Auswahl aufheben, damit ein Klick neben das Feld nicht gleich ein neues anlegt
       setGewaehlt(null);
@@ -543,6 +616,11 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
     } catch {
       /* egal */
     }
+    if (feld?.typ === "vorbelegt") {
+      // liegt fest über dem Text im Dokument
+      setGewaehlt(feld.key);
+      return;
+    }
     const orig = feld ? { page: feld.page, x: feld.x, y: feld.y, w: feld.w, h: feld.h } : { ...placements[key][idx] };
     drag.current = { key, idx, mode, sx: e.clientX, sy: e.clientY, orig, feld: feld?.typ };
     if (feld) setGewaehlt(feld.key);
@@ -603,6 +681,8 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
         const s = externe.find((x) => x.key === k);
         if (!s || s.methode === "intern") return `Feld „${name}“: Bitte auswählen, wer es ausfüllt.`;
       }
+      if (f.typ === "vorbelegt" && f.ausfueller === "rgi") return `Änderbare Angabe „${f.ausgangswert}“: Bitte auswählen, wer sie ändern darf.`;
+      if (f.typ === "vorbelegt" && !f.beschriftung.trim()) return `Änderbare Angabe „${f.ausgangswert}“: Bitte eine Beschriftung angeben (z. B. „Name“).`;
       if (f.typ === "auswahl" && (!f.gruppe || !f.option)) return `Auswahl „${name}“: Gruppe und Wert angeben.`;
       if (f.typ === "auswahl" && felder.some((x) => x.key !== f.key && x.typ === "auswahl" && x.gruppe === f.gruppe && x.option === f.option)) {
         return `Auswahl „${f.gruppe}“: Der Wert „${f.option}“ kommt doppelt vor.`;
@@ -658,6 +738,12 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
       ];
       // Reihenfolge wie in `signers` oben: externe, dann ggf. RGI
       const reihe = [...externe.map((s) => s.key), ...(rgiAuch && mitRgiZeile ? [INTERN_KEY] : [])];
+      // Reihenfolge im Formular je Unterzeichner (Standard: Lesereihenfolge)
+      const rang = new Map<string, number>();
+      for (const k of new Set(felder.filter((f) => f.ausfueller !== "rgi").map((f) => ausfuellerKey(f.ausfueller)))) {
+        reihenEintraege(felder.filter((f) => f.ausfueller !== "rgi" && ausfuellerKey(f.ausfueller) === k))
+          .forEach((e, i) => e.felder.forEach((f) => rang.set(f.key, i + 1)));
+      }
       const felderPayload = felder.map((f) => ({
         feld_key: f.feld_key,
         typ: f.typ,
@@ -672,10 +758,14 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
           : f.abhaengig.startsWith("gruppe:")
           ? { gruppe: f.abhaengig.split(":")[1], option: f.abhaengig.split(":").slice(2).join(":") }
           : undefined,
-        max_laenge: f.typ === "text" ? f.max_laenge ?? 200 : undefined,
+        max_laenge: f.typ === "text" ? (f.format === "iban" ? 42 : f.max_laenge ?? 200) : undefined,
         wert: f.ausfueller === "rgi" && f.wert ? f.wert : undefined,
         quelle: f.quelle,
         anker: f.anker,
+        reihenfolge: rang.get(f.key),
+        ...(f.typ === "text" && f.format === "iban" ? { format: "iban" } : {}),
+        ...(f.typ === "datum" && f.heute_vorbelegen !== undefined ? { heute_vorbelegen: f.heute_vorbelegen } : {}),
+        ...(f.typ === "vorbelegt" ? { ausgangswert: f.ausgangswert, text_zeilen: f.text_zeilen, frei: f.frei } : {}),
       }));
       const ankerAbdecken = erkennung?.vorlage
         ? erkennung.felder.filter((f) => f.typ === "unterschrift" && f.anker).map((f) => f.anker)
@@ -855,9 +945,23 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
               )}
               {platzieren && (
                 <div className="px-4 pt-2 text-[12.5px] text-[#B35300]">
+                  {werkzeug === "vorbelegt" && (
+                    <span className="mb-1.5 mr-2 inline-flex rounded-lg border border-[#E5E5E5] bg-white p-0.5 align-middle" role="radiogroup" aria-label="Was markieren?">
+                      {(["zeile", "wort"] as const).map((a) => (
+                        <button key={a} type="button" role="radio" aria-checked={textArt === a} onClick={() => setTextArt(a)}
+                          className={`h-7 rounded-md px-2.5 text-[12.5px] font-semibold ${textArt === a ? "bg-[#FFF7ED] text-[#B35300] ring-1 ring-[#ee7202]" : "text-[#2B2B2B]"}`}>
+                          {a === "zeile" ? "Ganze Zeile" : "Wort"}
+                        </button>
+                      ))}
+                    </span>
+                  )}
                   {werkzeug === "unterschrift"
                     ? `Auf die Stelle im Dokument klicken, an der ${feldSigner.find((f) => f.key === aktiverFeldKey)?.name ?? "der Unterzeichner"} unterschreiben soll.`
+                    : werkzeug === "vorbelegt"
+                    ? "Auf vorausgefüllten Text im Dokument klicken (z. B. Name, Anschrift) – der Unterzeichner darf ihn dann ändern. Angrenzende Wörter anklicken, um zu erweitern."
                     : `Auf die Stelle im Dokument klicken, um ein Feld „${FELD_TYP_LABEL[werkzeug]}“ zu setzen. Feld anklicken, um es zu bearbeiten.`}
+                  {werkzeug === "vorbelegt" && !dlgText && <span className="ml-1 inline-flex items-center gap-1 text-[#595959]"><Loader2 className="h-3 w-3 animate-spin" /> Text wird erkannt …</span>}
+                  {werkzeug === "vorbelegt" && textHinweis && <span className="mt-1 block font-semibold">{textHinweis}</span>}
                 </div>
               )}
               {!etv && offeneVorschlaege.length > 0 && !erkennung?.vorlage && (
@@ -949,6 +1053,27 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
                               const farbe = feldFarbe(f);
                               const an = gewaehlt === f.key;
                               const kaestchen = f.typ === "ankreuz" || f.typ === "auswahl";
+                              if (f.typ === "vorbelegt") {
+                                return (
+                                  <div
+                                    key={f.key}
+                                    id={`sig-feld-${f.key}`}
+                                    title={`Änderbare Angabe: ${f.beschriftung || "ohne Beschriftung"} („${f.ausgangswert}“)`}
+                                    className="absolute select-none rounded-[2px]"
+                                    style={{
+                                      left: f.x * scale - 2, top: f.y * scale - 2, width: f.w * scale + 4, height: f.h * scale + 4,
+                                      border: `1.5px dashed ${farbe}`, backgroundColor: farbe + (an ? "2E" : "14"),
+                                      boxShadow: an ? `0 0 0 2px #fff, 0 0 0 4px ${farbe}` : undefined,
+                                      cursor: "pointer", zIndex: an ? 5 : 2,
+                                    }}
+                                    onClick={(e) => { e.stopPropagation(); if (platzieren && werkzeug === "vorbelegt" && an) { const r = (e.currentTarget.parentElement as HTMLElement).getBoundingClientRect(); vorbelegtSetzen(idx, (e.clientX - r.left) / scale, (e.clientY - r.top) / scale); } else setGewaehlt(f.key); }}
+                                  >
+                                    <span className="pointer-events-none absolute -top-[15px] left-0 whitespace-nowrap rounded-sm px-1 text-[9.5px] font-semibold leading-[13px] text-white" style={{ backgroundColor: farbe }}>
+                                      {f.beschriftung || "änderbar"}
+                                    </span>
+                                  </div>
+                                );
+                              }
                               return (
                                 <div
                                   key={f.key}
@@ -1131,23 +1256,52 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
                 </div>
 
                 {/* AUSFÜLLFELDER */}
-                {!etv && felder.length > 0 && (
-                  <div className="space-y-2">
-                    <Abschnitt>Ausfüllfelder ({felder.length})</Abschnitt>
-                    <p className="text-[12.5px] leading-snug text-[#595959]">
-                      Der Unterzeichner füllt sie beim Unterschreiben direkt im Dokument aus. Vorab-Werte von RGI werden beim Senden festgeschrieben.
-                    </p>
-                    <FeldListe
-                      felder={felder}
-                      ausfueller={ausfuellerOptionen}
-                      aktiv={gewaehlt}
-                      onWaehlen={(k) => {
-                        setGewaehlt(k);
-                        window.setTimeout(() => document.getElementById(`sig-feld-${k}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 50);
-                      }}
-                    />
-                  </div>
-                )}
+                {!etv && felder.length > 0 && (() => {
+                  const zeigen = (k: string) => {
+                    setGewaehlt(k);
+                    window.setTimeout(() => document.getElementById(`sig-feld-${k}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 50);
+                  };
+                  const rgiFelder = felder.filter((f) => f.ausfueller === "rgi");
+                  const proSigner = externe.filter((s) => s.methode !== "intern").map((s) => ({
+                    key: s.key,
+                    name: `${nrFuer(s.key)}. ${s.name || s.rolle || "Unterzeichner"}`,
+                    farbe: farbeFuer(s.key),
+                    felder: felder.filter((f) => f.ausfueller !== "rgi" && ausfuellerKey(f.ausfueller) === s.key),
+                  }));
+                  const ohne = felder.filter((f) => f.ausfueller !== "rgi" && !proSigner.some((g) => g.key === ausfuellerKey(f.ausfueller)));
+                  if (ohne.length) proSigner.push({ key: "__ohne__", name: "Noch ohne Unterzeichner", farbe: SIGNER_FARBEN[0], felder: ohne });
+                  return (
+                    <div className="space-y-2">
+                      <Abschnitt>Ausfüllfelder ({felder.length})</Abschnitt>
+                      <p className="text-[12.5px] leading-snug text-[#595959]">
+                        Der Unterzeichner füllt sie beim Unterschreiben in einem Formular neben dem Dokument aus. Vorab-Werte von RGI werden beim Senden festgeschrieben.
+                      </p>
+                      {proSigner.some((g) => g.felder.length) && (
+                        <div className="rounded-xl border border-[#E5E5E5] p-3">
+                          <div className="mb-1 text-[13px] font-semibold text-[#2B2B2B]">Reihenfolge im Formular</div>
+                          <p className="mb-2 text-[12px] leading-snug text-[#6B6B6B]">
+                            Standard: wie im Dokument (von oben nach unten). Zum Ändern ziehen oder die Pfeile nutzen.
+                          </p>
+                          <ReihenfolgeListe
+                            gruppen={proSigner}
+                            aktiv={gewaehlt}
+                            onWaehlen={zeigen}
+                            onReihenfolge={(r) => setFelder((prev) => {
+                              // alle Felder dieses Unterzeichners bekommen eine feste Reihenfolge
+                              return prev.map((f) => (r[f.key] !== undefined ? { ...f, reihenfolge: r[f.key] } : f));
+                            })}
+                          />
+                        </div>
+                      )}
+                      {rgiFelder.length > 0 && (
+                        <>
+                          <div className="pt-1 text-[12.5px] font-semibold text-[#595959]">Vorab von RGI</div>
+                          <FeldListe felder={rgiFelder} ausfueller={ausfuellerOptionen} aktiv={gewaehlt} onWaehlen={zeigen} />
+                        </>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* Frist · Reihenfolge */}
                 <div className="grid grid-cols-2 gap-3">
