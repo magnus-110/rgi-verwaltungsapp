@@ -40,3 +40,8 @@ alter table public.sepa_mandates add column if not exists sign_request_id uuid r
 alter table public.sepa_mandates drop constraint if exists sepa_mandates_quelle_check;
 alter table public.sepa_mandates add constraint sepa_mandates_quelle_check
   check (quelle in ('buero','eigentuemer','scan','uebernahme','fragebogen','import','unterschrift'));
+
+-- 7. IBAN-Prüfung auch bei änderbaren Angaben (vorhandene Bankverbindung im Stammdatenblatt)
+alter table public.sign_request_fields drop constraint if exists sign_request_fields_format_check;
+alter table public.sign_request_fields add constraint sign_request_fields_format_check
+  check (format is null or (format = 'iban' and typ in ('text','vorbelegt')));

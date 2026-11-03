@@ -300,12 +300,12 @@ export function VorlageDialog({
                   Alle ({eigentuemer.length})
                 </label>
                 <span className="text-[12.5px] text-[#6B6B6B]">{gewaehlt.length} ausgewählt</span>
-                <span className="ml-auto flex items-center gap-1.5 text-[12.5px] text-[#595959]">
+                <span className="flex w-full flex-wrap items-center gap-1.5 text-[12.5px] text-[#595959] sm:ml-auto sm:w-auto">
                   Für alle:
-                  <button type="button" className="h-8 rounded-full border border-[#E5E5E5] px-3 font-medium hover:bg-[#FFF7ED]" onClick={() => alleVersand("mail")} disabled={!gewaehlt.length}>
+                  <button type="button" className="h-8 whitespace-nowrap rounded-full border border-[#E5E5E5] px-3 font-medium hover:bg-[#FFF7ED]" onClick={() => alleVersand("mail")} disabled={!gewaehlt.length}>
                     E-Mail, wenn vorhanden
                   </button>
-                  <button type="button" className="h-8 rounded-full border border-[#E5E5E5] px-3 font-medium hover:bg-[#FFF7ED]" onClick={() => alleVersand("link")} disabled={!gewaehlt.length}>
+                  <button type="button" className="h-8 whitespace-nowrap rounded-full border border-[#E5E5E5] px-3 font-medium hover:bg-[#FFF7ED]" onClick={() => alleVersand("link")} disabled={!gewaehlt.length}>
                     Link selbst verschicken
                   </button>
                 </span>
@@ -371,7 +371,7 @@ export function VorlageDialog({
                   <input id="vl-frist" type="date" className={eingabeKlasse} value={frist} min={addDaysIso(1)} onChange={(e) => setFrist(e.target.value)} />
                 </div>
                 <div className="rounded-xl border border-[#E5E5E5] bg-[#FAFAFA] p-3 text-[13px] leading-relaxed text-[#2B2B2B]">
-                  <div className="font-semibold">{gewaehlt.length} Vorgang{gewaehlt.length === 1 ? "" : "e"} werden angelegt</div>
+                  <div className="font-semibold">{gewaehlt.length === 1 ? "1 Vorgang wird" : `${gewaehlt.length} Vorgänge werden`} angelegt</div>
                   <div className="text-[#595959]">
                     {mailAnzahl > 0 ? `${mailAnzahl} Einladung${mailAnzahl === 1 ? "" : "en"} per E-Mail (sofort)` : "Keine E-Mail"}
                     {gewaehlt.length - mitMail.length > 0 ? ` · ${gewaehlt.length - mitMail.length}× Link selbst verschicken` : ""}
@@ -386,7 +386,7 @@ export function VorlageDialog({
           {schritt === "ergebnis" && ergebnis && (
             <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto px-6 py-4">
               <div className="flex items-center gap-2 rounded-lg bg-[#D4EDDA] px-3 py-2 text-[13.5px] font-semibold text-[#1E6B34]">
-                <CheckCircle2 className="h-4 w-4" /> {ergebnis.angelegt} Vorgang{ergebnis.angelegt === 1 ? "" : "e"} angelegt
+                <CheckCircle2 className="h-4 w-4" /> {ergebnis.angelegt === 1 ? "1 Vorgang" : `${ergebnis.angelegt} Vorgänge`} angelegt
                 {ergebnis.fehler > 0 && <span className="font-normal text-[#B35300]">· {ergebnis.fehler} nicht möglich</span>}
               </div>
               {ergebnis.ergebnisse.map((r, i) => (
@@ -397,7 +397,7 @@ export function VorlageDialog({
                   </div>
                   {!r.ok && <p className="mt-1 text-[12.5px] text-[#B35300]">{r.fehler}</p>}
                   {r.ok && (r.versand ?? []).filter((v) => v.art === "mail").map((v) => (
-                    <p key={v.name} className="mt-1 flex items-center gap-1.5 text-[12.5px] text-[#595959]"><Mail className="h-3.5 w-3.5" /> Einladung an {v.name} ({v.email}) gesendet</p>
+                    <p key={v.name} className="mt-1 flex items-start gap-1.5 text-[12.5px] text-[#595959]"><Mail className="mt-0.5 h-3.5 w-3.5 shrink-0" /> Einladung an {v.name} ({v.email}) gesendet</p>
                   ))}
                   {r.ok && (r.links ?? []).length > 0 && (
                     <div className="mt-2 space-y-2">
