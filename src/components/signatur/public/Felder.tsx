@@ -80,9 +80,9 @@ export function FelderEbene({
         const w = wertVon(f, werte);
         const box = { left: f.x * scale, top: f.y * scale, width: f.w * scale, height: f.h * scale };
         const kaestchen = f.typ === "ankreuz" || f.typ === "auswahl";
-        // Fester Inhalt: Felder anderer / vorab ausgefüllt
+        // Fester Inhalt: Felder anderer Unterzeichner. Vorab-Werte von RGI stehen schon im PDF (quelle.pdf).
         if (!f.eigen) {
-          if (!w) return null;
+          if (!w || f.vorab) return null;
           return (
             <div key={f.id} className="absolute flex items-center overflow-hidden bg-white/0" style={box} aria-label={`${f.beschriftung}: ${kaestchen ? "angekreuzt" : anzeige(f, w)}`}>
               {kaestchen ? <Kreuz /> : (
@@ -105,8 +105,15 @@ export function FelderEbene({
           );
         }
         if (kaestchen) {
-          // Trefferfläche mind. 36 px (Handy), das sichtbare Kästchen bleibt in Originalgröße
-          const hit = Math.max(36, box.width + 12);
+          // Trefferfläche bis 36 px (Handy), aber nie über das nächste Kästchen hinaus;
+          // das sichtbare Kästchen bleibt in Originalgröße
+          const cx = f.x + f.w / 2, cy = f.y + f.h / 2;
+          const abstand = Math.min(
+            Infinity,
+            ...liste.filter((x) => x.id !== f.id && (x.typ === "ankreuz" || x.typ === "auswahl"))
+              .map((x) => Math.max(Math.abs(x.x + x.w / 2 - cx), Math.abs(x.y + x.h / 2 - cy)) * scale),
+          );
+          const hit = Math.max(box.width + 4, Math.min(36, abstand - 2));
           return (
             <button
               key={f.id}
@@ -124,7 +131,7 @@ export function FelderEbene({
                 style={{
                   width: Math.max(box.width, 10), height: Math.max(box.height, 10),
                   borderColor: ORANGE, backgroundColor: w === "ja" ? "#FFF7ED" : "rgba(238,114,2,0.18)",
-                  boxShadow: markiert ? `0 0 0 3px #fff, 0 0 0 5px ${ORANGE}` : undefined,
+                  boxShadow: markiert ? `0 0 0 2px #fff, 0 0 0 3px ${ORANGE}` : undefined,
                 }}
               >
                 {w === "ja" && <Kreuz />}
@@ -142,15 +149,17 @@ export function FelderEbene({
             className="pointer-events-auto absolute flex items-center overflow-hidden rounded-[3px] border-2 px-[2px] text-left outline-none focus-visible:ring-2 focus-visible:ring-[#ee7202]"
             style={{
               ...box,
-              minHeight: 14,
+              // Auf dem Handy mind. 14 px hoch – mittig um die Linie, damit nichts darunter verdeckt wird
+              top: box.top - Math.max(0, 14 - box.height) / 2,
+              height: Math.max(14, box.height),
               borderColor: ORANGE,
               backgroundColor: w ? "rgba(255,247,237,0.92)" : "rgba(238,114,2,0.16)",
-              boxShadow: markiert ? `0 0 0 3px #fff, 0 0 0 5px ${ORANGE}` : undefined,
+              boxShadow: markiert ? `0 0 0 2px ${ORANGE}` : undefined,
             }}
           >
             <span
               className={cn("truncate font-sans leading-none", !w && "text-[#B35300]")}
-              style={{ color: w ? TINTE : undefined, fontSize: Math.max(8, Math.min(f.h * 0.72, 12) * scale) }}
+              style={{ color: w ? TINTE : undefined, fontSize: Math.max(7, Math.min(f.h * 0.72, 12) * scale) }}
             >
               {w ? anzeige(f, w) : f.typ === "datum" ? "Datum" : f.beschriftung || "Text"}
             </span>
