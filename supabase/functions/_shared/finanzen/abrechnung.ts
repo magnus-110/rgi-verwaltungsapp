@@ -478,7 +478,8 @@ export function berechneAbrechnung(input: AbrechnungsRohdaten, optionen: Abrechn
     typeof a.account_number === "string" &&
     /^00\d{2}$/.test(a.account_number) &&
     typeof a.account_name === "string" &&
-    a.account_name.startsWith("Hausgeld "),
+    // Benennung je Objekt unterschiedlich: "Hausgeld …" oder "HG …"
+    /^(Hausgeld|HG)\s/.test(a.account_name),
   );
   // Bank-zentrisch: Zahlungseingänge auf Personenkonten erscheinen als negativer
   // Saldo. Für die Überzahlung verwenden wir nur die BEWEGUNGEN des aktuellen
