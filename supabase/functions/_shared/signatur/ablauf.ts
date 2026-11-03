@@ -396,6 +396,9 @@ export async function kopieErstellen(db: Db, requestId: string, signerId: string
   const bytes = await dokumentBauen(db, req, signers);
   await speichern(db, pfad.kopie(req.id, signerId), bytes);
   if (istEtv(req) || !s?.email) return null;
+  // Letzte Unterschrift: Keine Zwischen-Kopie („Sobald alle … unterschrieben haben …“) –
+  // gleich danach geht die Endfassung an alle Beteiligten.
+  if (alleFertig(signers)) return s.email;
   const m = kopieMail(kontext(req), { name: s.name, anrede: s.anrede }, s.signed_at);
   try {
     await sendeMail(db, {
