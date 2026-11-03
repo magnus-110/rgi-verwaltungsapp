@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { Rahmen } from "@/components/signatur/public/ui";
-import { holeDownload, holeInfo, NetzFehler, oeffnePdf, unterschreiben, type SignErgebnis, type SignInfo } from "@/components/signatur/public/api";
+import { holeDownload, holeInfo, NetzFehler, oeffnePdf, unterschreiben, type SignErgebnis, type SignFeld, type SignInfo } from "@/components/signatur/public/api";
+import { istAktiv, type Werte } from "@/components/signatur/public/Felder";
 import SchrittLesen from "@/components/signatur/public/SchrittLesen";
 import SchrittUnterschreiben from "@/components/signatur/public/SchrittUnterschreiben";
 import SchrittFertig from "@/components/signatur/public/SchrittFertig";
@@ -32,6 +33,20 @@ export default function Unterschreiben() {
   const [fehler, setFehler] = useState<string | null>(null);
   const [ergebnis, setErgebnis] = useState<SignErgebnis | null>(null);
   const [papierSeiten, setPapierSeiten] = useState(0);
+  /** Eingaben in Ausfüllfelder (Feld-ID → Wert); gehen mit der Unterschrift an sign-public */
+  const [werte, setWerte] = useState<Werte>({});
+  const setWert = useCallback((f: SignFeld, wert: string | null) => {
+    setWerte((alt) => {
+      const neu: Werte = { ...alt, [f.id]: wert };
+      // Auswahl „genau eins“: andere Möglichkeiten derselben Gruppe abwählen
+      if (f.typ === "auswahl" && wert === "ja") {
+        for (const x of info?.felder ?? []) {
+          if (x.eigen && x.id !== f.id && x.typ === "auswahl" && x.gruppe === f.gruppe) neu[x.id] = null;
+        }
+      }
+      return neu;
+    });
+  }, [info]);
 
   const [dlBusy, setDlBusy] = useState(false);
   const [dlFehler, setDlFehler] = useState<string | null>(null);
@@ -121,7 +136,11 @@ export default function Unterschreiben() {
     setBusy(true);
     setFehler(null);
     try {
-      const r = await unterschreiben(token, name.trim(), png);
+      // Nur eigene, aktive Felder senden (inaktive werden serverseitig ohnehin geleert)
+      const felder = info?.felder ?? [];
+      const eingaben: Record<string, string | null> = {};
+      for (const f of felder.filter((x) => x.eigen)) eingaben[f.id] = istAktiv(f, felder, werte) ? werte[f.id] ?? null : null;
+      const r = await unterschreiben(token, name.trim(), png, eingaben);
       setErgebnis(r);
       geheZu("fertig");
     } catch (e: any) {
@@ -170,6 +189,7 @@ export default function Unterschreiben() {
         fehler={fehler}
         onZurueck={() => geheZu("lesen")}
         onSenden={senden}
+        werte={werte}
       />
     );
   } else {
@@ -182,6 +202,8 @@ export default function Unterschreiben() {
         onPapier={() => geheZu("papier")}
         onDownload={download}
         downloadFehler={dlFehler}
+        werte={werte}
+        setWert={setWert}
       />
     );
   }

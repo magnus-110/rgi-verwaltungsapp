@@ -3,7 +3,8 @@ import { Document, Page, pdfjs } from "react-pdf";
 import { ArrowDown, Loader2 } from "lucide-react";
 import { Fortschritt, Haken, Kopf, PrimaerButton, SekundaerButton, ueberschrift, Fusszeile, FehlerHinweis, knopfSpalte } from "./ui";
 import { PdfAnsicht } from "@/components/shared/PdfAnsicht";
-import { datum, type SignInfo } from "./api";
+import { datum, type SignFeld, type SignInfo } from "./api";
+import { FeldEditor, FelderEbene, OffeneListe, offeneFelder, wertVon, type Offen, type Werte } from "./Felder";
 
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
@@ -29,10 +30,22 @@ type Props = {
   onPapier: () => void;
   onDownload: () => void;
   downloadFehler: string | null;
+  /** Eingaben in Ausfüllfelder (Feld-ID → Wert) */
+  werte: Werte;
+  setWert: (f: SignFeld, wert: string | null) => void;
 };
 
 /** Schritt 1 · Dokument lesen (Mockup v04, ohne „Änderung anfragen“). */
-export default function SchrittLesen({ info, gelesen, setGelesen, onWeiter, onPapier, onDownload, downloadFehler }: Props) {
+export default function SchrittLesen({ info, gelesen, setGelesen, onWeiter, onPapier, onDownload, downloadFehler, werte, setWert }: Props) {
+  const felder = info.felder ?? [];
+  const offen = offeneFelder(felder, werte);
+  const [aktivId, setAktivId] = useState<string | null>(null);
+  const [editor, setEditor] = useState<SignFeld | null>(null);
+  const [ziel, setZiel] = useState<{ seite: number; y: number; n: number } | null>(null);
+  const [seitenBreite, setSeitenBreite] = useState<Record<number, number>>({});
+  const seitenEls = useRef<(HTMLDivElement | null)[]>([]);
+  const [felderHinweis, setFelderHinweis] = useState(false);
+  const eigeneAnzahl = felder.filter((f) => f.eigen).length;
   const box = useRef<HTMLDivElement>(null);
   const ende = useRef<HTMLDivElement>(null);
   const [breite, setBreite] = useState(358);
@@ -85,6 +98,35 @@ export default function SchrittLesen({ info, gelesen, setGelesen, onWeiter, onPa
     warGelesen.current = gelesen;
   }, [gelesen]);
 
+  /** Zum Feld springen (große Ansicht: PdfAnsicht, Handy: eigene Liste) und hervorheben. */
+  const springe = (o: Offen) => {
+    const f = o.feld;
+    setAktivId(f.id);
+    setFelderHinweis(false);
+    if (gross && !grossFehler) {
+      setZiel((z) => ({ seite: f.page + 1, y: f.y, n: (z?.n ?? 0) + 1 }));
+    } else {
+      const el = seitenEls.current[f.page];
+      const scroller = box.current?.parentElement;
+      const sk = seitenBreite[f.page] ? breite / seitenBreite[f.page] : 1;
+      if (el && scroller) scroller.scrollTo({ top: Math.max(0, el.offsetTop - scroller.offsetTop + f.y * sk - scroller.clientHeight / 3), behavior: "smooth" });
+      // auch die Seite selbst, falls der Kasten nicht ganz sichtbar ist
+      scroller?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+    if (f.typ === "datum" || f.typ === "text") window.setTimeout(() => setEditor(f), 350);
+  };
+  const ebene = (seite: number, sk: number) => (
+    <FelderEbene
+      felder={felder}
+      werte={werte}
+      seite={seite}
+      scale={sk}
+      aktivId={aktivId}
+      onWert={(f, w) => { setAktivId(f.id); setWert(f, w); }}
+      onBearbeiten={(f) => { setAktivId(f.id); setEditor(f); }}
+    />
+  );
+
   const n = info.seitenzahl || seiten;
   const zeile = [info.objekt, n ? `${n} ${n === 1 ? "Seite" : "Seiten"}` : null, info.frist ? `Frist ${datum(info.frist)}` : null].filter(Boolean).join(" · ");
 
@@ -94,8 +136,14 @@ export default function SchrittLesen({ info, gelesen, setGelesen, onWeiter, onPa
       box.current?.parentElement?.scrollBy({ top: 400, behavior: "smooth" });
       return;
     }
+    if (offen.length) {
+      setFelderHinweis(true);
+      springe(offen[0]);
+      return;
+    }
     onWeiter();
   };
+  const bereit = gelesen && !offen.length;
 
   return (
     <>
@@ -118,6 +166,8 @@ export default function SchrittLesen({ info, gelesen, setGelesen, onWeiter, onPa
                 scrollWeitergeben
                 onFehler={() => setGrossFehler(true)}
                 className="bg-[#E9E9E7]"
+                overlay={felder.length ? ebene : undefined}
+                ziel={ziel}
               />
             </div>
           ) : (
@@ -136,16 +186,24 @@ export default function SchrittLesen({ info, gelesen, setGelesen, onWeiter, onPa
                 >
                   <div className="flex flex-col gap-3">
                     {Array.from({ length: seiten }, (_, i) => (
-                      <Page
-                        key={i}
-                        pageNumber={i + 1}
-                        width={breite}
-                        className="overflow-hidden bg-white shadow-[0_1px_3px_rgba(0,0,0,0.12)]"
-                        renderAnnotationLayer={false}
-                        renderTextLayer={false}
-                        onRenderSuccess={() => setGerendert((g) => g + 1)}
-                        loading={<div className="bg-white" style={{ width: breite, height: Math.round(breite * 1.414) }} />}
-                      />
+                      <div key={i} ref={(el) => { seitenEls.current[i] = el; }} className="relative">
+                        <Page
+                          pageNumber={i + 1}
+                          width={breite}
+                          className="overflow-hidden bg-white shadow-[0_1px_3px_rgba(0,0,0,0.12)]"
+                          renderAnnotationLayer={false}
+                          renderTextLayer={false}
+                          onLoadSuccess={(pg: any) => {
+                            const w = pg?.getViewport?.({ scale: 1 })?.width ?? pg?.originalWidth;
+                            if (w) setSeitenBreite((b) => (b[i] === w ? b : { ...b, [i]: w }));
+                          }}
+                          onRenderSuccess={() => setGerendert((g) => g + 1)}
+                          loading={<div className="bg-white" style={{ width: breite, height: Math.round(breite * 1.414) }} />}
+                        />
+                        {felder.length > 0 && seitenBreite[i] && (
+                          <div className="pointer-events-none absolute inset-0 z-[3]">{ebene(i, breite / seitenBreite[i])}</div>
+                        )}
+                      </div>
                     ))}
                   </div>
                   <div ref={ende} className="h-px w-full" />
@@ -182,11 +240,24 @@ export default function SchrittLesen({ info, gelesen, setGelesen, onWeiter, onPa
         </div>
 
         <div ref={knoepfe} className={`space-y-2 px-5 pt-[15px] min-[641px]:w-full min-[641px]:pt-6 ${knopfSpalte}`}>
+          {eigeneAnzahl > 0 && !offen.length && (
+            <p className="flex items-center gap-1 text-[13px] font-semibold leading-[18px] text-[#1E6B34]">
+              <Haken className="h-[13px] w-[13px]" strich={3} /> Alle Angaben im Dokument ausgefüllt
+            </p>
+          )}
+          {eigeneAnzahl > 0 && offen.length > 0 && (
+            <>
+              <p className={`text-[13px] leading-[18px] ${felderHinweis ? "font-semibold text-[#B35300]" : "text-[#595959]"}`}>
+                Bitte füllen Sie die orange markierten Stellen direkt im Dokument aus.
+              </p>
+              <OffeneListe offen={offen} onSprung={springe} />
+            </>
+          )}
           {downloadFehler && <FehlerHinweis>{downloadFehler}</FehlerHinweis>}
           <PrimaerButton
             onClick={weiter}
-            aria-disabled={!gelesen}
-            className={gelesen ? "" : "bg-[#B35300]/45 hover:bg-[#B35300]/45"}
+            aria-disabled={!bereit}
+            className={bereit ? "" : "bg-[#B35300]/45 hover:bg-[#B35300]/45"}
           >
             Weiter zur Unterschrift
           </PrimaerButton>
@@ -194,6 +265,14 @@ export default function SchrittLesen({ info, gelesen, setGelesen, onWeiter, onPa
         </div>
         <Fusszeile className="mt-auto" />
       </div>
+      {editor && (
+        <FeldEditor
+          feld={editor}
+          wert={wertVon(editor, werte)}
+          onWert={(w) => setWert(editor, w)}
+          onSchliessen={() => setEditor(null)}
+        />
+      )}
     </>
   );
 }

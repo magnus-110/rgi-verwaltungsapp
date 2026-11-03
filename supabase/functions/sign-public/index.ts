@@ -31,6 +31,30 @@ import {
   vorgangLaden,
 } from "../_shared/signatur/ablauf.ts";
 import { PDFDocument, istPng } from "../_shared/signatur/pdf.ts";
+import { Feld, eingabenPruefen, felderLaden, wertText } from "../_shared/signatur/felder.ts";
+
+/** Felder für die öffentliche Seite: eigene bedienbar, fremde/vorab ausgefüllte als fester Inhalt. */
+function felderFuerSeite(felder: Feld[], signerId: string) {
+  return felder.map((f) => ({
+    id: f.id,
+    feld_key: f.feld_key,
+    typ: f.typ,
+    page: f.page,
+    x: f.x,
+    y: f.y,
+    w: f.w,
+    h: f.h,
+    beschriftung: f.beschriftung,
+    gruppe: f.gruppe,
+    option: f.option,
+    pflicht: f.pflicht,
+    abhaengig_von: f.abhaengig_von,
+    max_laenge: f.max_laenge,
+    wert: f.wert,
+    eigen: f.ausfueller === "unterzeichner" && f.signer_id === signerId,
+    vorab: f.ausfueller === "rgi",
+  }));
+}
 
 const MAX_PNG = 600 * 1024;
 const MAX_BODY = 56 * 1024 * 1024; // 40 MB Dateien als base64 + Rand
@@ -126,6 +150,8 @@ Deno.serve(async (req) => {
         signed_at: s.signed_at ?? null,
         papier_eingegangen: s.status === "papier_eingegangen",
         zustimmung_text: zustimmungsText(v.titel),
+        // Ausfüllfelder nur, solange online unterschrieben werden kann (danach steckt alles im PDF)
+        felder: z === "ok" ? felderFuerSeite(await felderLaden(db, v.id), s.id) : [],
       });
     }
 
@@ -160,6 +186,9 @@ Deno.serve(async (req) => {
         }
         png = p;
       }
+      // Ausfüllfelder vollständig prüfen (nur eigene Felder, Typ, Datum, Länge, Gruppe genau eins, Abhängigkeiten)
+      const felder = await felderLaden(db, v.id);
+      const neueWerte = eingabenPruefen(felder, s.id, body.felder);
       const jetzt = new Date().toISOString();
       // Bedingtes Update: verhindert doppeltes Unterschreiben bei parallelen Klicks
       const { data: upd } = await db.from("sign_request_signers").update({
@@ -173,6 +202,35 @@ Deno.serve(async (req) => {
         signed_at: jetzt,
       }).eq("id", s.id).in("status", UNTERSCHREIBBAR).select("id");
       if (!upd?.length) return json({ error: "Dieses Dokument wurde bereits unterschrieben.", zustand: "unterschrieben" }, 409);
+      if (neueWerte.size) {
+        const geaendert: string[] = [];
+        try {
+          for (const [id, wert] of neueWerte) {
+            const { error } = await db.from("sign_request_fields").update({
+              wert,
+              wert_gesetzt_von: wert ? `${name} (online)` : null,
+              wert_gesetzt_signer_id: wert ? s.id : null,
+              wert_gesetzt_user_id: null,
+              wert_gesetzt_am: wert ? jetzt : null,
+            }).eq("id", id).eq("signer_id", s.id);
+            if (error) throw error;
+            const f = felder.find((x) => x.id === id)!;
+            if (wert) geaendert.push(`${f.beschriftung || f.feld_key}: ${wertText({ typ: f.typ, wert })}`);
+          }
+        } catch (e) {
+          // Unterschrift zurücknehmen, damit nichts halb gespeichert bleibt
+          await db.from("sign_request_signers").update({ status: s.status, signed_at: null, typed_name: null, signature_png: null, consent_text: null })
+            .eq("id", s.id).eq("status", "unterschrieben");
+          console.error("[sign-public] Felder nicht gespeichert:", e);
+          return json({ error: "Die Angaben konnten nicht gespeichert werden. Bitte versuchen Sie es erneut." }, 500);
+        }
+        if (geaendert.length) {
+          await ereignis(db, v.id, "felder_ausgefuellt", `${s.name} hat ${geaendert.length} Feld${geaendert.length === 1 ? "" : "er"} ausgefüllt: ${geaendert.join("; ")}`.slice(0, 900), {
+            signerId: s.id,
+            details: { felder: geaendert, am: jetzt },
+          });
+        }
+      }
       await ereignis(db, v.id, "unterschrieben", `${s.name} hat unterschrieben`, {
         signerId: s.id,
         details: { methode: "online", gezeichnet: !!png, name },

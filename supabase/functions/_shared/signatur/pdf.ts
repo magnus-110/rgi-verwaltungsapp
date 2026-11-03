@@ -216,6 +216,64 @@ export interface StempelOptionen {
   nummer: string;
   /** Ort für interne Unterschriften, falls beim Unterzeichner keiner gespeichert ist */
   standardOrt?: string;
+  /** Ausfüllfelder (sign_request_fields): Werte fest einsetzen, Vorlagen-Anker überdecken */
+  felder?: FeldPdf[];
+}
+
+/** Ausfüllfeld fürs PDF (Auszug aus sign_request_fields). */
+export interface FeldPdf {
+  typ: string;
+  page: number;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  wert: string | null;
+  beschriftung?: string;
+  gruppe?: string | null;
+  wert_gesetzt_von?: string | null;
+  wert_gesetzt_am?: string | null;
+  ausfueller?: string;
+  anker?: { page: number; x: number; y: number; w: number; h: number } | null;
+}
+
+const ISO_DATUM = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Werte der Ausfüllfelder einsetzen: Kreuz im Kästchen, Datum TT.MM.JJJJ, Text – Größe passend zum Feld. */
+function felderZeichnen(pages: Page[], felder: FeldPdf[], font: Font, klammern: (idx: number) => void) {
+  for (const f of felder) {
+    // Unsichtbare Vorlagen-Anker weiß überdecken
+    if (f.anker && pages[f.anker.page]) {
+      klammern(f.anker.page);
+      const a = f.anker;
+      imRechteck(pages[a.page], a, () => {
+        pages[a.page].drawRectangle({ x: 0, y: 0, width: a.w, height: a.h, color: rgb(1, 1, 1) });
+      });
+    }
+    const page = pages[f.page];
+    if (!page || !f.wert || !(f.w > 0) || !(f.h > 0)) continue;
+    klammern(f.page);
+    if (f.typ === "ankreuz" || f.typ === "auswahl") {
+      if (f.wert !== "ja") continue;
+      // Kreuz „✕“ aus zwei Strichen (unabhängig von Schriften), mittig im Kästchen
+      const s = Math.min(f.w, f.h);
+      const rand = s * 0.16;
+      const dicke = Math.max(0.9, s * 0.12);
+      imRechteck(page, f, () => {
+        const x0 = (f.w - s) / 2 + rand, y0 = (f.h - s) / 2 + rand, x1 = (f.w + s) / 2 - rand, y1 = (f.h + s) / 2 - rand;
+        page.drawLine({ start: { x: x0, y: y0 }, end: { x: x1, y: y1 }, thickness: dicke, color: F.tinte });
+        page.drawLine({ start: { x: x0, y: y1 }, end: { x: x1, y: y0 }, thickness: dicke, color: F.tinte });
+      });
+      continue;
+    }
+    const roh = f.typ === "datum" && ISO_DATUM.test(f.wert) ? f.wert.split("-").reverse().join(".") : f.wert;
+    const text = sicher(font, roh);
+    let size = Math.min(f.h * 0.72, 12);
+    while (size > 5 && font.widthOfTextAtSize(text, size) > f.w - 2) size -= 0.25;
+    imRechteck(page, f, () => {
+      page.drawText(text, { x: 1.5, y: Math.max(1, f.h * 0.24), size, font, color: F.tinte });
+    });
+  }
 }
 
 /** Hat der Unterzeichner elektronisch unterschrieben (online oder intern)? */
@@ -229,6 +287,13 @@ export async function stempeln(doc: Doc, signers: SignerPdf[], o: StempelOptione
   const f = await fonts(doc);
   const pages = doc.getPages();
   const eingeklammert = new Set<number>();
+  if (o.felder?.length) {
+    felderZeichnen(pages, o.felder, f.normal, (idx) => {
+      if (eingeklammert.has(idx) || !pages[idx]) return;
+      eingeklammert.add(idx);
+      inhaltEinklammern(doc, pages[idx]);
+    });
+  }
   const letzteUnterschrift = new Map<number, string>(); // Seite → späteste Zeit
   const bilder = new Map<string, unknown>();
 
@@ -441,6 +506,8 @@ export interface PruefblattDaten {
   zeitstempel: { zeit: string; dienst: string } | null;
   /** ETV-Protokoll: keine Kopie per Mail */
   ohneKopie?: boolean;
+  /** Ausfüllfelder (wer hat welches Feld wann ausgefüllt) */
+  felder?: FeldPdf[];
 }
 
 function rundesRechteck(page: Page, x: number, yOben: number, w: number, h: number, r: number, o: { fill?: unknown; rand?: unknown }) {
@@ -617,6 +684,29 @@ export async function pruefblattAnhaengen(doc: Doc, d: PruefblattDaten) {
       ry -= r.z.length * 10.2 + 2.6;
     }
     y = top - h - 8;
+  }
+
+  // ---- Ausgefüllte Felder (wer hat welches Feld wann ausgefüllt)
+  const gefuellt = (d.felder ?? []).filter((x) => x.wert);
+  if (gefuellt.length) {
+    const wertTxt = (x: FeldPdf) => x.typ === "datum" && ISO_DATUM.test(x.wert!) ? x.wert!.split("-").reverse().join(".")
+      : x.typ === "ankreuz" || x.typ === "auswahl" ? "angekreuzt" : x.wert!;
+    const zeilenF = gefuellt.map((x) => ({
+      k: umbrechen(f.normal, x.beschriftung || "Feld", 7.6, 175),
+      v: umbrechen(f.fett, wertTxt(x), 7.6, 110),
+      wer: umbrechen(f.normal, `${x.wert_gesetzt_von || (x.ausfueller === "rgi" ? "RGI Immobilien (vorab)" : "–")}${x.wert_gesetzt_am ? ` · ${datumZeit(x.wert_gesetzt_am)} Uhr` : ""}`, 7.6, B - 322),
+    }));
+    platz(60);
+    ueberschrift("Ausgefüllte Felder");
+    for (const r of zeilenF) {
+      const zh = Math.max(r.k.length, r.v.length, r.wer.length) * 10.2 + 3;
+      platz(zh + 4);
+      r.k.forEach((z, i) => page.drawText(z, { x: M + 10, y: y - 7.6 - i * 10.2, size: 7.6, font: f.normal, color: F.grau }));
+      r.v.forEach((z, i) => page.drawText(z, { x: M + 195, y: y - 7.6 - i * 10.2, size: 7.6, font: f.fett, color: F.text }));
+      r.wer.forEach((z, i) => page.drawText(z, { x: M + 315, y: y - 7.6 - i * 10.2, size: 7.6, font: f.normal, color: F.text }));
+      y -= zh;
+    }
+    y -= 6;
   }
 
   // ---- Unveränderbarkeit (Überschrift erst, wenn klar ist, dass der Kasten auf die Seite passt)

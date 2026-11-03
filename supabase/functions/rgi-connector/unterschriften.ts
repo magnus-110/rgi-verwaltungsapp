@@ -8,7 +8,7 @@ import { nurLink, vorgangLaden, vorlageLaden } from "../_shared/signatur/ablauf.
 import { ERLAUBTE_BUCKETS, anlegen, erinnern, neuerLink } from "../_shared/signatur/vorgang.ts";
 import { einladungMail } from "../_shared/signatur/mail.ts";
 import { istPdf } from "../_shared/signatur/pdf.ts";
-import { FELD_BREITE, FELD_HOEHE, seitenGroessen, unterschriftsstellenErkennen } from "../_shared/signatur/felderkennung.ts";
+import { FELD_BREITE, FELD_HOEHE, ausfuellfelderErkennen, seitenGroessen, unterschriftsstellenErkennen } from "../_shared/signatur/felderkennung.ts";
 
 type Deps = {
   db: any;
@@ -40,6 +40,28 @@ const FELD_SCHEMA = {
     y: { type: "number", description: "obere Kante in pt ab oberem Seitenrand" },
     w: { type: "number", description: `Breite in pt (Standard ${FELD_BREITE})` },
     h: { type: "number", description: `Höhe in pt (Standard ${FELD_HOEHE})` },
+  },
+};
+const AUSFUELLFELD_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["typ", "seite", "x", "y", "w", "h"],
+  properties: {
+    typ: { type: "string", enum: ["ankreuz", "auswahl", "datum", "text", "unterschrift"], description: "ankreuz = einzelnes Kästchen; auswahl = Kästchen einer Gruppe, von der GENAU EINES gewählt wird (gleiche gruppe, je Feld eine option); datum; text (einzeilig); unterschrift = Unterschriftsfeld des Ausfüllers" },
+    feld_key: str("eindeutiger Schlüssel (a-z0-9_), z. B. bestellung_beschluss_vom; aus der Analyse übernehmen"),
+    seite: { type: "integer", minimum: 1 },
+    x: { type: "number" }, y: { type: "number" }, w: { type: "number" }, h: { type: "number" },
+    beschriftung: str("Beschriftung für den Unterzeichner, z. B. „Datum der Eigentümerversammlung“"),
+    gruppe: str("nur auswahl: Gruppenname, z. B. bestellung"),
+    option: str("nur auswahl: Wert dieser Möglichkeit, z. B. beschluss"),
+    ausfueller: str("'rgi' = vorab durch uns (dann wert angeben, wird sofort festgeschrieben) · 'unterzeichner:<n>' = n-ter Unterzeichner (1-basiert, wie in unterzeichner[]) · Rolle wie 'gdw' (Unterzeichner mit dieser Rolle, sonst der erste externe) · leer = erster externer Unterzeichner"),
+    pflicht: { type: "boolean", description: "Pflichtfeld (bei abhängigen Feldern nur, wenn die Bedingung erfüllt ist)" },
+    abhaengig_von: {
+      type: "object", additionalProperties: false, description: "nur aktiv/Pflicht, wenn {feld_key} angekreuzt bzw. {gruppe, option} gewählt ist",
+      properties: { feld_key: { type: "string" }, gruppe: { type: "string" }, option: { type: "string" } },
+    },
+    max_laenge: { type: "integer", minimum: 1, maximum: 500, description: "nur text (Standard 200)" },
+    wert: str("nur bei ausfueller 'rgi': Vorab-Wert (ankreuz/auswahl: 'ja'; datum: JJJJ-MM-TT; text)"),
   },
 };
 const DOKUMENTART_SCHEMA = { type: "string", enum: DOKUMENTARTEN, description: "Bestimmt Mailvorlage, Standardfrist und den vorgeschlagenen DMS-Ordner der Endfassung" };
@@ -244,13 +266,18 @@ export function unterschriftTools({ db, log, uploaderId }: Deps) {
   return [
     {
       name: "unterschrift_dokument_analysieren",
-      description: "Schritt 1 vor unterschrift_vorbereiten: liest das PDF (DMS-Dokument, Mail-Anhang, Angebot oder Verwaltervertrag) und liefert Seitenzahl, Seitengrößen, Textauszüge je Seite (letzte Seite ausführlich) und VORSCHLÄGE für Unterschriftsfelder (seite 1-basiert, x/y/w/h in PDF-Punkten, Ursprung oben links). Erkannt werden u. a. „Unterschrift …“, „(Unterschrift)“, Unterstrich-/Linien mit Beschriftung darunter (Auftraggeber, Verwalter, Eigentümer, Beiratsvorsitz, Versammlungsleiter, Protokollführer). „Ort, Datum“-Stellen werden getrennt gemeldet (kein Unterschriftsfeld). Ordne die Vorschläge anhand von beschriftung/kontext den Unterzeichnern zu und zeige dem Nutzer die Zuordnung, bevor du unterschrift_vorbereiten aufrufst. Ändert nichts.",
+      description: "Schritt 1 vor unterschrift_vorbereiten: liest das PDF (DMS-Dokument, Mail-Anhang, Angebot oder Verwaltervertrag) und liefert Seitenzahl, Seitengrößen, Textauszüge je Seite (letzte Seite ausführlich), VORSCHLÄGE für Unterschriftsfelder (seite 1-basiert, x/y/w/h in PDF-Punkten, Ursprung oben links) und AUSFÜLLFELDER. Erkannt werden u. a. „Unterschrift …“, „(Unterschrift)“, Unterstrich-/Linien mit Beschriftung darunter (Auftraggeber, Verwalter, Eigentümer, Beiratsvorsitz, Versammlungsleiter, Protokollführer). „Ort, Datum“-Stellen werden getrennt gemeldet (kein Unterschriftsfeld). ausfuellfelder.aus_vorlage=true: Das PDF stammt aus unserer Vorlage (z. B. Verwaltervertrag mit offener „Bestellung erfolgte“) – ausfuellfelder.felder sind fertig (Auswahlgruppe genau eins, abhängige Datum/TOP-Felder, Ausfüller-Rolle gdw = Vertreter der GdW) und werden von unterschrift_vorbereiten automatisch übernommen, wenn dort keine felder angegeben sind. Sonst sind ausfuellfelder.vorschlaege nur Vorschläge (☐-Kästchen, „Datum ___“, „vom ___“, „TOP ___“) – mit dem Nutzer abstimmen und gezielt als felder übergeben. Ordne die Unterschrifts-Vorschläge anhand von beschriftung/kontext den Unterzeichnern zu und zeige dem Nutzer die Zuordnung, bevor du unterschrift_vorbereiten aufrufst. Ändert nichts.",
       inputSchema: S({ quelle: QUELLE_SCHEMA }, ["quelle"]),
       annotations: { readOnlyHint: true },
       run: async ({ quelle }: any) => {
         const q = await quelleLaden(quelle);
         const bytes = await pdfLaden(q);
         const a = await unterschriftsstellenErkennen(bytes);
+        const af = await ausfuellfelderErkennen(bytes).catch(() => null);
+        const feldAus = (f: any) => {
+          const { page: _p, quelle: _q, anker: _a, ausfueller_rolle, ...rest } = f;
+          return { ...rest, ausfueller: ausfueller_rolle ?? "" };
+        };
         const { data: laufend } = await db.from("sign_requests").select("nummer, titel, status").eq("quelle_typ", q.quelle_typ).eq("quelle_id", q.quelle_id).in("status", ["offen", "abgeschlossen"]);
         return {
           dokument: q.dateiname, titel_vorschlag: q.titel, dokumentart_vorschlag: q.dokumentart, building_id: q.building_id, objekt: q.objekt || null,
@@ -258,6 +285,11 @@ export function unterschriftTools({ db, log, uploaderId }: Deps) {
           koordinaten: "PDF-Punkte (1 pt = 1/72 Zoll), Ursprung oben links der Seite; seite 1 = erste Seite. Feld = Rechteck, in das die Unterschrift gesetzt wird (Standard 160×40 pt, Unterkante auf der Linie).",
           vorschlaege: a.vorschlaege,
           ort_datum_stellen: a.ort_datum_stellen,
+          ausfuellfelder: af ? {
+            aus_vorlage: af.vorlage,
+            felder: af.felder.map(feldAus),
+            vorschlaege: af.vorschlaege.map(feldAus),
+          } : { aus_vorlage: false, felder: [], vorschlaege: [], hinweis: "Ausfüllfelder konnten nicht gelesen werden" },
           ...(a.hinweis ? { hinweis: a.hinweis } : {}),
           ...(q.vorschlag_unterzeichner ? { unterzeichner_vorschlag: q.vorschlag_unterzeichner } : {}),
           ...(laufend?.length ? { vorhandene_vorgaenge: laufend } : {}),
@@ -267,7 +299,7 @@ export function unterschriftTools({ db, log, uploaderId }: Deps) {
     },
     {
       name: "unterschrift_vorbereiten",
-      description: "Legt einen Unterschriften-Vorgang an (wie „Unterschrift anfordern“ in der App): Quelle, Unterzeichner mit Unterschriftsfeldern, Frist, Reihenfolge, Mailtext (Standard aus der Vorlage der Dokumentart). Unterzeichner-art: 'link' = es wird KEINE Mail verschickt, du bekommst einen persönlichen Link (14 Tage gültig), den der Nutzer selbst weitergibt bzw. in eine eigene E-Mail einfügt (z. B. mit mail_entwurf_anlegen) – der Link wird nur JETZT im Klartext angezeigt; 'email' = die App schickt SOFORT eine Einladungsmail an diese externe Person; 'intern' = RGI-Mitarbeiter unterschreibt in der App mit seiner hinterlegten Unterschrift. Felder am besten aus unterschrift_dokument_analysieren übernehmen (ohne Felder wird an das Endergebnis ein Prüfblatt angehängt). WICHTIG: Ist ein Unterzeichner mit art 'email' dabei, zuerst ohne bestaetigt aufrufen – das liefert nur eine Vorschau (Empfänger, Betreff, Mailtext, Felder). Diese dem Nutzer zeigen und erst nach seiner ausdrücklichen Zustimmung mit bestaetigt=true erneut aufrufen. testlauf=true prüft nur und legt nie etwas an.",
+      description: "Legt einen Unterschriften-Vorgang an (wie „Unterschrift anfordern“ in der App): Quelle, Unterzeichner mit Unterschriftsfeldern, Frist, Reihenfolge, Mailtext (Standard aus der Vorlage der Dokumentart). Unterzeichner-art: 'link' = es wird KEINE Mail verschickt, du bekommst einen persönlichen Link (14 Tage gültig), den der Nutzer selbst weitergibt bzw. in eine eigene E-Mail einfügt (z. B. mit mail_entwurf_anlegen) – der Link wird nur JETZT im Klartext angezeigt; 'email' = die App schickt SOFORT eine Einladungsmail an diese externe Person; 'intern' = RGI-Mitarbeiter unterschreibt in der App mit seiner hinterlegten Unterschrift. Felder am besten aus unterschrift_dokument_analysieren übernehmen (ohne Felder wird an das Endergebnis ein Prüfblatt angehängt). Ausfüllfelder (Ankreuzfeld, Auswahl „genau eins“, Datum, Text) über felder: Der Unterzeichner füllt sie beim Unterschreiben aus (serverseitig geprüft: Pflicht, genau eine Option, Abhängigkeiten, gültiges Datum, Länge), Werte werden fest ins PDF gesetzt und im Nachweis/Protokoll mit Name und Zeit geführt; ausfueller 'rgi' + wert schreibt den Wert sofort fest. Stammt das PDF aus unserer Vorlage und felder fehlt, werden die Vorlagen-Felder automatisch übernommen (felder: [] = bewusst keine). WICHTIG: Ist ein Unterzeichner mit art 'email' dabei, zuerst ohne bestaetigt aufrufen – das liefert nur eine Vorschau (Empfänger, Betreff, Mailtext, Felder). Diese dem Nutzer zeigen und erst nach seiner ausdrücklichen Zustimmung mit bestaetigt=true erneut aufrufen. testlauf=true prüft nur und legt nie etwas an.",
       inputSchema: S({
         quelle: QUELLE_SCHEMA,
         titel: str("Titel des Vorgangs (Standard: aus Dateiname/Angebot/Vertrag)"),
@@ -295,6 +327,7 @@ export function unterschriftTools({ db, log, uploaderId }: Deps) {
             },
           },
         },
+        felder: { type: "array", maxItems: 60, items: AUSFUELLFELD_SCHEMA, description: "Ausfüllfelder (und optional Unterschriftsfelder mit typ 'unterschrift'); fehlt das Feld, werden Vorlagen-Felder automatisch übernommen" },
         bestaetigt: { type: "boolean", description: "Nur nötig bei art 'email': erst true nach ausdrücklicher Zustimmung des Nutzers" },
         testlauf: { type: "boolean", description: "true = nur prüfen und Vorschau, nichts anlegen" },
         mitarbeiter_email: str("E-Mail des Mitarbeiters, der den Vorgang veranlasst (Ersteller, bekommt Meldungen)"),
@@ -342,6 +375,34 @@ export function unterschriftTools({ db, log, uploaderId }: Deps) {
           });
         }
 
+        // Ausfüllfelder: angegebene übernehmen, sonst die Felder aus unserer Vorlage (Anker)
+        let felderQuelle = "keine";
+        let felderRoh: any[] = [];
+        let ankerAbdecken: any[] = [];
+        if (Array.isArray(a.felder)) {
+          felderRoh = a.felder;
+          felderQuelle = a.felder.length ? "angegeben" : "keine";
+        } else {
+          const af = await ausfuellfelderErkennen(bytes).catch(() => null);
+          if (af?.vorlage) {
+            felderRoh = af.felder.filter((f) => f.typ !== "unterschrift").map((f) => ({ ...f, ausfueller: f.ausfueller_rolle ?? "" }));
+            felderQuelle = "aus Vorlage übernommen";
+            ankerAbdecken = af.felder.filter((f) => f.typ === "unterschrift" && f.anker).map((f) => f.anker);
+          }
+        }
+        const felder = felderRoh.map((f: any, i: number) => {
+          const seite = Number(f.seite);
+          if (!groessen.some((g) => g.seite === seite)) throw new Error(`Feld ${i + 1}: Seite ${f.seite} gibt es nicht`);
+          const au = String(f.ausfueller ?? "").trim();
+          const m = /^unterzeichner:(\d+)$/.exec(au);
+          if (m && !(Number(m[1]) >= 1 && Number(m[1]) <= signers.length)) throw new Error(`Feld ${i + 1}: Unterzeichner ${m[1]} gibt es nicht`);
+          return {
+            ...f, page: seite - 1,
+            ausfueller: m ? `signer:${Number(m[1]) - 1}` : au === "" ? undefined : au === "rgi" ? "rgi" : `rolle:${au}`,
+            quelle: f.quelle ?? (felderQuelle === "aus Vorlage übernommen" ? "vorlage" : "manuell"),
+          };
+        });
+
         const mitMail = signers.filter((s) => s.methode === "online" && s.versand === "mail");
         const body = {
           typ: "ausgehend", dokumentart, titel, building_id: buildingId ?? undefined, quelle_typ: q.quelle_typ, quelle_id: q.quelle_id,
@@ -349,6 +410,8 @@ export function unterschriftTools({ db, log, uploaderId }: Deps) {
           frist: a.frist, reihenfolge: a.reihenfolge === "nacheinander" ? "nacheinander" : "gleichzeitig",
           mail_betreff: a.mail_betreff, mail_text: a.mail_text, erinnerung: a.erinnerung !== false, kopie_dms: a.kopie_dms !== false,
           signers: signers.map(({ _hinweis, _email, ...s }) => s),
+          ...(felder.length ? { felder } : {}),
+          ...(ankerAbdecken.length ? { anker_abdecken: ankerAbdecken } : {}),
         };
         const hinweise = signers.map((s) => s._hinweis).filter(Boolean);
         hinweise.push("Die Endfassung wird nach Abschluss NICHT automatisch im DMS abgelegt – das Büro legt sie in der App unter Unterschriften › Abgeschlossen › „Im DMS ablegen“ ab (mit Vorschlag).");
@@ -374,6 +437,7 @@ export function unterschriftTools({ db, log, uploaderId }: Deps) {
               rolle: s.rolle, felder: (s.placements ?? []).map((p: any) => ({ seite: p.page + 1, x: p.x, y: p.y, w: p.w, h: p.h })),
             })),
             ...(m ? { einladungsmail: { betreff: m.subject, text: m.text } } : {}),
+            ausfuellfelder: { quelle: felderQuelle, anzahl: felder.length, felder: felder.map((f: any) => `${f.typ} · ${f.beschriftung || f.feld_key || ""} · Seite ${f.page + 1}${f.pflicht ? " · Pflicht" : ""}${f.ausfueller === "rgi" ? ` · vorab: ${f.wert ?? "–"}` : ""}`) },
             ...(hinweise.length ? { hinweise } : {}),
           };
         }
@@ -394,6 +458,7 @@ export function unterschriftTools({ db, log, uploaderId }: Deps) {
           } : {}),
           ...(r.versand_fehler?.length ? { versand_fehler: r.versand_fehler } : {}),
           unterzeichner: gespeichert.map((s: any) => ({ id: s.id, name: s.name, art: ART_TEXT(s), status: SIGNER_STATUS[s.status] ?? s.status, felder: (s.placements ?? []).length })),
+          ...(felder.length ? { ausfuellfelder: { quelle: felderQuelle, anzahl: felder.length } } : {}),
           ...(hinweise.length ? { hinweise } : {}),
         };
       },
@@ -420,7 +485,7 @@ export function unterschriftTools({ db, log, uploaderId }: Deps) {
     },
     {
       name: "unterschriften_status",
-      description: "Status von Unterschriften-Vorgängen. Mit vorgang (Nummer oder ID): Details mit allen Unterzeichnern, Feldern und Protokoll. Sonst Liste (Filter building_id, nur_offen, text im Titel) mit Fortschritt „x von y“, Frist und Status je Unterzeichner.",
+      description: "Status von Unterschriften-Vorgängen. Mit vorgang (Nummer oder ID): Details mit allen Unterzeichnern, Feldern, Ausfüllfeldern (Wert, wer/wann) und Protokoll. Sonst Liste (Filter building_id, nur_offen, text im Titel) mit Fortschritt „x von y“, Frist und Status je Unterzeichner.",
       inputSchema: S({
         vorgang: str("Vorgangsnummer oder ID (Details)"),
         building_id: uuid("nur Vorgänge dieses Objekts"),
@@ -433,7 +498,18 @@ export function unterschriftTools({ db, log, uploaderId }: Deps) {
         if (a.vorgang) {
           const { req: v, signers } = await vorgangFinden(a.vorgang);
           const { data: ev } = await db.from("sign_request_events").select("ereignis, details, created_at").eq("request_id", v.id).order("created_at", { ascending: true }).limit(200);
-          return vorgangKurz(v, signers, ev ?? []);
+          const { data: fe } = await db.from("sign_request_fields").select("feld_key, typ, beschriftung, gruppe, option, pflicht, ausfueller, signer_id, wert, wert_gesetzt_von, wert_gesetzt_am, page").eq("request_id", v.id).order("position");
+          return {
+            ...vorgangKurz(v, signers, ev ?? []),
+            ...(fe?.length ? {
+              ausfuellfelder: fe.map((f: any) => ({
+                feld_key: f.feld_key, typ: f.typ, beschriftung: f.beschriftung, seite: f.page + 1, pflicht: f.pflicht,
+                ...(f.gruppe ? { gruppe: f.gruppe, option: f.option } : {}),
+                ausfueller: f.ausfueller === "rgi" ? "RGI (vorab)" : signers.find((x: any) => x.id === f.signer_id)?.name ?? "Unterzeichner",
+                wert: f.wert, ausgefuellt_von: f.wert_gesetzt_von, ausgefuellt_am: f.wert_gesetzt_am ? new Date(f.wert_gesetzt_am).toLocaleString("de-DE", { timeZone: "Europe/Berlin" }) : null,
+              })),
+            } : {}),
+          };
         }
         let q = db.from("sign_requests").select("*, buildings(id, name, postal_code, city), signers:sign_request_signers(*)").order("created_at", { ascending: false }).limit(Math.min(a.limit ?? 20, 100));
         if (a.building_id) q = q.eq("building_id", a.building_id);

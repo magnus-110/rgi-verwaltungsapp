@@ -1,4 +1,6 @@
-import { requireAdmin } from "../_shared/require-admin.ts";
+// Büro (angemeldet, 2FA) oder Server/Zeitplan (Service-Rolle bzw. x-cron-secret aus dem Tresor)
+import { requireStaffOrCron } from "../_shared/require-cron.ts";
+import { vertragAusfuellWerte } from "../_shared/vertrag-ausfuellfelder.ts";
 // rgi-render-offer
 // Rendert aus einem Angebot (offers + offer_items) einen Verwaltervertrags-
 // Entwurf aus der Word-Vorlage, konvertiert ihn via CloudConvert nach PDF
@@ -18,7 +20,7 @@ const EXTRAKOSTEN_STANDARD =
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cron-secret",
 };
 
 function fmtDate(d?: string | null): string {
@@ -220,7 +222,7 @@ function json(b: unknown, status = 200) {
 
 Deno.serve(async (req) => {
   if (req.method !== "OPTIONS") {
-    const __auth = await requireAdmin(req, corsHeaders);
+    const __auth = await requireStaffOrCron(req, corsHeaders);
     if (!__auth.ok) return __auth.response;
   }
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -491,6 +493,12 @@ Deno.serve(async (req) => {
     // ausfuehrlicheren Namen verwenden kann.
     payload["extrakosten"] = def("extrakosten", EXTRAKOSTEN_STANDARD);
     payload["uebersicht.extrakosten"] = payload["extrakosten"];
+
+    // --- Bestellung erfolgte / vertreten durch / Unterschriftsfelder ----------
+    // Ist bestellung.art hinterlegt, wird die Auswahl fest gedruckt (☒, Datum/TOP eingesetzt).
+    // Sonst ☐ + Leerlinie + unsichtbarer Anker: Die Felder füllt der Vertreter der GdW beim
+    // elektronischen Unterschreiben aus (Erkennung: _shared/signatur/felderkennung.ts).
+    Object.assign(payload, vertragAusfuellWerte(defaults, offer.object_representative));
 
     let docxBytes: Uint8Array;
     try {

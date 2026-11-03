@@ -1,5 +1,28 @@
 import { supabase } from "@/integrations/supabase/client";
 
+/** Ausfüllfeld auf der Unterschriftsseite (sign-public „get“). Koordinaten in PDF-Punkten, oben links, page 0-basiert. */
+export type SignFeld = {
+  id: string;
+  feld_key: string;
+  typ: "ankreuz" | "auswahl" | "datum" | "text";
+  page: number;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  beschriftung: string;
+  gruppe: string | null;
+  option: string | null;
+  pflicht: boolean;
+  abhaengig_von: { feld_key: string } | { gruppe: string; option: string } | null;
+  max_laenge: number | null;
+  /** gespeicherter Wert (vorab von RGI bzw. von anderen Unterzeichnern) */
+  wert: string | null;
+  /** true = dieser Unterzeichner füllt aus */
+  eigen: boolean;
+  vorab: boolean;
+};
+
 /** Antwort von sign-public {action:"get"} – siehe /esig/API.md. */
 export type SignInfo = {
   zustand: "ok" | "abgelaufen" | "zurueckgezogen" | "unterschrieben" | "unbekannt" | "papier_eingegangen";
@@ -22,6 +45,8 @@ export type SignInfo = {
   papier_eingegangen?: boolean;
   /** optional, falls das Backend sie mitliefert („Herr“ / „Frau“) */
   anrede?: string | null;
+  /** Ausfüllfelder (eigene bedienbar, übrige als fester Inhalt) */
+  felder?: SignFeld[];
 };
 
 export type SignErgebnis = {
@@ -69,12 +94,13 @@ async function call<T>(body: Record<string, unknown>): Promise<T> {
 
 export const holeInfo = (token: string) => call<SignInfo>({ action: "get", token });
 
-export const unterschreiben = (token: string, typed_name: string, signature_png: string | null) =>
+export const unterschreiben = (token: string, typed_name: string, signature_png: string | null, felder?: Record<string, string | null>) =>
   call<SignErgebnis>({
     action: "sign",
     token,
     typed_name,
     ...(signature_png ? { signature_png } : {}),
+    ...(felder && Object.keys(felder).length ? { felder } : {}),
     consent: true,
   });
 

@@ -46,6 +46,7 @@ import {
   stempeln,
 } from "./pdf.ts";
 import { zeitstempelHolen } from "./zeitstempel.ts";
+import { felderLaden } from "./felder.ts";
 import { StandardFonts } from "https://esm.sh/pdf-lib@1.17.1";
 
 // deno-lint-ignore no-explicit-any
@@ -322,6 +323,7 @@ export function brauchtPruefblatt(req: Vorgang, signers: Signer[]): boolean {
 export async function dokumentBauen(db: Db, req: Vorgang, signers: Signer[], o: { abgeschlossenAm?: string | null } = {}): Promise<Uint8Array> {
   const quelle = await laden(db, BUCKET, pfad.quelle(req.id));
   const ps = signers.map(alsPdfSigner);
+  const felder = await felderLaden(db, req.id);
   let doc;
 
   if (istEtv(req)) {
@@ -354,7 +356,12 @@ export async function dokumentBauen(db: Db, req: Vorgang, signers: Signer[], o: 
     }
   } else {
     doc = await PDFDocument.load(quelle, { ignoreEncryption: true, updateMetadata: false });
-    await stempeln(doc, ps, { nummer: req.nummer, standardOrt: req.buildings?.city || "Pfronten" });
+    // RGI-Vorab-Werte und Anker sind seit dem Anlegen fest in quelle.pdf (vorgang.ts) – hier nur die übrigen
+    await stempeln(doc, ps, {
+      nummer: req.nummer,
+      standardOrt: req.buildings?.city || "Pfronten",
+      felder: felder.filter((f) => f.ausfueller !== "rgi").map((f) => ({ ...f, anker: null })),
+    });
   }
 
   // Papier-Scans (übernommen) – je Unterzeichner seine Seiten am Ende, mit Kopfzeile
@@ -380,6 +387,7 @@ export async function dokumentBauen(db: Db, req: Vorgang, signers: Signer[], o: 
       sha256: null,
       zeitstempel: null,
       ohneKopie: istEtv(req),
+      felder,
     });
   }
   doc.setTitle(req.titel);

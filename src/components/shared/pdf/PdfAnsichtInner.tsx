@@ -8,7 +8,7 @@
  * - dezente Leiste: Seite x / y, Zoom −/+, Breite anpassen, Herunterladen
  * - Text auswählbar (Textebene), Links anklickbar
  */
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import { AlertCircle, Download, Loader2, MoveHorizontal, ZoomIn, ZoomOut } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -52,6 +52,13 @@ export interface PdfAnsichtProps {
   onEndeErreicht?: () => void;
   /** Am Ende des PDFs einfach mit der Seite weiterscrollen (statt im Kasten „hängen zu bleiben“). */
   scrollWeitergeben?: boolean;
+  /**
+   * Zusätzliche Ebene über einer Seite (z. B. Ausfüllfelder bei der Unterschrift).
+   * seite 0-basiert; scale = Bildschirmpixel je PDF-Punkt.
+   */
+  overlay?: (seite: number, scale: number) => ReactNode;
+  /** Zu einer Stelle springen (seite 1-basiert, y in PDF-Punkten von oben); n ändern, um erneut zu springen. */
+  ziel?: { seite: number; y: number; n: number } | null;
 }
 
 function Laden({ text = "PDF wird geladen …" }: { text?: string }) {
@@ -65,6 +72,7 @@ function Laden({ text = "PDF wird geladen …" }: { text?: string }) {
 
 export default function PdfAnsichtInner({
   quelle, dateiName, startSeite, className, leiste = true, download = true, onFehler, onEndeErreicht, scrollWeitergeben,
+  overlay, ziel,
 }: PdfAnsichtProps) {
   const datei = useDateiBlob(quelle, { dateiName, mimeType: "application/pdf" });
   const name = dateiName || (quelle instanceof File ? quelle.name : "") || "Dokument.pdf";
@@ -207,6 +215,16 @@ export default function PdfAnsichtInner({
     }
   }, [seiten, startSeite, breite]);
 
+  // ---------- Sprung zu einer Stelle (z. B. Ausfüllfeld) ----------
+  useEffect(() => {
+    if (!ziel || !seiten.length) return;
+    const el = scrollRef.current;
+    const s = seitenEls.current[Math.min(Math.max(1, ziel.seite), seiten.length) - 1];
+    if (!el || !s) return;
+    el.scrollTo({ top: Math.max(0, s.offsetTop + ziel.y * scale - el.clientHeight / 3), behavior: "smooth" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ziel?.n, seiten.length]);
+
   const zeigeFehler = !!fehler || (!!datei.fehler && !datei.blob);
   const downloadUrl = datei.url;
 
@@ -253,7 +271,9 @@ export default function PdfAnsichtInner({
               <div className="flex flex-col items-center" style={{ gap: ABSTAND, padding: `${ABSTAND}px ${rand}px ${leiste ? 72 : ABSTAND}px` }}>
                 {seiten.map((s, i) => (
                   <div key={i} ref={(el) => { seitenEls.current[i] = el; }}>
-                    <Seite nr={i + 1} breite={s.w * scale} hoehe={s.h * scale} root={scrollEl} />
+                    <Seite nr={i + 1} breite={s.w * scale} hoehe={s.h * scale} root={scrollEl}>
+                      {overlay?.(i, scale)}
+                    </Seite>
                   </div>
                 ))}
               </div>
@@ -331,7 +351,7 @@ function LeistenKnopf({
  * Eine Seite: fester Platzhalter in Seitengröße; gezeichnet wird nur,
  * wenn sie in der Nähe des sichtbaren Bereichs ist (spart Speicher bei langen PDFs).
  */
-const Seite = memo(function Seite({ nr, breite, hoehe, root }: { nr: number; breite: number; hoehe: number; root: HTMLElement | null }) {
+const Seite = memo(function Seite({ nr, breite, hoehe, root, children }: { nr: number; breite: number; hoehe: number; root: HTMLElement | null; children?: ReactNode }) {
   const ref = useRef<HTMLDivElement | null>(null);
   const [sichtbar, setSichtbar] = useState(false);
   useEffect(() => {
@@ -361,6 +381,7 @@ const Seite = memo(function Seite({ nr, breite, hoehe, root }: { nr: number; bre
           error={<div className="flex h-full items-center justify-center text-[12px] text-[#6B6B6B]">Seite {nr} konnte nicht gezeichnet werden.</div>}
         />
       )}
+      {children && <div className="pointer-events-none absolute inset-0 z-[3]">{children}</div>}
     </div>
   );
 });

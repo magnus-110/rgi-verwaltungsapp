@@ -2,7 +2,8 @@ import { useRef, useState } from "react";
 import { RotateCw, X } from "lucide-react";
 import { FehlerHinweis, Fortschritt, Fusszeile, Haken, Kopf, PrimaerButton, Spalte, UntenLeiste, ueberschrift } from "./ui";
 import { Zeichenflaeche, type ZeichenflaecheRef } from "./Zeichenflaeche";
-import type { SignInfo } from "./api";
+import { datum, type SignInfo } from "./api";
+import { istAktiv, wertVon, type Werte } from "./Felder";
 
 type Props = {
   info: SignInfo;
@@ -16,6 +17,7 @@ type Props = {
   fehler: string | null;
   onZurueck: () => void;
   onSenden: () => void;
+  werte?: Werte;
 };
 
 /** Schritt 2 · Online unterschreiben (Mockup v05). */
@@ -23,6 +25,13 @@ export default function SchrittUnterschreiben(p: Props) {
   const pad = useRef<ZeichenflaecheRef>(null);
   const bereit = p.name.trim().length >= 2 && p.zustimmung;
   const [tippZu, setTippZu] = useState(false);
+  const felder = p.info.felder ?? [];
+  const angaben = felder
+    .filter((f) => f.eigen && istAktiv(f, felder, p.werte ?? {}) && wertVon(f, p.werte ?? {}))
+    .map((f) => {
+      const w = wertVon(f, p.werte ?? {})!;
+      return { id: f.id, text: f.typ === "ankreuz" || f.typ === "auswahl" ? `☒ ${f.beschriftung}` : `${f.beschriftung}: ${f.typ === "datum" ? datum(w) : w}` };
+    });
 
   const loeschen = () => {
     pad.current?.loeschen();
@@ -36,6 +45,17 @@ export default function SchrittUnterschreiben(p: Props) {
         <div className="[@media(orientation:landscape)_and_(max-height:500px)]:hidden"><Fortschritt schritt={2} /></div>
         <Spalte className="flex flex-col px-5 pt-[15px] min-[641px]:pt-7 [@media(orientation:landscape)_and_(max-height:500px)]:pt-3">
           <h1 className={`${ueberschrift} text-[21px] leading-[24px] min-[641px]:text-[26px] min-[641px]:leading-[32px] [@media(orientation:landscape)_and_(max-height:500px)]:hidden`}>Ihre Unterschrift</h1>
+          {angaben.length > 0 && (
+            <div className="mt-3 rounded-[10px] border border-[#E5E5E5] bg-[#FAFAFA] px-3 py-2.5 [@media(orientation:landscape)_and_(max-height:500px)]:hidden">
+              <div className="text-[13px] font-semibold leading-[18px] text-[#2B2B2B]">Ihre Angaben im Dokument</div>
+              <ul className="mt-1 space-y-0.5 text-[13px] leading-[18px] text-[#595959]">
+                {angaben.map((a) => (
+                  <li key={a.id}>{a.text}</li>
+                ))}
+              </ul>
+              <button type="button" onClick={p.onZurueck} className="mt-1 text-[13px] text-[#B35300] underline underline-offset-2">Ändern</button>
+            </div>
+          )}
 
           <label htmlFor="sig-name" className="mt-[14px] block text-[14px] font-semibold leading-[18px] text-[#2B2B2B]">
             Vollständiger Name

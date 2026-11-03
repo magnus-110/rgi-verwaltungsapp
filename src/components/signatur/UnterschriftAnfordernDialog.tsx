@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
-import { AlertCircle, ChevronLeft, Loader2, Plus, Search, X, MousePointerClick, Link2 } from "lucide-react";
+import { AlertCircle, ChevronLeft, Loader2, Plus, Search, X, MousePointerClick, Link2, Sparkles } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -22,9 +22,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import {
   addDaysIso, DOKUMENTART_LABEL, signAction, todayIso, useBueroMitarbeiter, useMailTemplates,
-  useSignInvalidate, type CreateErgebnis, type Dokumentart, type QuelleTyp, type SignPlacement, type SignTyp,
-  type SignerVersand,
+  useSignInvalidate, FELD_TYP_LABEL, type CreateErgebnis, type Dokumentart, type ErkanntesFeld, type FeldTyp,
+  type FelderErkennung, type QuelleTyp, type SignPlacement, type SignTyp, type SignerVersand, type WerkzeugTyp,
 } from "@/lib/signatur";
+import {
+  FELD_GROESSE, FELD_MIN, FeldEigenschaften, FeldListe, RGI_FARBE, Werkzeugleiste,
+  type AusfuellerOption, type EntwurfFeld,
+} from "./FeldWerkzeuge";
 import { LinkHinweis, LinkZeile } from "./LinkKopieren";
 import { Abschnitt, eingabeKlasse, FeldLabel, NummerKreis, SigButton, SIGNER_FARBEN } from "./ui";
 import { LazySeite, PdfDocument, PdfPage, seitenGroessen, useElementBreite } from "./pdf";
@@ -147,6 +151,34 @@ const ersteMail = (c: any): string | null => {
 
 const alleMails = (c: any): string[] => ((c?.contact_emails ?? []) as { email: string }[]).map((m) => m.email);
 
+/** Erkanntes Feld (Vorlage/Vorschlag) → Entwurf. */
+function alsEntwurf(f: ErkanntesFeld, quelle: EntwurfFeld["quelle"]): EntwurfFeld {
+  const typ = f.typ as FeldTyp;
+  const a = f.abhaengig_von as { feld_key?: string; gruppe?: string; option?: string } | undefined;
+  return {
+    key: neuerKey(),
+    feld_key: f.feld_key,
+    typ,
+    page: f.page,
+    x: f.x,
+    y: f.y,
+    w: f.w,
+    h: f.h,
+    beschriftung: f.beschriftung,
+    gruppe: f.gruppe ?? "",
+    option: f.option ?? "",
+    ausfueller: f.ausfueller_rolle === "rgi" ? "rgi" : f.ausfueller_rolle ? `rolle:${f.ausfueller_rolle}` : "",
+    pflicht: f.pflicht,
+    abhaengig: a?.feld_key ? `feld:${a.feld_key}` : a?.gruppe ? `gruppe:${a.gruppe}:${a.option}` : "",
+    wert: "",
+    max_laenge: f.max_laenge ?? (typ === "text" ? 200 : null),
+    quelle,
+    anker: f.anker,
+  };
+}
+
+const ROLLE_TEXT: Record<string, string> = { gdw: "Vertreter der GdW" };
+
 const RGI_STANDARD: Dokumentart[] = ["verwaltervertrag", "dienstleistervertrag", "angebot"];
 
 export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, quelleId, startInfo, onSent, onAnderesDokument }: Props) {
@@ -171,6 +203,13 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
   const [kopieDms, setKopieDms] = useState(true);
   const [placements, setPlacements] = useState<Record<string, SignPlacement[]>>({});
   const [platzieren, setPlatzieren] = useState(false);
+  /** Ausfüllfelder (Ankreuzfeld, Auswahl, Datum, Text) */
+  const [felder, setFelder] = useState<EntwurfFeld[]>([]);
+  const [werkzeug, setWerkzeug] = useState<WerkzeugTyp>("unterschrift");
+  const [gewaehlt, setGewaehlt] = useState<string | null>(null);
+  const [vorschlaegeZeigen, setVorschlaegeZeigen] = useState(false);
+  /** Unterschrifts-Anker der Vorlage, die schon einmal angewendet wurden */
+  const vorlageAngewendet = useRef<Set<string>>(new Set());
   const [aktivFeldSigner, setAktivFeldSigner] = useState<string | null>(null);
   const [senden, setSenden] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
@@ -193,6 +232,11 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
     setKopieDms(true);
     setPlacements({});
     setPlatzieren(false);
+    setFelder([]);
+    setWerkzeug("unterschrift");
+    setGewaehlt(null);
+    setVorschlaegeZeigen(false);
+    vorlageAngewendet.current = new Set();
     setFrist(addDaysIso(startInfo.typ === "etv_protokoll" ? 7 : 14));
     setAktivFeldSigner(null);
     setFehler(null);
@@ -293,6 +337,23 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
     },
     staleTime: 10 * 60_000,
   });
+  // Ausfüllfelder erkennen: Anker unserer Vorlagen (→ sofort übernommen) bzw. Vorschläge in fremden PDFs
+  const { data: erkennung } = useQuery({
+    queryKey: ["signatur", "felder-erkennen", startInfo.source_bucket, startInfo.source_path],
+    enabled: open && !etv && !!startInfo.source_path,
+    queryFn: () => signAction<FelderErkennung>("felder_erkennen", { source_bucket: startInfo.source_bucket, source_path: startInfo.source_path }),
+    staleTime: 10 * 60_000,
+    retry: false,
+  });
+  const vorlageUebernommen = useRef(false);
+  useEffect(() => {
+    if (!open) vorlageUebernommen.current = false;
+  }, [open]);
+  useEffect(() => {
+    if (!open || !erkennung?.vorlage || vorlageUebernommen.current) return;
+    vorlageUebernommen.current = true;
+    setFelder(erkennung.felder.filter((f) => f.typ !== "unterschrift").map((f) => alsEntwurf(f, "vorlage")));
+  }, [open, erkennung]);
   const [seiten, setSeiten] = useState<{ w: number; h: number }[]>([]);
   const [pdfFehler, setPdfFehler] = useState<string | null>(null);
   const vorschauBox = useElementBreite<HTMLDivElement>();
@@ -318,6 +379,40 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
     return SIGNER_FARBEN[(i < 0 ? 0 : i) % SIGNER_FARBEN.length];
   };
   const nrFuer = (key: string) => feldSigner.find((f) => f.key === key)?.nr ?? 0;
+  const ersterExterner = externe.find((s) => s.methode !== "intern") ?? null;
+  const ausfuellerOptionen: AusfuellerOption[] = [
+    ...externe.filter((s) => s.methode !== "intern").map((s) => ({
+      wert: s.key,
+      text: `${nrFuer(s.key)}. ${s.name || s.rolle || "Unterzeichner"}`,
+      farbe: farbeFuer(s.key),
+    })),
+    // Rolle aus der Vorlage (z. B. Vertreter der GdW) → erster externer Unterzeichner
+    ...(ersterExterner
+      ? [...new Set(felder.map((f) => f.ausfueller).filter((a) => a.startsWith("rolle:")))].map((a) => ({
+          wert: a,
+          text: `${ROLLE_TEXT[a.slice(6)] ?? a.slice(6)} · ${nrFuer(ersterExterner.key)}. ${ersterExterner.name || "Unterzeichner"}`,
+          farbe: farbeFuer(ersterExterner.key),
+        }))
+      : []),
+    // Noch niemand ausgewählt (z. B. vor dem Hinzufügen von Unterzeichnern)
+    ...(felder.some((f) => !f.ausfueller) ? [{ wert: "", text: "1. externer Unterzeichner", farbe: SIGNER_FARBEN[0] }] : []),
+    { wert: "rgi", text: "RGI (vorab ausfüllen)", farbe: RGI_FARBE },
+  ];
+  /** Wer füllt das Feld wirklich aus (Schlüssel des Unterzeichners) – für Farbe und Prüfung. */
+  const ausfuellerKey = (a: string) => (a === "rgi" ? "rgi" : a.startsWith("rolle:") || !a ? ersterExterner?.key ?? "" : a);
+  const feldFarbe = (f: EntwurfFeld) => (f.ausfueller === "rgi" ? RGI_FARBE : farbeFuer(ausfuellerKey(f.ausfueller)));
+
+  // Unterschriftsfelder aus der Vorlage: Vertreter der GdW → erster externer Unterzeichner, Hausverwaltung → RGI
+  useEffect(() => {
+    if (!open || !erkennung?.vorlage) return;
+    for (const f of erkennung.felder.filter((x) => x.typ === "unterschrift")) {
+      if (vorlageAngewendet.current.has(f.feld_key)) continue;
+      const ziel = f.ausfueller_rolle === "rgi" ? (rgiAuch && mitRgiZeile ? INTERN_KEY : null) : ersterExterner?.key ?? null;
+      if (!ziel) continue;
+      vorlageAngewendet.current.add(f.feld_key);
+      setPlacements((prev) => (prev[ziel]?.length ? prev : { ...prev, [ziel]: [{ page: f.page, x: f.x, y: f.y, w: f.w, h: f.h }] }));
+    }
+  }, [open, erkennung, ersterExterner?.key, rgiAuch, mitRgiZeile]);
 
   const hinzufuegen = (t: { name: string; email: string; rolle: string; contact_id?: string | null; anrede?: string | null }) => {
     setSigner((prev) => {
@@ -339,6 +434,7 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
       return n;
     });
     if (aktivFeldSigner === key) setAktivFeldSigner(null);
+    setFelder((prev) => prev.map((f) => (f.ausfueller === key ? { ...f, ausfueller: "" } : f)));
   };
   const aendern = (key: string, patch: Partial<EntwurfSigner>) =>
     setSigner((prev) => prev.map((p) => (p.key === key ? { ...p, ...patch } : p)));
@@ -349,25 +445,95 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
     : feldSigner[0]?.key ?? null;
 
   const feldSetzen = (page: number, px: number, py: number) => {
-    if (!platzieren || !aktiverFeldKey) return;
+    if (!platzieren) return;
     const size = seiten[page];
     if (!size) return;
-    const p: SignPlacement = {
+    if (gewaehlt) {
+      // Erst Auswahl aufheben, damit ein Klick neben das Feld nicht gleich ein neues anlegt
+      setGewaehlt(null);
+      return;
+    }
+    if (werkzeug === "unterschrift") {
+      if (!aktiverFeldKey) return;
+      const p: SignPlacement = {
+        page,
+        w: FELD_W,
+        h: FELD_H,
+        x: Math.max(0, Math.min(size.w - FELD_W, px - FELD_W / 2)),
+        y: Math.max(0, Math.min(size.h - FELD_H, py - FELD_H / 2)),
+      };
+      setPlacements((prev) => ({ ...prev, [aktiverFeldKey]: [...(prev[aktiverFeldKey] ?? []), p] }));
+      return;
+    }
+    const typ = werkzeug as FeldTyp;
+    const g = FELD_GROESSE[typ];
+    const n = felder.length + 1;
+    let key = `${typ}_${n}`;
+    while (felder.some((f) => f.feld_key === key)) key = `${key}_x`;
+    // Neue Auswahl-Möglichkeit: in die Gruppe des zuletzt gesetzten Auswahlfeldes, sonst neue Gruppe
+    const letzteAuswahl = [...felder].reverse().find((f) => f.typ === "auswahl");
+    const gruppe = typ === "auswahl" ? letzteAuswahl?.gruppe || `auswahl_${n}` : "";
+    const neu: EntwurfFeld = {
+      key: neuerKey(),
+      feld_key: key,
+      typ,
       page,
-      w: FELD_W,
-      h: FELD_H,
-      x: Math.max(0, Math.min(size.w - FELD_W, px - FELD_W / 2)),
-      y: Math.max(0, Math.min(size.h - FELD_H, py - FELD_H / 2)),
+      w: g.w,
+      h: g.h,
+      x: Math.round(Math.max(0, Math.min(size.w - g.w, px - g.w / 2)) * 10) / 10,
+      y: Math.round(Math.max(0, Math.min(size.h - g.h, py - g.h / 2)) * 10) / 10,
+      beschriftung: typ === "datum" ? "Datum" : typ === "auswahl" ? `Möglichkeit ${felder.filter((f) => f.typ === "auswahl" && f.gruppe === gruppe).length + 1}` : "",
+      gruppe,
+      option: typ === "auswahl" ? `option_${n}` : "",
+      ausfueller: ersterExterner?.key ?? "",
+      pflicht: typ === "auswahl" || typ === "datum",
+      abhaengig: "",
+      wert: "",
+      max_laenge: typ === "text" ? 200 : null,
+      quelle: "manuell",
     };
-    setPlacements((prev) => ({ ...prev, [aktiverFeldKey]: [...(prev[aktiverFeldKey] ?? []), p] }));
+    setFelder((prev) => [...prev, neu]);
+    setGewaehlt(neu.key);
   };
+  const feldPatch = (key: string, patch: Partial<EntwurfFeld>) =>
+    setFelder((prev) => {
+      const alt = prev.find((f) => f.key === key);
+      const neu = prev.map((f) => (f.key === key ? { ...f, ...patch } : f));
+      // Gruppe/Option/Schlüssel geändert → Bedingungen anderer Felder mitziehen
+      if (alt && (patch.gruppe !== undefined || patch.option !== undefined)) {
+        const vorher = `gruppe:${alt.gruppe}:${alt.option}`;
+        const nachher = `gruppe:${patch.gruppe ?? alt.gruppe}:${patch.option ?? alt.option}`;
+        return neu.map((f) => (f.abhaengig === vorher ? { ...f, abhaengig: nachher } : f));
+      }
+      return neu;
+    });
+  const feldLoeschen = (key: string) => {
+    setFelder((prev) => {
+      const alt = prev.find((f) => f.key === key);
+      const weg = alt ? [`feld:${alt.feld_key}`, `gruppe:${alt.gruppe}:${alt.option}`] : [];
+      return prev.filter((f) => f.key !== key).map((f) => (weg.includes(f.abhaengig) ? { ...f, abhaengig: "" } : f));
+    });
+    setGewaehlt(null);
+  };
+  const vorschlagUebernehmen = (v: ErkanntesFeld) => {
+    if (v.typ === "unterschrift") return;
+    setFelder((prev) => {
+      if (prev.some((f) => f.page === v.page && Math.abs(f.x - v.x) < 2 && Math.abs(f.y - v.y) < 2)) return prev;
+      let key = v.feld_key;
+      while (prev.some((f) => f.feld_key === key)) key = `${key}_x`;
+      return [...prev, { ...alsEntwurf({ ...v, feld_key: key }, "vorschlag"), ausfueller: ersterExterner?.key ?? "" }];
+    });
+  };
+  const gewaehltesFeld = felder.find((f) => f.key === gewaehlt) ?? null;
+  const offeneVorschlaege = (erkennung?.vorschlaege ?? []).filter((v) =>
+    !felder.some((f) => f.page === v.page && Math.abs(f.x - v.x) < 2 && Math.abs(f.y - v.y) < 2));
   const feldAendern = (key: string, idx: number, patch: Partial<SignPlacement>) =>
     setPlacements((prev) => ({ ...prev, [key]: (prev[key] ?? []).map((p, i) => (i === idx ? { ...p, ...patch } : p)) }));
   const feldEntfernen = (key: string, idx: number) =>
     setPlacements((prev) => ({ ...prev, [key]: (prev[key] ?? []).filter((_, i) => i !== idx) }));
 
-  const drag = useRef<{ key: string; idx: number; mode: "move" | "resize"; sx: number; sy: number; orig: SignPlacement } | null>(null);
-  const onFeldDown = (e: React.PointerEvent, key: string, idx: number, mode: "move" | "resize") => {
+  const drag = useRef<{ key: string; idx: number; mode: "move" | "resize"; sx: number; sy: number; orig: SignPlacement; feld?: FeldTyp } | null>(null);
+  const onFeldDown = (e: React.PointerEvent, key: string, idx: number, mode: "move" | "resize", feld?: EntwurfFeld) => {
     e.preventDefault();
     e.stopPropagation();
     try {
@@ -375,7 +541,9 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
     } catch {
       /* egal */
     }
-    drag.current = { key, idx, mode, sx: e.clientX, sy: e.clientY, orig: { ...placements[key][idx] } };
+    const orig = feld ? { page: feld.page, x: feld.x, y: feld.y, w: feld.w, h: feld.h } : { ...placements[key][idx] };
+    drag.current = { key, idx, mode, sx: e.clientX, sy: e.clientY, orig, feld: feld?.typ };
+    if (feld) setGewaehlt(feld.key);
   };
   const onFeldMove = (e: React.PointerEvent) => {
     const d = drag.current;
@@ -384,17 +552,25 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
     if (!size) return;
     const dx = (e.clientX - d.sx) / scale;
     const dy = (e.clientY - d.sy) / scale;
-    if (d.mode === "move") {
-      feldAendern(d.key, d.idx, {
-        x: Math.max(0, Math.min(size.w - d.orig.w, d.orig.x + dx)),
-        y: Math.max(0, Math.min(size.h - d.orig.h, d.orig.y + dy)),
-      });
-    } else {
-      feldAendern(d.key, d.idx, {
-        w: Math.max(60, Math.min(size.w - d.orig.x, d.orig.w + dx)),
-        h: Math.max(20, Math.min(size.h - d.orig.y, d.orig.h + dy)),
-      });
-    }
+    const r = (n: number) => Math.round(n * 10) / 10;
+    const min = d.feld ? FELD_MIN[d.feld] : FELD_MIN.unterschrift;
+    const patch = d.mode === "move"
+      ? {
+          x: r(Math.max(0, Math.min(size.w - d.orig.w, d.orig.x + dx))),
+          y: r(Math.max(0, Math.min(size.h - d.orig.h, d.orig.y + dy))),
+        }
+      : d.feld === "ankreuz" || d.feld === "auswahl"
+      ? (() => {
+          // Kästchen bleiben quadratisch
+          const s = r(Math.max(min.w, Math.min(size.w - d.orig.x, size.h - d.orig.y, d.orig.w + Math.max(dx, dy))));
+          return { w: s, h: s };
+        })()
+      : {
+          w: r(Math.max(min.w, Math.min(size.w - d.orig.x, d.orig.w + dx))),
+          h: r(Math.max(min.h, Math.min(size.h - d.orig.y, d.orig.h + dy))),
+        };
+    if (d.feld) feldPatch(d.key, patch);
+    else feldAendern(d.key, d.idx, patch);
   };
   const onFeldUp = () => {
     drag.current = null;
@@ -418,6 +594,19 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
       if (!EMAIL_RE.test(s.email.trim())) return `Die E-Mail-Adresse von ${s.name} ist ungültig.`;
     }
     if (rgiZaehlt && !rgiUser) return "Bitte auswählen, wer bei RGI unterschreibt.";
+    for (const f of felder) {
+      const name = f.beschriftung || FELD_TYP_LABEL[f.typ];
+      if (f.ausfueller !== "rgi") {
+        const k = ausfuellerKey(f.ausfueller);
+        const s = externe.find((x) => x.key === k);
+        if (!s || s.methode === "intern") return `Feld „${name}“: Bitte auswählen, wer es ausfüllt.`;
+      }
+      if (f.typ === "auswahl" && (!f.gruppe || !f.option)) return `Auswahl „${name}“: Gruppe und Wert angeben.`;
+      if (f.typ === "auswahl" && felder.some((x) => x.key !== f.key && x.typ === "auswahl" && x.gruppe === f.gruppe && x.option === f.option)) {
+        return `Auswahl „${f.gruppe}“: Der Wert „${f.option}“ kommt doppelt vor.`;
+      }
+      if (f.ausfueller === "rgi" && f.typ === "datum" && f.wert && !/^\d{4}-\d{2}-\d{2}$/.test(f.wert)) return `Feld „${name}“: ungültiges Datum.`;
+    }
     if (!frist || frist <= todayIso()) return "Die Frist muss in der Zukunft liegen.";
     if (!betreff.trim()) return "Bitte einen Betreff eingeben.";
     if (!text.trim()) return "Bitte einen E-Mail-Text eingeben.";
@@ -464,6 +653,30 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
             }]
           : []),
       ];
+      // Reihenfolge wie in `signers` oben: externe, dann ggf. RGI
+      const reihe = [...externe.map((s) => s.key), ...(rgiAuch && mitRgiZeile ? [INTERN_KEY] : [])];
+      const felderPayload = felder.map((f) => ({
+        feld_key: f.feld_key,
+        typ: f.typ,
+        page: f.page, x: f.x, y: f.y, w: f.w, h: f.h,
+        beschriftung: f.beschriftung.trim(),
+        gruppe: f.typ === "auswahl" ? f.gruppe : undefined,
+        option: f.typ === "auswahl" ? f.option : undefined,
+        ausfueller: f.ausfueller === "rgi" ? "rgi" : f.ausfueller.startsWith("rolle:") ? f.ausfueller : `signer:${reihe.indexOf(ausfuellerKey(f.ausfueller))}`,
+        pflicht: f.pflicht,
+        abhaengig_von: f.abhaengig.startsWith("feld:")
+          ? { feld_key: f.abhaengig.slice(5) }
+          : f.abhaengig.startsWith("gruppe:")
+          ? { gruppe: f.abhaengig.split(":")[1], option: f.abhaengig.split(":").slice(2).join(":") }
+          : undefined,
+        max_laenge: f.typ === "text" ? f.max_laenge ?? 200 : undefined,
+        wert: f.ausfueller === "rgi" && f.wert ? f.wert : undefined,
+        quelle: f.quelle,
+        anker: f.anker,
+      }));
+      const ankerAbdecken = erkennung?.vorlage
+        ? erkennung.felder.filter((f) => f.typ === "unterschrift" && f.anker).map((f) => f.anker)
+        : [];
       const res = await signAction<CreateErgebnis>("create", {
         typ,
         dokumentart,
@@ -483,6 +696,8 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
         // Spalte bleibt aus Kompatibilität; wirkt nur noch bei ETV-Protokollen
         kopie_dms: etv ? kopieDms : false,
         signers,
+        ...(felderPayload.length ? { felder: felderPayload } : {}),
+        ...(ankerAbdecken.length ? { anker_abdecken: ankerAbdecken } : {}),
       });
       const nurLinks = externe.every((s) => s.methode === "intern" || s.versand === "link");
       toast.success(nurLinks ? `Vorgang angelegt (${res.nummer})` : `Zur Unterschrift gesendet (${res.nummer})`);
@@ -526,7 +741,8 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
   const anderesDokument = () => {
     if (!onAnderesDokument) return;
     const vorschlaege = Array.isArray(startInfo.vorschlagUnterzeichner) ? startInfo.vorschlagUnterzeichner.length : 0;
-    const eingegeben = signer.length > vorschlaege || Object.values(placements).some((l) => l.length > 0);
+    const eingegeben = signer.length > vorschlaege || Object.values(placements).some((l) => l.length > 0) ||
+      felder.some((f) => f.quelle !== "vorlage");
     if (eingegeben) setZurueckFragen(true);
     else onAnderesDokument();
   };
@@ -592,51 +808,87 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
                 {zurueckKnopf}
                 <button
                   type="button"
-                  onClick={() => setPlatzieren((v) => !v)}
-                  disabled={!seiten.length || feldSigner.length === 0}
+                  onClick={() => { setPlatzieren((v) => !v); setGewaehlt(null); }}
+                  disabled={!seiten.length}
                   className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-[13px] font-semibold transition-colors disabled:opacity-50 ${
                     platzieren ? "border-[#ee7202] bg-[#FFF7ED] text-[#B35300]" : "border-[#D6D6D6] bg-white text-[#2B2B2B]"
                   }`}
-                  title={feldSigner.length === 0 ? "Zuerst Unterzeichner hinzufügen" : undefined}
                 >
                   <MousePointerClick className="h-4 w-4" />
-                  {platzieren ? "Fertig mit Feldern" : "Unterschriftsfelder platzieren"}
+                  {platzieren ? "Fertig mit Feldern" : "Felder platzieren"}
                 </button>
-                {platzieren && (
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {feldSigner.map((f) => {
-                      const an = f.key === aktiverFeldKey;
-                      const farbe = farbeFuer(f.key);
-                      return (
-                        <button
-                          key={f.key}
-                          type="button"
-                          onClick={() => setAktivFeldSigner(f.key)}
-                          className="inline-flex h-8 items-center gap-1.5 rounded-full border bg-white px-2.5 text-[12.5px] font-medium"
-                          style={{ borderColor: an ? farbe : "#D6D6D6", boxShadow: an ? `0 0 0 1px ${farbe}` : undefined }}
-                        >
-                          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold text-white" style={{ backgroundColor: farbe }}>
-                            {f.nr}
-                          </span>
-                          <span className="max-w-[120px] truncate">{f.name}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
+                {platzieren && <Werkzeugleiste werkzeug={werkzeug} onWerkzeug={(t) => { setWerkzeug(t); setGewaehlt(null); }} />}
                 {!platzieren && (
                   <span className="text-[12px] text-[#6B6B6B]">
-                    Optional. Ohne Felder wird ein Prüfblatt angehängt.
+                    {erkennung?.vorlage
+                      ? `Aus unserer Vorlage: ${felder.length} Ausfüllfeld${felder.length === 1 ? "" : "er"} übernommen.`
+                      : "Optional. Ohne Unterschriftsfelder wird ein Prüfblatt angehängt."}
                   </span>
                 )}
               </div>
               )}
-              {platzieren && (
-                <div className="px-4 pt-2 text-[12.5px] text-[#B35300]">
-                  Auf die Stelle im Dokument klicken, an der {feldSigner.find((f) => f.key === aktiverFeldKey)?.name ?? "der Unterzeichner"} unterschreiben soll.
+              {platzieren && werkzeug === "unterschrift" && (
+                <div className="flex flex-wrap items-center gap-1.5 px-4 pt-2">
+                  {feldSigner.length === 0 && <span className="text-[12.5px] text-[#B35300]">Zuerst Unterzeichner hinzufügen.</span>}
+                  {feldSigner.map((f) => {
+                    const an = f.key === aktiverFeldKey;
+                    const farbe = farbeFuer(f.key);
+                    return (
+                      <button
+                        key={f.key}
+                        type="button"
+                        onClick={() => setAktivFeldSigner(f.key)}
+                        className="inline-flex h-8 items-center gap-1.5 rounded-full border bg-white px-2.5 text-[12.5px] font-medium"
+                        style={{ borderColor: an ? farbe : "#D6D6D6", boxShadow: an ? `0 0 0 1px ${farbe}` : undefined }}
+                      >
+                        <span className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold text-white" style={{ backgroundColor: farbe }}>
+                          {f.nr}
+                        </span>
+                        <span className="max-w-[120px] truncate">{f.name}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
-              <div ref={vorschauBox.ref} className="min-h-0 flex-1 overflow-auto px-6 py-4">
+              {platzieren && (
+                <div className="px-4 pt-2 text-[12.5px] text-[#B35300]">
+                  {werkzeug === "unterschrift"
+                    ? `Auf die Stelle im Dokument klicken, an der ${feldSigner.find((f) => f.key === aktiverFeldKey)?.name ?? "der Unterzeichner"} unterschreiben soll.`
+                    : `Auf die Stelle im Dokument klicken, um ein Feld „${FELD_TYP_LABEL[werkzeug]}“ zu setzen. Feld anklicken, um es zu bearbeiten.`}
+                </div>
+              )}
+              {!etv && offeneVorschlaege.length > 0 && !erkennung?.vorlage && (
+                <div className="mx-4 mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-[#FFF7ED] px-3 py-2 text-[12.5px] text-[#2B2B2B]">
+                  <Sparkles className="h-4 w-4 shrink-0 text-[#B35300]" />
+                  <span className="min-w-0 flex-1">
+                    {offeneVorschlaege.length} mögliche{offeneVorschlaege.length === 1 ? "s" : ""} Ausfüllfeld{offeneVorschlaege.length === 1 ? "" : "er"} erkannt (Kästchen, Datum, TOP).
+                  </span>
+                  <button type="button" className="font-semibold text-[#B35300] underline underline-offset-2" onClick={() => setVorschlaegeZeigen((v) => !v)}>
+                    {vorschlaegeZeigen ? "Ausblenden" : "Anzeigen"}
+                  </button>
+                  <button
+                    type="button"
+                    className="inline-flex h-8 items-center rounded-lg bg-[#B35300] px-3 font-semibold text-white hover:bg-[#9A4700]"
+                    onClick={() => { offeneVorschlaege.forEach(vorschlagUebernehmen); setVorschlaegeZeigen(false); }}
+                  >
+                    Alle übernehmen
+                  </button>
+                </div>
+              )}
+              <div className="relative flex min-h-0 flex-1 flex-col">
+              {gewaehltesFeld && (
+                <div className="absolute inset-x-3 bottom-3 z-20">
+                  <FeldEigenschaften
+                    feld={gewaehltesFeld}
+                    alle={felder}
+                    ausfueller={ausfuellerOptionen}
+                    onChange={(patch) => feldPatch(gewaehltesFeld.key, patch)}
+                    onEntfernen={() => feldLoeschen(gewaehltesFeld.key)}
+                    onSchliessen={() => setGewaehlt(null)}
+                  />
+                </div>
+              )}
+              <div ref={vorschauBox.ref} className={`min-h-0 flex-1 overflow-auto px-6 py-4 ${gewaehltesFeld ? "pb-72" : ""}`}>
                 {urlFehler || pdfFehler ? (
                   <div className="flex flex-col items-center gap-2 py-20 text-center text-sm text-[#595959]">
                     <AlertCircle className="h-8 w-8 text-[#B35300]" />
@@ -680,6 +932,66 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
                             }}
                           >
                             {platzieren && <div className="pointer-events-none absolute inset-0 ring-2 ring-inset ring-[#ee7202]/40" />}
+                            {vorschlaegeZeigen && offeneVorschlaege.filter((v) => v.page === idx).map((v) => (
+                              <button
+                                key={`v-${v.feld_key}`}
+                                type="button"
+                                title={`Vorschlag übernehmen: ${FELD_TYP_LABEL[v.typ]} – ${v.beschriftung}`}
+                                className="absolute rounded-[2px] border border-dashed border-[#2F6FB5] bg-[#2F6FB5]/10 hover:bg-[#2F6FB5]/25"
+                                style={{ left: v.x * scale - 2, top: v.y * scale - 2, width: v.w * scale + 4, height: v.h * scale + 4 }}
+                                onClick={(e) => { e.stopPropagation(); vorschlagUebernehmen(v); }}
+                              />
+                            ))}
+                            {felder.filter((f) => f.page === idx).map((f) => {
+                              const farbe = feldFarbe(f);
+                              const an = gewaehlt === f.key;
+                              const kaestchen = f.typ === "ankreuz" || f.typ === "auswahl";
+                              return (
+                                <div
+                                  key={f.key}
+                                  id={`sig-feld-${f.key}`}
+                                  title={`${FELD_TYP_LABEL[f.typ]}: ${f.beschriftung || "ohne Beschriftung"}`}
+                                  className={`absolute select-none touch-none border-[1.5px] ${f.typ === "auswahl" ? "rounded-full" : "rounded-[2px]"}`}
+                                  style={{
+                                    left: f.x * scale, top: f.y * scale, width: f.w * scale, height: f.h * scale,
+                                    borderColor: farbe, backgroundColor: farbe + (an ? "33" : "1A"),
+                                    boxShadow: an ? `0 0 0 2px #fff, 0 0 0 4px ${farbe}` : undefined,
+                                    cursor: platzieren ? "move" : "pointer",
+                                    zIndex: an ? 5 : 2,
+                                  }}
+                                  onClick={(e) => { e.stopPropagation(); setGewaehlt(f.key); }}
+                                  onPointerDown={(e) => (platzieren ? onFeldDown(e, f.key, 0, "move", f) : undefined)}
+                                  onPointerMove={onFeldMove}
+                                  onPointerUp={onFeldUp}
+                                  onPointerCancel={onFeldUp}
+                                >
+                                  {f.ausfueller === "rgi" && f.wert && (
+                                    <span className="pointer-events-none absolute inset-0 flex items-center overflow-hidden px-0.5 text-[10px] font-semibold leading-none" style={{ color: farbe, justifyContent: kaestchen ? "center" : "flex-start" }}>
+                                      {kaestchen ? "✕" : f.typ === "datum" ? f.wert.split("-").reverse().join(".") : f.wert}
+                                    </span>
+                                  )}
+                                  {!kaestchen && !(f.ausfueller === "rgi" && f.wert) && (
+                                    <span className="pointer-events-none absolute inset-0 truncate px-0.5 text-[9.5px] font-medium leading-[1.6]" style={{ color: farbe }}>
+                                      {f.beschriftung || FELD_TYP_LABEL[f.typ]}
+                                    </span>
+                                  )}
+                                  {f.pflicht && (
+                                    <span className="pointer-events-none absolute -right-1.5 -top-2 text-[11px] font-bold leading-none" style={{ color: farbe }} aria-hidden>*</span>
+                                  )}
+                                  {platzieren && an && (
+                                    <div
+                                      className="absolute -bottom-2 -right-2 h-3.5 w-3.5 rounded-full border-2 border-white shadow"
+                                      style={{ backgroundColor: farbe, cursor: "nwse-resize" }}
+                                      onPointerDown={(e) => onFeldDown(e, f.key, 0, "resize", f)}
+                                      onPointerMove={onFeldMove}
+                                      onPointerUp={onFeldUp}
+                                      onPointerCancel={onFeldUp}
+                                      title="Größe ändern"
+                                    />
+                                  )}
+                                </div>
+                              );
+                            })}
                             {Object.entries(placements).flatMap(([key, list]) =>
                               list.map((p, i) => (p.page !== idx ? null : (
                                 <div
@@ -740,6 +1052,7 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
                     </PdfDocument>
                   </Suspense>
                 )}
+              </div>
               </div>
             </div>
 
@@ -812,6 +1125,25 @@ export function UnterschriftAnfordernDialog({ open, onOpenChange, quelleTyp, que
                     onAdd={hinzufuegen}
                   />
                 </div>
+
+                {/* AUSFÜLLFELDER */}
+                {!etv && felder.length > 0 && (
+                  <div className="space-y-2">
+                    <Abschnitt>Ausfüllfelder ({felder.length})</Abschnitt>
+                    <p className="text-[12.5px] leading-snug text-[#595959]">
+                      Der Unterzeichner füllt sie beim Unterschreiben direkt im Dokument aus. Vorab-Werte von RGI werden beim Senden festgeschrieben.
+                    </p>
+                    <FeldListe
+                      felder={felder}
+                      ausfueller={ausfuellerOptionen}
+                      aktiv={gewaehlt}
+                      onWaehlen={(k) => {
+                        setGewaehlt(k);
+                        window.setTimeout(() => document.getElementById(`sig-feld-${k}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 50);
+                      }}
+                    />
+                  </div>
+                )}
 
                 {/* Frist · Reihenfolge */}
                 <div className="grid grid-cols-2 gap-3">

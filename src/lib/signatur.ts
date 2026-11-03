@@ -41,6 +41,87 @@ export interface SignPlacement {
   h: number;
 }
 
+// ---------------------------------------------------------------
+// Ausfüllfelder (Tabelle sign_request_fields)
+// ---------------------------------------------------------------
+
+export type FeldTyp = "ankreuz" | "auswahl" | "datum" | "text";
+export type WerkzeugTyp = FeldTyp | "unterschrift";
+
+export const FELD_TYP_LABEL: Record<WerkzeugTyp, string> = {
+  unterschrift: "Unterschrift",
+  ankreuz: "Ankreuzfeld",
+  auswahl: "Auswahl",
+  datum: "Datum",
+  text: "Text",
+};
+
+export type FeldAbhaengigkeit = { feld_key: string } | { gruppe: string; option: string };
+
+/** Gespeichertes Ausfüllfeld (sign_request_fields). */
+export interface SignField {
+  id: string;
+  request_id: string;
+  feld_key: string;
+  typ: FeldTyp;
+  position: number;
+  page: number;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  beschriftung: string;
+  gruppe: string | null;
+  option: string | null;
+  ausfueller: "rgi" | "unterzeichner";
+  signer_id: string | null;
+  ausfueller_rolle: string | null;
+  pflicht: boolean;
+  abhaengig_von: FeldAbhaengigkeit | null;
+  max_laenge: number | null;
+  wert: string | null;
+  wert_gesetzt_von: string | null;
+  wert_gesetzt_am: string | null;
+  quelle: "manuell" | "vorlage" | "vorschlag";
+}
+
+/** Ergebnis von sign-request „felder_erkennen“ (Vorlagen-Anker bzw. Vorschläge). */
+export interface ErkanntesFeld {
+  feld_key: string;
+  typ: WerkzeugTyp;
+  page: number;
+  seite: number;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  beschriftung: string;
+  gruppe?: string;
+  option?: string;
+  ausfueller_rolle: string | null;
+  pflicht: boolean;
+  abhaengig_von?: FeldAbhaengigkeit;
+  max_laenge?: number;
+  quelle: "vorlage" | "vorschlag";
+  anker?: { page: number; x: number; y: number; w: number; h: number };
+}
+
+export interface FelderErkennung {
+  vorlage: boolean;
+  seitenzahl: number | null;
+  felder: ErkanntesFeld[];
+  vorschlaege: ErkanntesFeld[];
+  hinweis?: string;
+}
+
+/** Wert eines Feldes als Text (Liste, Nachweis). */
+export const feldWertText = (f: Pick<SignField, "typ" | "wert">) => {
+  if (!f.wert) return "–";
+  if (f.typ === "datum") return /^\d{4}-\d{2}-\d{2}$/.test(f.wert) ? f.wert.split("-").reverse().join(".") : f.wert;
+  if (f.typ === "ankreuz" || f.typ === "auswahl") return "angekreuzt";
+  return f.wert;
+};
+
 export interface SignSigner {
   id: string;
   request_id: string;
@@ -529,6 +610,22 @@ export const useSignRequest = (id: string | null | undefined) =>
     },
   });
 
+/** Ausfüllfelder eines Vorgangs (Büro, RLS is_rgi_staff). */
+export const useSignFields = (requestId: string | null | undefined) =>
+  useQuery({
+    queryKey: [...SIGNATUR_KEY, "felder", requestId],
+    enabled: !!requestId,
+    queryFn: async (): Promise<SignField[]> => {
+      const { data, error } = await (supabase as any)
+        .from("sign_request_fields")
+        .select("*")
+        .eq("request_id", requestId)
+        .order("position", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as SignField[];
+    },
+  });
+
 export const useSignEvents = (requestId: string | null | undefined) =>
   useQuery({
     queryKey: [...SIGNATUR_KEY, "events", requestId],
@@ -629,7 +726,7 @@ export const useBueroMitarbeiter = () =>
 export type SignActionName =
   | "create" | "preview_mail" | "sign_internal" | "remind" | "withdraw"
   | "accept_paper" | "reject_paper" | "assign_paper_email" | "urls" | "nachweis"
-  | "create_incoming" | "complete_incoming" | "neuer_link" | "dms_ablegen";
+  | "create_incoming" | "complete_incoming" | "neuer_link" | "dms_ablegen" | "felder_erkennen";
 
 /**
  * Abgeschlossener ausgehender Vorgang, dessen Endfassung noch nicht im DMS liegt

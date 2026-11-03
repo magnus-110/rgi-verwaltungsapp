@@ -18,7 +18,7 @@ import {
   formatDate, formatDateTime, fortschritt, oeffneSignUrl, protokollEintraege, quellePfad, signAction,
   signerName, signerStatusLang, SIG, TON_FARBE, useSignEvents, useSignInvalidate, useSignRequest,
   aktiveSigner, erinnernMeldung, istNurLink, kannNeuenLink, oeffneQuellePdf, istFirmenQuelle, nochNichtImDms,
-  type SignEvent, type SignRequest, type SignSigner,
+  type SignEvent, type SignRequest, type SignSigner, FELD_TYP_LABEL, feldWertText, useSignFields,
 } from "@/lib/signatur";
 import { DmsAblegenDialog, FIRMA_NAME } from "./DmsAblegenDialog";
 import { NeuerLinkDialog } from "./LinkKopieren";
@@ -50,6 +50,7 @@ export function VorgangDetail({ requestId, onClose, imSheet }: { requestId: stri
   const invalidate = useSignInvalidate();
   const { data: r, isLoading } = useSignRequest(requestId);
   const { data: events = [] } = useSignEvents(requestId);
+  const { data: felder = [] } = useSignFields(requestId);
   const [busy, setBusy] = useState<string | null>(null);
   const [zurueckFrage, setZurueckFrage] = useState(false);
   const [linkSigner, setLinkSigner] = useState<SignSigner | null>(null);
@@ -208,6 +209,32 @@ export function VorgangDetail({ requestId, onClose, imSheet }: { requestId: stri
             }}
             onEndfassung={endfassung}
           />
+        )}
+
+        {/* AUSFÜLLFELDER */}
+        {felder.length > 0 && (
+          <div>
+            <Abschnitt className="mb-2">Ausfüllfelder ({felder.filter((f) => f.wert).length} von {felder.length} ausgefüllt)</Abschnitt>
+            <ul className="divide-y divide-[#EEEEEE] rounded-xl border border-[#E5E5E5] bg-white">
+              {felder.map((f) => {
+                const wer = f.ausfueller === "rgi" ? "RGI (vorab)" : r.signers.find((x) => x.id === f.signer_id)?.name ?? "Unterzeichner";
+                return (
+                  <li key={f.id} className="flex items-start gap-3 px-3 py-2 text-[13px]">
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-[#2B2B2B]">{f.beschriftung || FELD_TYP_LABEL[f.typ]}</div>
+                      <div className="text-[12px] text-[#6B6B6B]">
+                        {FELD_TYP_LABEL[f.typ]} · {wer}{f.pflicht ? " · Pflicht" : ""}
+                        {f.wert && f.wert_gesetzt_am ? ` · ${f.wert_gesetzt_von ?? ""} am ${formatDateTime(f.wert_gesetzt_am)}` : ""}
+                      </div>
+                    </div>
+                    <div className={`shrink-0 text-right font-semibold ${f.wert ? "text-[#2B2B2B]" : "text-[#9A9A9A]"}`}>
+                      {f.wert ? feldWertText(f) : "offen"}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
         )}
 
         {/* PROTOKOLL */}

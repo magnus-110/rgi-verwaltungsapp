@@ -34,7 +34,8 @@ import {
   vorgangLaden,
   vorlageLaden,
 } from "./ablauf.ts";
-import { istPdf, seitenZaehlen } from "./pdf.ts";
+import { PDFDocument, istPdf, seitenZaehlen, stempeln } from "./pdf.ts";
+import { felderPlanen, wertText } from "./felder.ts";
 
 // deno-lint-ignore no-explicit-any
 type Body = any;
@@ -188,6 +189,8 @@ export async function anlegen(db: Db, b: Body, userId: string | null, test: bool
   }).select("id, nummer").single();
   if (insErr) throw new Fehler(500, `Vorgang konnte nicht angelegt werden: ${insErr.message}`);
   const id = neu.id as string;
+  let feldAnzahl = 0;
+  let vorab: string[] = [];
 
   try {
     // Quelle kopieren (ETV: leere Unterschriftsseite anhängen) und Seiten zählen
@@ -200,18 +203,74 @@ export async function anlegen(db: Db, b: Body, userId: string | null, test: bool
     await speichern(db, pfad.quelle(id), quelle);
     await db.from("sign_requests").update({ seitenzahl: seiten }).eq("id", id);
 
+    // Ausfüllfelder (und Unterschriftsfelder aus der Feldliste) prüfen; Vorab-Werte werden festgeschrieben
+    const plan = felderPlanen(
+      b.felder,
+      seiten,
+      signerZeilen.map((s: Body, i: number) => ({ index: i, methode: s.methode, rolle_key: s.rolle_key, rolle: s.rolle })),
+      userId,
+      await mitarbeiterName(db, userId),
+    );
+    const extraPl = new Map<number, Body[]>();
+    for (const u of plan.unterschriften) {
+      const idx = u.signerIndex === "rgi"
+        ? signerZeilen.findIndex((s: Body) => s.methode === "intern" && s.rolle_key === "verwaltung") >= 0
+          ? signerZeilen.findIndex((s: Body) => s.methode === "intern" && s.rolle_key === "verwaltung")
+          : signerZeilen.findIndex((s: Body) => s.methode === "intern")
+        : u.signerIndex;
+      if (idx < 0) throw new Fehler(400, "Ein Unterschriftsfeld ist für RGI vorgesehen, aber RGI unterschreibt nicht mit.");
+      const { signerIndex: _x, ...lage } = u;
+      extraPl.set(idx, [...(extraPl.get(idx) ?? []), lage]);
+    }
+
     const zeilen = signerZeilen.map((s: Body, i: number) => {
       const { _placements, ...rest } = s;
+      const extra = extraPl.get(i) ?? [];
+      const roh = extra.length ? [...(Array.isArray(_placements) ? _placements : []), ...extra] : _placements;
       return {
         ...rest,
         request_id: id,
-        placements: platzierungenPruefen(_placements, seiten, s.name),
+        placements: platzierungenPruefen(roh, seiten, s.name),
         status: reihenfolge === "nacheinander" && i > 0 ? "wartet" : "offen",
         eingeladen_at: s.methode === "intern" && (reihenfolge === "gleichzeitig" || i === 0) ? new Date().toISOString() : null,
       };
     });
-    const { error: sErr } = await db.from("sign_request_signers").insert(zeilen);
+    const { data: neueSigner, error: sErr } = await db.from("sign_request_signers").insert(zeilen).select("id, position");
     if (sErr) throw new Fehler(500, `Unterzeichner konnten nicht gespeichert werden: ${sErr.message}`);
+
+    // Unsichtbare Vorlagen-Anker der Unterschriftsfelder (ohne eigenes Ausfüllfeld) ebenfalls überdecken
+    const ankerAbdecken = (Array.isArray(b.anker_abdecken) ? b.anker_abdecken : []).slice(0, 40)
+      .map((a: Body) => ({ page: Number(a?.page), x: Number(a?.x), y: Number(a?.y), w: Number(a?.w), h: Number(a?.h) }))
+      .filter((a: Body) => Number.isInteger(a.page) && a.page >= 0 && a.page < seiten && [a.x, a.y, a.w, a.h].every(Number.isFinite) && a.w > 0 && a.h > 0 && a.w < 400 && a.h < 20)
+      .map((a: Body) => ({ typ: "unterschrift", page: a.page, x: 0, y: 0, w: 0, h: 0, wert: null, anker: a }));
+    if (ankerAbdecken.length && !plan.felder.length) {
+      const d = await PDFDocument.load(quelle, { ignoreEncryption: true, updateMetadata: false });
+      await stempeln(d, [], { nummer: neu.nummer, felder: ankerAbdecken });
+      await speichern(db, pfad.quelle(id), await d.save({ useObjectStreams: false }));
+    }
+
+    if (plan.felder.length) {
+      const idVon = (index: number) => (neueSigner ?? []).find((x: Body) => x.position === index + 1)?.id ?? null;
+      const feldZeilen: Body[] = plan.felder.map((p) => ({
+        ...p.zeile,
+        request_id: id,
+        signer_id: p.signerIndex === null ? null : idVon(p.signerIndex),
+      }));
+      const { error: fErr } = await db.from("sign_request_fields").insert(feldZeilen);
+      if (fErr) throw new Fehler(500, `Felder konnten nicht gespeichert werden: ${fErr.message}`);
+      feldAnzahl = feldZeilen.length;
+      // Vorab-Werte von RGI fest in die Quelle setzen (auch für Papier-Unterzeichner sichtbar) und
+      // unsichtbare Vorlagen-Anker überdecken. Beim Abschluss werden nur noch die übrigen Felder gesetzt.
+      const fest = feldZeilen.filter((f: Body) => (f.ausfueller === "rgi" && f.wert) || f.anker)
+        .map((f: Body) => ({ ...f, wert: f.ausfueller === "rgi" ? f.wert : null }))
+        .concat(ankerAbdecken);
+      if (fest.length) {
+        const d = await PDFDocument.load(quelle, { ignoreEncryption: true, updateMetadata: false });
+        await stempeln(d, [], { nummer: neu.nummer, felder: fest });
+        await speichern(db, pfad.quelle(id), await d.save({ useObjectStreams: false }));
+      }
+      vorab = plan.felder.filter((p) => p.zeile.wert).map((p) => `${p.zeile.beschriftung || p.zeile.feld_key}: ${wertText(p.zeile as never)}`);
+    }
   } catch (e) {
     // Halb angelegten Vorgang wieder entfernen
     await db.from("sign_requests").delete().eq("id", id);
@@ -224,6 +283,12 @@ export async function anlegen(db: Db, b: Body, userId: string | null, test: bool
     userId,
     details: { quelle_typ: quelleTyp, quelle_label: v.quelle_label, unterzeichner: signers.length },
   });
+  if (feldAnzahl) {
+    await ereignis(db, id, "felder_angelegt", `${feldAnzahl} Ausfüllfeld${feldAnzahl === 1 ? "" : "er"} angelegt${vorab.length ? ` – vorab von RGI ausgefüllt: ${vorab.join("; ")}` : ""}`.slice(0, 900), {
+      userId,
+      details: { anzahl: feldAnzahl, vorab },
+    });
+  }
 
   // ---- Einladungen (bzw. bei „Nur Link“: Link erzeugen und nur in der Antwort zurückgeben)
   const links: Record<string, string> = {};
@@ -258,6 +323,14 @@ export async function anlegen(db: Db, b: Body, userId: string | null, test: bool
     ...(fehler.length ? { versand_fehler: fehler } : {}),
     ...(test ? { test_links: links } : {}),
   };
+}
+
+/** Name des Mitarbeiters (für „ausgefüllt von“ bei Vorab-Werten). */
+async function mitarbeiterName(db: Db, userId: string | null): Promise<string | null> {
+  if (!uuidOderNull(userId)) return null;
+  const { data } = await db.from("profiles").select("first_name, last_name").eq("user_id", userId).maybeSingle();
+  const n = [data?.first_name, data?.last_name].filter(Boolean).join(" ").trim();
+  return n ? `${n} (RGI Immobilien)` : null;
 }
 
 // ================================================================ remind

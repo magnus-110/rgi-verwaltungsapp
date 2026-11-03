@@ -6,7 +6,8 @@
 // Aktionen: create · preview_mail · sign_internal · remind · withdraw · accept_paper ·
 //           reject_paper · assign_paper_email · urls · nachweis · neuer_link · cron ·
 //           create_incoming · complete_incoming (Fall B, eingehende Dokumente selbst unterschreiben) ·
-//           dms_ablegen (Endfassung eines ausgehenden Vorgangs von Hand im DMS ablegen, _shared/signatur/ablage.ts)
+//           dms_ablegen (Endfassung eines ausgehenden Vorgangs von Hand im DMS ablegen, _shared/signatur/ablage.ts) ·
+//           felder_erkennen (Ausfüllfelder: Vorlagen-Anker bzw. Vorschläge in fremden PDFs, _shared/signatur/felderkennung.ts)
 //
 // Testmodus (nur mit x-cron-secret): body.test_user_id handelt als dieser Mitarbeiter,
 // body.test = true liefert bei create/remind/reject_paper die Klartext-Links zurück.
@@ -55,6 +56,9 @@ import { anlegen, erinnern, neuerLink, selbstErinnern } from "../_shared/signatu
 import { eingehendAbschliessen, eingehendAnlegen } from "../_shared/signatur/eingehend.ts";
 import { dmsAblegen } from "../_shared/signatur/ablage.ts";
 import { istHeic, istJpg, istPdf, istPng, nachweisPdf } from "../_shared/signatur/pdf.ts";
+import { felderLaden } from "../_shared/signatur/felder.ts";
+import { ausfuellfelderErkennen } from "../_shared/signatur/felderkennung.ts";
+import { ERLAUBTE_BUCKETS } from "../_shared/signatur/vorgang.ts";
 
 type Db = ReturnType<typeof adminClient>;
 // deno-lint-ignore no-explicit-any
@@ -101,6 +105,8 @@ Deno.serve(async (req) => {
         return json(await eingehendAbschliessen(db, body, userId));
       case "dms_ablegen":
         return json(await dmsAblegen(db, body, userId));
+      case "felder_erkennen":
+        return json(await felderErkennen(db, body));
       case "cron":
         if (!istCron) return json({ error: "Nur für den Zeitplan." }, 403);
         return json(await zeitplan(db));
@@ -298,6 +304,25 @@ async function papierMailZuordnen(db: Db, b: Body, userId: string | null) {
   return { ok: true, seiten: r.seiten, warnung: r.warnung, ...(a.uebergangen.length ? { uebergangen: a.uebergangen } : {}) };
 }
 
+// ================================================================ felder_erkennen
+
+/** Ausfüllfelder im Quell-PDF erkennen (vor dem Anlegen, für den Dialog „Unterschrift anfordern“). */
+async function felderErkennen(db: Db, b: Body) {
+  const bucket = String(b.source_bucket || BUCKET);
+  if (!ERLAUBTE_BUCKETS.includes(bucket)) throw new Fehler(400, "Ungültiger Speicherort der Quelle.");
+  const path = String(b.source_path || "");
+  if (!path || path.includes("..") || path.startsWith("/") || path.length > 500) throw new Fehler(400, "Ungültiger Pfad der Quelldatei.");
+  const bytes = await laden(db, bucket, path);
+  if (!istPdf(bytes)) throw new Fehler(400, "Die Quelldatei ist kein PDF.");
+  if (bytes.byteLength > 40 * 1024 * 1024) return { vorlage: false, seitenzahl: null, felder: [], vorschlaege: [] };
+  try {
+    return await ausfuellfelderErkennen(bytes);
+  } catch (e) {
+    console.warn("[sign-request] Felderkennung fehlgeschlagen:", e);
+    return { vorlage: false, seitenzahl: null, felder: [], vorschlaege: [], hinweis: "Felder konnten nicht erkannt werden." };
+  }
+}
+
 // ================================================================ urls / nachweis
 
 async function vorhanden(db: Db, path: string): Promise<boolean> {
@@ -331,6 +356,7 @@ async function nachweis(db: Db, b: Body, userId: string | null) {
     sha256: v.final_sha256,
     zeitstempel: v.zeitstempel_zeit ? { zeit: v.zeitstempel_zeit, dienst: v.zeitstempel_dienst || "" } : null,
     ohneKopie: istEtv(v),
+    felder: await felderLaden(db, v.id),
   });
   await speichern(db, pfad.nachweis(v.id), bytes);
   await ereignis(db, v.id, "nachweis", "Nachweis als PDF erstellt", { userId });

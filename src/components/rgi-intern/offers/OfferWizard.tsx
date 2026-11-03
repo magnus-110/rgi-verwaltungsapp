@@ -20,6 +20,19 @@ import {
   termYearsShort, termYearsWord, toIsoDate, type FeeBasis,
 } from "@/types/rgiContracts";
 import { ANGEBOT_VERTRAGSWERTE } from "@shared/angebot-vorgaben.ts";
+import { bestellungArt } from "@shared/vertrag-ausfuellfelder.ts";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+
+/** „Bestellung erfolgte“ im Vertrag: leer = offen (füllt der Vertreter der GdW beim Unterschreiben aus). */
+const BESTELLUNG_OPTIONEN = [
+  { wert: "offen", text: "Offen lassen – füllt der Vertreter der GdW beim elektronischen Unterschreiben aus" },
+  { wert: "teilungserklaerung", text: "durch Teilungserklärung / Gemeinschaftsordnung" },
+  { wert: "beschluss", text: "durch Beschluss der Eigentümerversammlung" },
+  { wert: "umlaufbeschluss", text: "durch Umlaufbeschluss (§ 23 Abs. 3 WEG)" },
+] as const;
+const BESTELLUNG_FELDER = [
+  "bestellung.teilungserklaerung_vom", "bestellung.beschluss_vom", "bestellung.beschluss_top", "bestellung.umlaufbeschluss_vom",
+];
 
 interface Props {
   open: boolean;
@@ -550,6 +563,65 @@ export function OfferWizard({ open, onOpenChange, offer, vorlage, onSaved }: Pro
                     Begründung der Gemeinschaft höchstens drei Jahre.
                   </p>
                 )}
+              </div>
+
+              {/* Bestellung erfolgte (Rubrum) */}
+              <div className="border rounded-md p-4">
+                <Label className="text-sm">Bestellung erfolgte</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Wenn bekannt, hier eintragen – dann steht es fest im Vertrag. Sonst bleibt es offen und der Vertreter
+                  der GdW kreuzt beim elektronischen Unterschreiben genau eine Möglichkeit an.
+                </p>
+                <RadioGroup
+                  className="mt-3 gap-2"
+                  value={bestellungArt(defaults) ?? "offen"}
+                  onValueChange={(v) =>
+                    setDefaults((d) => {
+                      const n: Record<string, string> = { ...d, "bestellung.art": v };
+                      // Angaben der anderen Möglichkeiten entfernen, damit nichts Falsches gedruckt wird
+                      const behalten = v === "teilungserklaerung" ? ["bestellung.teilungserklaerung_vom"]
+                        : v === "beschluss" ? ["bestellung.beschluss_vom", "bestellung.beschluss_top"]
+                        : v === "umlaufbeschluss" ? ["bestellung.umlaufbeschluss_vom"] : [];
+                      for (const k of BESTELLUNG_FELDER) if (!behalten.includes(k)) delete n[k];
+                      return n;
+                    })
+                  }
+                >
+                  {BESTELLUNG_OPTIONEN.map((o) => (
+                    <div key={o.wert} className="flex items-start gap-2">
+                      <RadioGroupItem value={o.wert} id={`bestellung-${o.wert}`} className="mt-0.5" />
+                      <label htmlFor={`bestellung-${o.wert}`} className="text-sm leading-snug cursor-pointer">{o.text}</label>
+                    </div>
+                  ))}
+                </RadioGroup>
+                {(() => {
+                  const art = bestellungArt(defaults);
+                  const datumFeld = (key: string, label: string) => (
+                    <div>
+                      <Label className="text-xs text-muted-foreground">{label}</Label>
+                      <Input className="mt-1" type="date" value={toIsoDate(defaults[key]) ?? ""}
+                        onChange={(e) => setDefaults((d) => ({ ...d, [key]: e.target.value }))} />
+                    </div>
+                  );
+                  if (!art) return null;
+                  return (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3 pl-6">
+                      {art === "teilungserklaerung" && datumFeld("bestellung.teilungserklaerung_vom", "Teilungserklärung / GO vom")}
+                      {art === "beschluss" && datumFeld("bestellung.beschluss_vom", "Eigentümerversammlung vom")}
+                      {art === "beschluss" && (
+                        <div>
+                          <Label className="text-xs text-muted-foreground">zu TOP</Label>
+                          <Input className="mt-1" maxLength={12} value={defaults["bestellung.beschluss_top"] ?? ""}
+                            onChange={(e) => setDefaults((d) => ({ ...d, "bestellung.beschluss_top": e.target.value }))} />
+                        </div>
+                      )}
+                      {art === "umlaufbeschluss" && datumFeld("bestellung.umlaufbeschluss_vom", "Umlaufbeschluss vom")}
+                      <p className="text-xs text-muted-foreground sm:col-span-3">
+                        Leer gelassene Angaben füllt der Vertreter der GdW beim elektronischen Unterschreiben aus.
+                      </p>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Vorbelegte Zusatzleistungen */}
