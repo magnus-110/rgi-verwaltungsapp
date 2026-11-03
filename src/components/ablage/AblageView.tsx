@@ -15,6 +15,7 @@ import {
   Pencil,
   PenLine,
   Send,
+  Stamp,
   StickyNote,
   Trash2,
   Upload,
@@ -65,6 +66,8 @@ import { AttachmentPreviewDialog } from '@/components/email/AttachmentPreviewDia
 import { SaveAttachmentToBuildingDialog } from '@/components/email/SaveAttachmentToBuildingDialog';
 import { SignPdfDialog } from '@/components/documents/SignPdfDialog';
 import { currentSigner, logDocumentSignature } from '@/lib/documentSigning';
+import { BezahltStempelDialog } from '@/components/documents/BezahltStempelDialog';
+import { datumDe } from '@/lib/bezahltStempel';
 
 /**
  * Die Büro-Ablage — dieselbe Ansicht als Seite (unter Aufgaben) und als
@@ -129,6 +132,8 @@ export function AblageView({ variant }: { variant: 'page' | 'panel' }) {
   // Unterschreiben: welcher Eintrag gerade unterschrieben wird
   const [signZiel, setSignZiel] = useState<{ item: AblageItem; url: string } | null>(null);
   const [dmsItems, setDmsItems] = useState<AblageItem[]>([]);
+  // Bezahlt-Stempel: Kopie kommt als neuer Eintrag in die Ablage
+  const [stempelItem, setStempelItem] = useState<AblageItem | null>(null);
   const [mailLaedt, setMailLaedt] = useState(false);
 
   // „Neu" bleibt sichtbar, solange die Ansicht offen ist — auch wenn der
@@ -748,11 +753,25 @@ export function AblageView({ variant }: { variant: 'page' | 'panel' }) {
                             <FileText className="mr-2 h-4 w-4" /> Öffnen
                           </DropdownMenuItem>
                         )}
+                        <DropdownMenuItem onClick={() => anEmail([item])} disabled={mailLaedt}>
+                          <Paperclip className="mr-2 h-4 w-4" />
+                          {offeneMail && item.kind === 'file' ? 'An die offene E-Mail anhängen' : 'Per E-Mail senden'}
+                        </DropdownMenuItem>
+                        {item.kind === 'file' && (
+                          <DropdownMenuItem onClick={() => ablageHerunterladen(item)}>
+                            <Download className="mr-2 h-4 w-4" /> Herunterladen
+                          </DropdownMenuItem>
+                        )}
                         {item.kind === 'file' && (
                           // Erst nach dem Schließen des Menüs umschalten — sonst holt
                           // sich das Menü den Fokus zurück und das Feld schließt sofort.
                           <DropdownMenuItem onClick={() => window.setTimeout(() => starteUmbenennen(item), 150)}>
                             <Pencil className="mr-2 h-4 w-4" /> Umbenennen
+                          </DropdownMenuItem>
+                        )}
+                        {istPdf(item) && (
+                          <DropdownMenuItem onClick={() => setStempelItem(item)}>
+                            <Stamp className="mr-2 h-4 w-4" /> Bezahlt-Stempel
                           </DropdownMenuItem>
                         )}
                         {istPdf(item) && (
@@ -831,6 +850,23 @@ export function AblageView({ variant }: { variant: 'page' | 'panel' }) {
             {offeneMail ? 'An die offene E-Mail anhängen' : 'Per E-Mail senden'}
           </Button>
         )}
+      />
+      <BezahltStempelDialog
+        open={!!stempelItem}
+        onOpenChange={o => !o && setStempelItem(null)}
+        quelle={stempelItem?.file_path ? { bucket: ABLAGE_BUCKET, path: stempelItem.file_path, name: stempelItem.file_name || 'Rechnung.pdf' } : null}
+        ortHinweis="Sie liegt jetzt zusätzlich in der Ablage — für dieselben Kollegen wie das Original."
+        onSave={async ({ blob, fileName, isoDatum }) => {
+          if (!stempelItem) return;
+          const ok = await dateien.mutateAsync({
+            files: [new File([blob], fileName, { type: 'application/pdf' })],
+            recipientIds: stempelItem.recipient_ids || [],
+            note: `Bezahlt am ${datumDe(isoDatum)}`,
+            source: 'upload',
+          });
+          if (!ok) throw new Error('Konnte nicht in die Ablage gelegt werden');
+        }}
+        onPerMail={unterschriebenPerMail}
       />
       <SaveAttachmentToBuildingDialog
         open={dmsItems.length > 0}

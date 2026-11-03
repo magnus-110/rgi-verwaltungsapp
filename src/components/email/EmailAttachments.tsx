@@ -1,10 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Paperclip, Download, FileText, Image, FileSpreadsheet, File, Sparkles, Loader2, Check, FolderArchive, ArrowDownToLine, ChevronDown, Layers, X, ArrowUp, ArrowDown, FileArchive, RefreshCw, Inbox, PenLine, Reply, FileSignature, Stamp } from "lucide-react";
+import { Paperclip, Download, FileText, Image, FileSpreadsheet, File, Sparkles, Loader2, Check, FolderArchive, ArrowDownToLine, ChevronDown, Layers, X, ArrowUp, ArrowDown, FileArchive, RefreshCw, Inbox, PenLine, Reply, FileSignature, Stamp, MoreHorizontal } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { SaveAttachmentToBuildingDialog } from "./SaveAttachmentToBuildingDialog";
@@ -19,6 +19,8 @@ import { useComposeEmail } from "@/contexts/ComposeEmailContext";
 import { UnterschriftAnfordernDialog } from "@/components/signatur/UnterschriftAnfordernDialog";
 import { ZurUnterschriftDialog } from "@/components/signatur/ZurUnterschriftDialog";
 import { dokumentartAusName, titelAusDateiname } from "@/lib/signatur";
+import { BezahltStempelDialog } from "@/components/documents/BezahltStempelDialog";
+import { bezahltAlsMailAnhang } from "@/lib/bezahltStempel";
 
 interface EmailAttachmentsProps {
   emailId: string;
@@ -96,6 +98,8 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
   const [anfordernAnhang, setAnfordernAnhang] = useState<{ id: string; path: string; name: string } | null>(null);
   // „Zur Unterschrift“: eingehendes Dokument, das wir selbst unterschreiben sollen
   const [zurUnterschrift, setZurUnterschrift] = useState(false);
+  // Bezahlt-Stempel: gestempelte Kopie kommt als weiterer Anhang an diese E-Mail
+  const [stempelAnhang, setStempelAnhang] = useState<{ path: string; name: string } | null>(null);
   const { data: mailKontext } = useQuery({
     queryKey: ["email-sign-kontext", emailId],
     queryFn: async () => {
@@ -760,85 +764,80 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
                 )}
                 <Download className="h-3 w-3 shrink-0" />
               </div>
-              {isPdf(att.mime_type, att.file_name) && att.file_path && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-auto py-1.5 px-1.5"
-                  title="Unterschreiben"
-                  onClick={() => handleOpenSign(att.file_path!, att.file_name)}
-                >
-                  <PenLine className="h-3.5 w-3.5" />
-                </Button>
-              )}
-              {isPdf(att.mime_type, att.file_name) && att.file_path && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-auto py-1.5 px-1.5"
-                  title="Unterschrift anfordern"
-                  aria-label="Unterschrift anfordern"
-                  onClick={() => setAnfordernAnhang({ id: att.id, path: att.file_path!, name: att.file_name })}
-                >
-                  <FileSignature className="h-3.5 w-3.5" />
-                </Button>
-              )}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-auto py-1.5 px-1.5"
-                title="In Stammakte ablegen"
-                onClick={() => {
-                  if (!att.file_path) return;
-                  setPendingAttachments([{ name: att.file_name, path: att.file_path, size: att.file_size ? Number(att.file_size) : null, mimeType: att.mime_type }]);
-                  setSaveToBuildingOpen(true);
-                }}
-              >
-                <FolderArchive className="h-3.5 w-3.5" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-auto py-1.5 px-1.5"
-                title="In die Büro-Ablage legen"
-                onClick={() => {
-                  const a = alsAblageAnhang(att);
-                  if (a) setAblageAnhaenge([a]);
-                }}
-              >
-                <Inbox className="h-3.5 w-3.5" />
-              </Button>
-              {canImport && (
+              {att.file_path && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
                       variant={isImported ? "secondary" : "ghost"}
                       size="sm"
                       className="h-auto py-1.5 px-1.5"
-                      disabled={isImporting || isImported}
-                      title={isImported ? "Bereits importiert" : "Als Rechnung importieren"}
+                      disabled={isImporting}
+                      title="Aktionen"
+                      aria-label={`Aktionen für ${att.file_name}`}
                     >
                       {isImporting ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       ) : isImported ? (
                         <Check className="h-3.5 w-3.5 text-primary" />
                       ) : (
-                        <>
-                          <Sparkles className="h-3.5 w-3.5" />
-                          <ChevronDown className="h-3 w-3 ml-0.5" />
-                        </>
+                        <MoreHorizontal className="h-3.5 w-3.5" />
                       )}
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => handleImportAsInvoice(att, false)}>
-                      <Sparkles className="h-3.5 w-3.5 mr-2" />
-                      Eingangsrechnung (zu zahlen)
+                  <DropdownMenuContent align="end" className="w-64">
+                    <DropdownMenuItem onClick={() => handleOpenPreview(att.file_path!, att.file_name, att.mime_type)}>
+                      <FileText className="h-3.5 w-3.5 mr-2" />
+                      Öffnen
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleImportAsInvoice(att, true)}>
-                      <ArrowDownToLine className="h-3.5 w-3.5 mr-2 text-green-600" />
-                      Beleg für Zahlungseingang
+                    {canImport && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem disabled={isImported} onClick={() => handleImportAsInvoice(att, false)}>
+                          <Sparkles className="h-3.5 w-3.5 mr-2" />
+                          Als Eingangsrechnung importieren
+                        </DropdownMenuItem>
+                        <DropdownMenuItem disabled={isImported} onClick={() => handleImportAsInvoice(att, true)}>
+                          <ArrowDownToLine className="h-3.5 w-3.5 mr-2 text-green-600" />
+                          Als Zahlungseingang importieren
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setPendingAttachments([{ name: att.file_name, path: att.file_path!, size: att.file_size ? Number(att.file_size) : null, mimeType: att.mime_type }]);
+                        setSaveToBuildingOpen(true);
+                      }}
+                    >
+                      <FolderArchive className="h-3.5 w-3.5 mr-2" />
+                      Im DMS ablegen
                     </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        const a = alsAblageAnhang(att);
+                        if (a) setAblageAnhaenge([a]);
+                      }}
+                    >
+                      <Inbox className="h-3.5 w-3.5 mr-2" />
+                      In die Ablage legen
+                    </DropdownMenuItem>
+                    {isPdf(att.mime_type, att.file_name) && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => setStempelAnhang({ path: att.file_path!, name: att.file_name })}>
+                          <Stamp className="h-3.5 w-3.5 mr-2" />
+                          Bezahlt-Stempel
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleOpenSign(att.file_path!, att.file_name)}>
+                          <PenLine className="h-3.5 w-3.5 mr-2" />
+                          Unterschreiben
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setAnfordernAnhang({ id: att.id, path: att.file_path!, name: att.file_name })}>
+                          <FileSignature className="h-3.5 w-3.5 mr-2" />
+                          Unterschrift anfordern
+                        </DropdownMenuItem>
+                      </>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
               )}
@@ -894,6 +893,17 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
           }}
         />
       )}
+      <BezahltStempelDialog
+        open={!!stempelAnhang}
+        onOpenChange={(o) => !o && setStempelAnhang(null)}
+        quelle={stempelAnhang ? { bucket: "email-attachments", ...stempelAnhang } : null}
+        ortHinweis="Sie hängt jetzt zusätzlich an dieser E-Mail."
+        onSave={async ({ blob, fileName }) => {
+          await bezahltAlsMailAnhang({ emailId, blob, fileName });
+          queryClient.invalidateQueries({ queryKey: ["email-attachments", emailId] });
+        }}
+        onPerMail={(file) => openCompose({ attachments: [file] })}
+      />
       <SignPdfDialog
         open={!!signTarget}
         onOpenChange={(o) => !o && setSignTarget(null)}
