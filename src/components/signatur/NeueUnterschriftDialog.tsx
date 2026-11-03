@@ -12,7 +12,7 @@
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AlertCircle, ArrowLeft, Check, ChevronLeft, ChevronRight, Eye, FileText, FolderOpen, Loader2, Search, Upload, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, Check, ChevronLeft, ChevronRight, Eye, FilePlus2, FileText, FolderOpen, Loader2, Search, Upload, X } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
@@ -22,6 +22,7 @@ import { eingabeKlasse, FeldLabel, SigButton } from "./ui";
 import { useIsRgiAdmin } from "@/hooks/useRgiAdmin";
 import { UnterschriftAnfordernDialog, type UnterschriftStartInfo } from "./UnterschriftAnfordernDialog";
 import { DokumentVorschauDialog, PdfAnsicht } from "@/components/shared/PdfAnsicht";
+import { VorlageDialog } from "./VorlageDialog";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -88,6 +89,8 @@ export function NeueUnterschriftDialog({ open, onOpenChange }: { open: boolean; 
   const [schritt, setSchritt] = useState<Schritt>("wahl");
   const [start, setStart] = useState<{ quelleTyp: QuelleTyp; quelleId: string | null; info: UnterschriftStartInfo } | null>(null);
   const [anfordernOffen, setAnfordernOffen] = useState(false);
+  /** „Aus Vorlage“ (SEPA-Mandat, Stammdatenblatt) */
+  const [vorlageOffen, setVorlageOffen] = useState(false);
   // Auswahl merken, damit „‹ Anderes Dokument wählen“ dorthin zurückführt
   const [dmsObjekt, setDmsObjekt] = useState("");
   const [dmsSuche, setDmsSuche] = useState("");
@@ -130,7 +133,7 @@ export function NeueUnterschriftDialog({ open, onOpenChange }: { open: boolean; 
             </DialogTitle>
             <DialogDescription className="mt-1 text-[13px] text-[#595959]">
               {schritt === "wahl"
-                ? "Danach wählen Sie Unterzeichner, Frist und E-Mail wie gewohnt."
+                ? "Danach wählen Sie Unterzeichner, Frist und E-Mail wie gewohnt – oder Sie nehmen eine fertige Vorlage."
                 : schritt === "upload"
                   ? "PDF vom Computer hochladen (höchstens 20 MB)."
                   : dmsVorschau
@@ -154,6 +157,17 @@ export function NeueUnterschriftDialog({ open, onOpenChange }: { open: boolean; 
                 text={istAdmin ? "PDF aus dem DMS eines Objekts oder von RGI" : "PDF aus dem DMS eines Objekts"}
                 onClick={() => setSchritt("dms")}
               />
+              <div className="sm:col-span-2">
+                <WahlKarte
+                  icon={<FilePlus2 className="h-5 w-5" />}
+                  titel="Aus Vorlage"
+                  text="SEPA-Lastschriftmandat oder Eigentümer-Stammdatenblatt – für mehrere Eigentümer auf einmal"
+                  onClick={() => {
+                    onOpenChange(false);
+                    setVorlageOffen(true);
+                  }}
+                />
+              </div>
             </div>
           )}
           {schritt === "upload" && <UploadSchritt aktiv={open} onZurueck={() => setSchritt("wahl")} onWeiter={weiter} />}
@@ -173,6 +187,16 @@ export function NeueUnterschriftDialog({ open, onOpenChange }: { open: boolean; 
           )}
         </DialogContent>
       </Dialog>
+
+      <VorlageDialog
+        open={vorlageOffen}
+        onOpenChange={setVorlageOffen}
+        onZurueck={() => {
+          setVorlageOffen(false);
+          zurueckZu.current = "wahl";
+          onOpenChange(true);
+        }}
+      />
 
       {start && (
         <UnterschriftAnfordernDialog

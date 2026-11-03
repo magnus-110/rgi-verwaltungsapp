@@ -108,6 +108,11 @@ export function wertNormalisieren(f: Pick<Feld, "typ" | "beschriftung" | "max_la
     case "vorbelegt": {
       const s = zeile(roh, 2000);
       if (!s) return null;
+      if (f.format === "iban") {
+        const fehler = ibanFehler(s);
+        if (fehler) throw new Fehler(400, `„${name}“: ${fehler}`);
+        return ibanGruppiert(s);
+      }
       if (s.length > VORBELEGT_MAX) throw new Fehler(400, `„${name}“: höchstens ${VORBELEGT_MAX} Zeichen.`);
       return s;
     }
@@ -274,8 +279,9 @@ export function felderPlanen(roh: unknown, seiten: number, signers: SignerRef[],
       if (a.feld_key) abh = { feld_key: zeile(a.feld_key, 60).toLowerCase() };
       else if (a.gruppe && a.option) abh = { gruppe: zeile(a.gruppe, 60).toLowerCase(), option: zeile(a.option, 60).toLowerCase() };
     }
-    const format = typ === "text" && f?.format === "iban" ? "iban" : null;
-    if (f?.format != null && f.format !== "" && !format) throw new Fehler(400, `${name}: unbekannter Untertyp „${zeile(f.format, 20)}“ (nur „iban“ bei Textfeldern).`);
+    // IBAN-Prüfung auch für änderbare Angaben (z. B. vorhandene Bankverbindung im Stammdatenblatt)
+    const format = (typ === "text" || typ === "vorbelegt") && f?.format === "iban" ? "iban" : null;
+    if (f?.format != null && f.format !== "" && !format) throw new Fehler(400, `${name}: unbekannter Untertyp „${zeile(f.format, 20)}“ (nur „iban“ bei Text- und änderbaren Feldern).`);
     const heute = typ === "datum" && typeof f?.heute_vorbelegen === "boolean" ? f.heute_vorbelegen : null;
     let reihenfolge: number | null = null;
     if (f?.reihenfolge !== undefined && f?.reihenfolge !== null && f?.reihenfolge !== "") {

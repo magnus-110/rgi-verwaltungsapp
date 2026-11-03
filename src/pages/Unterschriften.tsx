@@ -131,7 +131,7 @@ export default function Unterschriften() {
   }, [breit, zeilen, auswahl, isLoading]);
 
   const zurQuelle = async (r: SignRequest) => {
-    if (r.quelle_typ === "upload" || (istFirmenQuelle(r) && !istAdmin)) {
+    if (r.quelle_typ === "upload" || r.quelle_typ === "vorlage" || (istFirmenQuelle(r) && !istAdmin)) {
       // Hochgeladene PDFs haben keine eigene Seite → Datei öffnen
       try {
         await oeffneQuellePdf(r.id);

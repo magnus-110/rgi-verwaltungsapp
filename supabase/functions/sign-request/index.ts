@@ -8,7 +8,9 @@
 //           create_incoming · complete_incoming (Fall B, eingehende Dokumente selbst unterschreiben) ·
 //           dms_ablegen (Endfassung eines ausgehenden Vorgangs von Hand im DMS ablegen, _shared/signatur/ablage.ts) ·
 //           felder_erkennen (Ausfüllfelder: Vorlagen-Anker bzw. Vorschläge in fremden PDFs, _shared/signatur/felderkennung.ts) ·
-//           ergaenzungen_geprueft (Hinweis „Ergänzt – prüfen“ zurücksetzen, Ereignis ergaenzungen_geprueft)
+//           ergaenzungen_geprueft (Hinweis „Ergänzt – prüfen“ zurücksetzen, Ereignis ergaenzungen_geprueft) ·
+//           vorlage_eigentuemer · vorlage_vorschau · aus_vorlage (fertige Vorlagen SEPA-Mandat/Stammdatenblatt) ·
+//           stammdaten_vorschau · stammdaten_uebernehmen (nach Abschluss von Hand in die Stammdaten, _shared/signatur/vorlagen.ts)
 //
 // Testmodus (nur mit x-cron-secret): body.test_user_id handelt als dieser Mitarbeiter,
 // body.test = true liefert bei create/remind/reject_paper die Klartext-Links zurück.
@@ -61,6 +63,9 @@ import { felderLaden } from "../_shared/signatur/felder.ts";
 import { ergaenzungenLaden } from "../_shared/signatur/ergaenzungen.ts";
 import { ausfuellfelderErkennen } from "../_shared/signatur/felderkennung.ts";
 import { ERLAUBTE_BUCKETS } from "../_shared/signatur/vorgang.ts";
+import {
+  ausVorlageAnlegen, stammdatenUebernehmen, stammdatenVorschau, vorlageEigentuemer, vorlageVorschau,
+} from "../_shared/signatur/vorlagen.ts";
 
 type Db = ReturnType<typeof adminClient>;
 // deno-lint-ignore no-explicit-any
@@ -111,6 +116,16 @@ Deno.serve(async (req) => {
         return json(await felderErkennen(db, body));
       case "ergaenzungen_geprueft":
         return json(await ergaenzungenGeprueft(db, body, userId));
+      case "vorlage_eigentuemer":
+        return json(await vorlageEigentuemer(db, body));
+      case "vorlage_vorschau":
+        return json(await vorlageVorschau(db, body));
+      case "aus_vorlage":
+        return json(await ausVorlageAnlegen(db, body, userId, test));
+      case "stammdaten_vorschau":
+        return json(await stammdatenVorschau(db, body));
+      case "stammdaten_uebernehmen":
+        return json(await stammdatenUebernehmen(db, body, userId));
       case "cron":
         if (!istCron) return json({ error: "Nur für den Zeitplan." }, 403);
         return json(await zeitplan(db));

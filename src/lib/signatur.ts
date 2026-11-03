@@ -23,8 +23,30 @@ export type SignStatus = "entwurf" | "offen" | "abgeschlossen" | "zurueckgezogen
 export type SignReihenfolge = "gleichzeitig" | "nacheinander";
 export type Dokumentart =
   | "verwaltervertrag" | "vollmacht" | "umlaufbeschluss" | "dienstleistervertrag"
-  | "angebot" | "protokoll" | "abnahme" | "sonstiges";
-export type QuelleTyp = "building_file" | "email_attachment" | "offer" | "contract" | "etv_meeting" | "upload";
+  | "angebot" | "protokoll" | "abnahme" | "sonstiges"
+  // fertige Vorlagen der App (sign-request aus_vorlage)
+  | "sepa_mandat" | "stammdatenblatt";
+export type QuelleTyp = "building_file" | "email_attachment" | "offer" | "contract" | "etv_meeting" | "upload" | "vorlage";
+/** Fertige Vorlagen („Neue Unterschrift“ › „Aus Vorlage“) */
+export type VorlageArt = "sepa_mandat" | "stammdatenblatt";
+export const VORLAGE_LABEL: Record<VorlageArt, string> = {
+  sepa_mandat: "SEPA-Lastschriftmandat",
+  stammdatenblatt: "Eigentümer-Stammdatenblatt",
+};
+/** sign_requests.vorlage (nur bei Vorgängen aus einer Vorlage) */
+export interface SignVorlageInfo {
+  art: VorlageArt;
+  building_id: string;
+  contact_id: string;
+  assignment_ids: string[];
+  einheiten?: string[];
+  name?: string;
+  mandatsreferenz?: string;
+  glaeubiger_id?: string | null;
+  uebernommen_am?: string | null;
+  uebernommen_von?: string | null;
+  uebernommen?: string[];
+}
 export type SignerStatus =
   | "wartet" | "offen" | "geoeffnet" | "unterschrieben" | "papier_eingegangen"
   | "papier_uebernommen" | "abgelehnt" | "zurueckgezogen";
@@ -223,6 +245,8 @@ export interface SignRequest {
   final_sha256: string | null;
   /** Ein Unterzeichner hat Angaben ergänzt/korrigiert – Prüfung durch RGI steht aus */
   ergaenzungen_pruefen?: boolean;
+  /** Nur bei Vorgängen aus einer fertigen Vorlage (SEPA-Mandat, Stammdatenblatt) */
+  vorlage?: SignVorlageInfo | null;
   completed_at: string | null;
   email_id: string | null;
   zugewiesen_an: string | null;
@@ -300,6 +324,8 @@ export const DOKUMENTART_LABEL: Record<Dokumentart, string> = {
   protokoll: "ETV-Protokoll",
   abnahme: "Abnahmeprotokoll",
   sonstiges: "Sonstiges Dokument",
+  sepa_mandat: "SEPA-Lastschriftmandat",
+  stammdatenblatt: "Eigentümer-Stammdatenblatt",
 };
 
 // ---------------------------------------------------------------
@@ -486,6 +512,7 @@ const QUELLE_HERKUNFT: Record<QuelleTyp, string> = {
   contract: "aus Verwaltervertrag",
   etv_meeting: "aus ETV",
   upload: "aus Upload",
+  vorlage: "aus Vorlage",
 };
 
 /**
@@ -781,7 +808,8 @@ export const useBueroMitarbeiter = () =>
 export type SignActionName =
   | "create" | "preview_mail" | "sign_internal" | "remind" | "withdraw"
   | "accept_paper" | "reject_paper" | "assign_paper_email" | "urls" | "nachweis"
-  | "create_incoming" | "complete_incoming" | "neuer_link" | "dms_ablegen" | "felder_erkennen" | "ergaenzungen_geprueft";
+  | "create_incoming" | "complete_incoming" | "neuer_link" | "dms_ablegen" | "felder_erkennen" | "ergaenzungen_geprueft"
+  | "vorlage_eigentuemer" | "vorlage_vorschau" | "aus_vorlage" | "stammdaten_vorschau" | "stammdaten_uebernehmen";
 
 /**
  * Abgeschlossener ausgehender Vorgang, dessen Endfassung noch nicht im DMS liegt

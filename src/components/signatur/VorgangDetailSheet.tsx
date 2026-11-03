@@ -27,6 +27,7 @@ import { InternUnterschreibenDialog } from "./UnterschriftenBox";
 import { useAuth } from "@/hooks/useAuth";
 import { Pill } from "./SignaturStatusBadge";
 import { Abschnitt, SigButton } from "./ui";
+import { StammdatenBereich } from "./UebernahmeDialog";
 
 interface Props {
   requestId: string | null;
@@ -129,7 +130,7 @@ export function VorgangDetail({ requestId, onClose, imSheet }: { requestId: stri
   const quelle = () =>
     ausfuehren("quelle", async () => {
       // Hochgeladene PDFs haben keine eigene Seite → Datei öffnen; Firmen-DMS nur für Administratoren
-      if (r.quelle_typ === "upload" || (istFirmenQuelle(r) && !istAdmin)) return oeffneQuellePdf(r.id);
+      if (r.quelle_typ === "upload" || r.quelle_typ === "vorlage" || (istFirmenQuelle(r) && !istAdmin)) return oeffneQuellePdf(r.id);
       const pfad = await quellePfad(r);
       if (!pfad) throw new Error("Zu diesem Vorgang ist keine Quelle hinterlegt.");
       onClose?.();
@@ -296,6 +297,9 @@ export function VorgangDetail({ requestId, onClose, imSheet }: { requestId: stri
             </ul>
           </div>
         )}
+
+        {/* STAMMDATEN (nur Vorgänge aus einer Vorlage) */}
+        {r.vorlage?.art && <StammdatenBereich r={r} />}
 
         {/* AUSFÜLLFELDER */}
         {felder.length > 0 && (

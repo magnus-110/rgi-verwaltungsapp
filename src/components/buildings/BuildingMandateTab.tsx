@@ -1,9 +1,10 @@
 import { useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Check, FileText, FileUp, Loader2, Pencil, Upload, X } from "lucide-react";
+import { Check, FileSignature, FileText, FileUp, Loader2, Pencil, Upload, X } from "lucide-react";
 import { Fragment } from "react";
 import { MandatImport } from "./MandatImport";
+import { VorlageDialog } from "@/components/signatur/VorlageDialog";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -47,6 +48,8 @@ export function BuildingMandateTab({ buildingId }: { buildingId: string }) {
   const [gidEdit, setGidEdit] = useState<string | null>(null);
   const [laedtHoch, setLaedtHoch] = useState<string | null>(null);
   const [importOffen, setImportOffen] = useState(false);
+  /** SEPA-Mandate zur elektronischen Unterschrift (Vorlage, je Eigentümer ein Vorgang) */
+  const [unterschriftOffen, setUnterschriftOffen] = useState(false);
   const datei = useRef<HTMLInputElement>(null);
   const uploadFuer = useRef<Eigentuemer | null>(null);
 
@@ -296,9 +299,14 @@ export function BuildingMandateTab({ buildingId }: { buildingId: string }) {
           </button>
         ))}
       </div>
-      <Button variant="outline" onClick={() => setImportOffen(true)}>
-        <FileUp className="mr-1.5 h-4 w-4" /> Mandate importieren
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="outline" onClick={() => setUnterschriftOffen(true)} disabled={!haus?.creditor_id} title={haus?.creditor_id ? undefined : "Zuerst die Gläubiger-ID eintragen"}>
+          <FileSignature className="mr-1.5 h-4 w-4" /> SEPA-Mandat zur Unterschrift
+        </Button>
+        <Button variant="outline" onClick={() => setImportOffen(true)}>
+          <FileUp className="mr-1.5 h-4 w-4" /> Mandate importieren
+        </Button>
+      </div>
       </div>
 
       <section className="overflow-hidden rounded-xl border bg-card">
@@ -418,6 +426,7 @@ export function BuildingMandateTab({ buildingId }: { buildingId: string }) {
         </div>
       </section>
 
+      <VorlageDialog open={unterschriftOffen} onOpenChange={setUnterschriftOffen} startVorlage="sepa_mandat" startObjekt={buildingId} />
       <MandatImport open={importOffen} onOpenChange={setImportOffen} buildingId={buildingId} glaeubigerId={haus?.creditor_id ?? null} liste={liste} onFertig={() => { neuLaden(); queryClient.invalidateQueries({ queryKey: ["building-detail", buildingId] }); }} />
     </div>
   );

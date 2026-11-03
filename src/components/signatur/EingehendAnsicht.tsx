@@ -38,6 +38,8 @@ const DMS_SLUG: Record<Dokumentart, string> = {
   dienstleistervertrag: "dienstleister-wartung",
   abnahme: "dienstleister-pruefberichte",
   sonstiges: "schriftverkehr",
+  sepa_mandat: "stammakte-bank",
+  stammdatenblatt: "eigentuemer",
 };
 
 const ORT_KEY = "rgi-sign-place";

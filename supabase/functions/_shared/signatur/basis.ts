@@ -45,11 +45,14 @@ export const DMS_SLUG: Record<string, string> = {
   dienstleistervertrag: "dienstleister-wartung",
   abnahme: "dienstleister-pruefberichte",
   sonstiges: "schriftverkehr",
+  // Fertige Vorlagen (sign-request aus_vorlage, _shared/signatur/vorlagen.ts)
+  sepa_mandat: "stammakte-bank",
+  stammdatenblatt: "eigentuemer",
 };
 
 export const DOKUMENTARTEN = Object.keys(DMS_SLUG);
 export const TYPEN = ["ausgehend", "eingehend", "etv_protokoll"];
-export const QUELLE_TYPEN = ["building_file", "email_attachment", "offer", "contract", "etv_meeting", "upload"];
+export const QUELLE_TYPEN = ["building_file", "email_attachment", "offer", "contract", "etv_meeting", "upload", "vorlage"];
 export const ROLLE_KEYS = ["leiter", "protokollant", "eigentuemer", "beirat"];
 
 /** Versandweg je Unterzeichner: Einladung per E-Mail oder nur Link (Büro verschickt selbst). */
@@ -67,6 +70,7 @@ export const QUELLE_TEXT: Record<string, string> = {
   contract: "aus Vertrag",
   etv_meeting: "aus Eigentümerversammlung",
   upload: "aus Upload",
+  vorlage: "aus Vorlage",
 };
 
 export const corsHeaders = {

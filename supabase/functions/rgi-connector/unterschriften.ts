@@ -9,6 +9,7 @@ import { ERLAUBTE_BUCKETS, anlegen, erinnern, neuerLink } from "../_shared/signa
 import { einladungMail } from "../_shared/signatur/mail.ts";
 import { istPdf } from "../_shared/signatur/pdf.ts";
 import { FELD_BREITE, FELD_HOEHE, ausfuellfelderErkennen, seitenGroessen, unterschriftsstellenErkennen } from "../_shared/signatur/felderkennung.ts";
+import { VORLAGE_ARTEN, VORLAGE_NAME, ausVorlageAnlegen, eigentuemerLaden, unterzeichnerVon, vorlageBauen } from "../_shared/signatur/vorlagen.ts";
 
 type Deps = {
   db: any;
@@ -548,6 +549,97 @@ export function unterschriftTools({ db, log, uploaderId }: Deps) {
             unterzeichner: k.unterzeichner.map(({ id, name, art, status, unterschrieben_am }) => ({ id, name, art, status, unterschrieben_am })),
           };
         });
+      },
+    },
+    {
+      name: "unterschrift_aus_vorlage",
+      description: "Fertige Vorlage der App zur Unterschrift an Eigentümer eines Objekts: 'sepa_mandat' (SEPA-Lastschriftmandat mit Gläubiger-ID und Mandatsreferenz aus der App, Eigentümer ergänzt Bankverbindung) oder 'stammdatenblatt' (Eigentümer-Stammdatenblatt: Anschrift, Telefon, E-Mail, Nutzung, Zustellung, Bankverbindung – alles Vorausgefüllte änderbar). Das PDF wird mit fertig platzierten Ausfüll- und Unterschriftsfeldern erzeugt; je Eigentümer entsteht ein eigener Vorgang. Ohne eigentuemer: liefert nur die Liste der Eigentümer (contact_id, Einheiten, E-Mail ja/nein, laufende Vorgänge). art 'link' = KEINE Mail, persönliche Links werden nur JETZT im Klartext geliefert; art 'email' = SOFORT Einladungsmail (nur wenn E-Mail hinterlegt). WICHTIG: Ist art 'email' dabei, zuerst ohne bestaetigt aufrufen (Vorschau: Empfänger, Betreff, Text) und erst nach ausdrücklicher Zustimmung des Nutzers mit bestaetigt=true. Nach Abschluss übernimmt das Büro die Angaben in der App mit „In Stammdaten übernehmen“ (nichts automatisch).",
+      inputSchema: S({
+        vorlage: { type: "string", enum: [...VORLAGE_ARTEN] },
+        building_id: uuid("Objekt (gebaeude_suchen)"),
+        eigentuemer: {
+          type: "array", maxItems: 200,
+          description: "Auswahl; fehlt = nur Liste der Eigentümer anzeigen. 'alle' über alle=true",
+          items: {
+            type: "object", additionalProperties: false,
+            properties: {
+              contact_id: uuid("Eigentümer (Kontakt) aus der Liste"),
+              assignment_id: uuid("alternativ: Einheit-Zuordnung (contact_building_assignments.id)"),
+              art: { type: "string", enum: ["link", "email"], description: "Standard: art oben" },
+              beide: { type: "boolean", description: "true = bei zwei hinterlegten Personen (z. B. Ehepaar) unterschreiben beide mit eigenem Feld" },
+            },
+          },
+        },
+        alle: { type: "boolean", description: "true = alle Eigentümer des Objekts (statt eigentuemer)" },
+        art: { type: "string", enum: ["link", "email"], description: "Standard-Versand: 'link' (Standard) oder 'email' (nur wer eine E-Mail hat, sonst Link)" },
+        frist: str("JJJJ-MM-TT (Standard aus der Vorlage, 21 Tage)"),
+        bestaetigt: { type: "boolean", description: "Nur bei art 'email': erst true nach ausdrücklicher Zustimmung des Nutzers" },
+        testlauf: { type: "boolean", description: "true = nur prüfen und Vorschau, nichts anlegen" },
+        mitarbeiter_email: str("E-Mail des Mitarbeiters, der veranlasst (Ersteller, bekommt Meldungen)"),
+      }, ["vorlage", "building_id"]),
+      annotations: { destructiveHint: true, openWorldHint: true },
+      run: async (a: any) => {
+        if (!(VORLAGE_ARTEN as readonly string[]).includes(a.vorlage)) throw new Error("Unbekannte Vorlage");
+        const { objekt, eigentuemer } = await eigentuemerLaden(db, a.building_id);
+        const liste = eigentuemer.map((e) => ({
+          contact_id: e.contact_id, name: e.name, einheiten: e.einheiten.map((u) => `${u.nr}${u.lage ? ` (${u.lage})` : ""}`).join(", "),
+          email: e.email ?? "keine", personen: e.personen.slice(0, 2).map((p) => p.name),
+          ...(a.vorlage === "sepa_mandat" && e.mandat ? { mandat: `${e.mandat.mandatsreferenz} (${e.mandat.status})` } : {}),
+        }));
+        if (!a.alle && !(Array.isArray(a.eigentuemer) && a.eigentuemer.length)) {
+          return { status: "LISTE – nichts angelegt", objekt: objektLabel(objekt), glaeubiger_id: objekt.creditor_id, eigentuemer: liste, hinweis: "Eigentümer (contact_id) auswählen und erneut aufrufen." };
+        }
+        if (a.vorlage === "sepa_mandat" && !objekt.creditor_id) throw new Error(`Für ${objekt.name} ist keine Gläubiger-ID hinterlegt – zuerst in der App unter Objekt › Mandate eintragen`);
+        const standard = a.art === "email" ? "email" : "link";
+        const roh: any[] = a.alle ? eigentuemer.map((e) => ({ contact_id: e.contact_id })) : a.eigentuemer;
+        const eintraege = roh.map((x: any) => {
+          const e = eigentuemer.find((y) => y.contact_id === x.contact_id || y.einheiten.some((u) => u.assignment_id === x.assignment_id));
+          if (!e) throw new Error(`Eigentümer ${x.contact_id ?? x.assignment_id} gehört nicht zum Objekt`);
+          const art = (x.art ?? standard) === "email" && e.email ? "mail" : "link";
+          return { e, contact_id: e.contact_id, versand: art, beide: x.beide === true };
+        });
+        const mitMail = eintraege.filter((x) => x.versand === "mail");
+        if (a.testlauf === true || (mitMail.length && a.bestaetigt !== true)) {
+          const vorlage = await vorlageLaden(db, a.vorlage);
+          const fristIso = a.frist || new Date(Date.now() + (vorlage.frist_tage ?? 21) * 86400_000).toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+          const erster = eintraege[0];
+          const probe = erster ? await vorlageBauen(db, a.vorlage, objekt, erster.e, erster.beide) : null;
+          const leute = erster ? unterzeichnerVon(erster.e, erster.beide) : [];
+          const m = erster ? einladungMail(
+            { titel: probe!.titel, objekt: objektLabel(objekt), frist: fristIso, seitenzahl: 1, nummer: `SIG-${new Date().getFullYear()}-####`, mitKopie: true },
+            { name: leute[0].name, anrede: leute[0].anrede }, { betreff: vorlage.betreff, text: vorlage.text },
+            `${APP_URL}/unterschreiben/…`, `${APP_URL}/unterschreiben/…?papier=1`,
+          ) : null;
+          return {
+            status: a.testlauf ? "TESTLAUF – nichts angelegt" : "VORSCHAU – noch NICHTS angelegt oder gesendet",
+            vorlage: VORLAGE_NAME[a.vorlage as "sepa_mandat"], objekt: objektLabel(objekt), frist: datum(fristIso),
+            vorgaenge: eintraege.map((x) => ({
+              eigentuemer: x.e.name, einheiten: x.e.einheiten.map((u) => u.nr).join(", "),
+              versand: x.versand === "mail" ? `E-Mail an ${unterzeichnerVon(x.e, x.beide).filter((p) => p.email).map((p) => `${p.name} <${p.email}>`).join(", ")}` : "Link (keine Mail)",
+            })),
+            ...(probe ? { beispiel: { titel: probe.titel, ausfuellfelder: probe.felder.length, unterschriftsfelder: probe.unterschriften.length, ...(probe.mandatsreferenz ? { mandatsreferenz: probe.mandatsreferenz } : {}) } } : {}),
+            ...(m && mitMail.length ? { einladungsmail: { betreff: m.subject, text: m.text } } : {}),
+            hinweis: mitMail.length
+              ? `Beim Anlegen gehen SOFORT ${mitMail.length} Einladungsmail(s) raus. Dem Nutzer zeigen und nur nach ausdrücklicher Zustimmung mit bestaetigt=true erneut aufrufen.`
+              : "Prüfung erfolgreich – ohne testlauf erneut aufrufen, um anzulegen.",
+          };
+        }
+        const userId = await uploaderId(a.mitarbeiter_email);
+        const r: any = await ausVorlageAnlegen(db, {
+          vorlage: a.vorlage, building_id: objekt.id, frist: a.frist,
+          eintraege: eintraege.map((x) => ({ contact_id: x.contact_id, versand: x.versand, beide: x.beide })),
+        }, userId, false);
+        await log("unterschrift_aus_vorlage", {
+          vorlage: a.vorlage, building_id: objekt.id, angelegt: r.angelegt, fehler: r.fehler, mitarbeiter: a.mitarbeiter_email ?? null,
+          vorgaenge: r.ergebnisse.filter((x: any) => x.ok).map((x: any) => ({ nummer: x.nummer, versand: x.versand })),
+        });
+        return {
+          status: `ANGELEGT – ${r.angelegt} Vorgang/Vorgänge${mitMail.length ? `, ${mitMail.length} Einladungsmail(s) versendet` : ", keine Mail versendet"}`,
+          vorgaenge: r.ergebnisse.map((x: any) => x.ok
+            ? { eigentuemer: x.name, nummer: x.nummer, id: x.id, app_link: vorgangUrl(x.id), titel: x.titel, ...(x.links?.length ? { links: x.links.map((l: any) => ({ name: l.name, url: l.url })) } : {}), ...(x.versand_fehler ? { versand_fehler: x.versand_fehler } : {}) }
+            : { eigentuemer: x.name ?? null, fehler: x.fehler }),
+          ...(r.ergebnisse.some((x: any) => x.links?.length) ? { links_hinweis: "Links werden NUR JETZT im Klartext angezeigt (14 Tage gültig). Neuer Link später mit unterschrift_link_erstellen." } : {}),
+        };
       },
     },
     {
