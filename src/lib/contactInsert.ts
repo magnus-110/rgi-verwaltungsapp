@@ -1,8 +1,8 @@
 // Kontakt-Schnelleinfügen im E-Mail-Text: "#" + Name tippen, Kontakt wählen,
 // gewünschte Angaben anhaken, als Textblock einfügen.
 
-export interface ContactCardPhone { number: string; label: string | null; note: string | null }
-export interface ContactCardEmail { email: string; label: string | null }
+export interface ContactCardPhone { number: string; label: string | null; note: string | null; owner?: string | null }
+export interface ContactCardEmail { email: string; label: string | null; owner?: string | null }
 export interface ContactCardPerson {
   id: string;
   name: string;
@@ -79,20 +79,22 @@ export function contactFields(c: ContactCard): ContactField[] {
   if (c.companyName && c.personName) {
     f.push({ key: "person", label: "Person", value: c.personName, line: c.personName, defaultOn: false });
   }
-  c.persons.forEach((p) => {
-    const detail = [p.position, p.phone, p.email].filter(Boolean).join(" · ");
-    const parts = [`Ansprechpartner: ${p.name}${p.position ? ` (${p.position})` : ""}`];
-    if (p.phone) parts.push(`Tel.: ${p.phone}`);
-    if (p.email) parts.push(`E-Mail: ${p.email}`);
-    f.push({ key: `ap:${p.id}`, label: "Ansprechpartner", value: [p.name, detail].filter(Boolean).join(" – "), line: parts.join(", "), defaultOn: false });
-  });
+  const same = (a: string) => a.replace(/^(herr|frau)\s+/i, "").trim().toLowerCase() === c.displayName.trim().toLowerCase();
+  c.persons
+    .filter((p) => !same(p.name))
+    .forEach((p) => {
+      const line = `Ansprechpartner: ${p.name}${p.position ? ` (${p.position})` : ""}`;
+      f.push({ key: `ap:${p.id}`, label: "Ansprechpartner", value: p.name + (p.position ? ` (${p.position})` : ""), line, defaultOn: false });
+    });
+  const who = (o?: string | null) => (o && !same(o) ? ` – ${o}` : "");
   c.phones.forEach((p, i) => {
     const lbl = p.label?.trim() || "Telefon";
     const extra = p.note?.trim() ? ` (${p.note.trim()})` : "";
-    f.push({ key: `tel:${p.number}`, label: lbl, value: p.number + extra, line: `${lbl}: ${p.number}${extra}`, defaultOn: i === 0 });
+    f.push({ key: `tel:${p.number}`, label: lbl + who(p.owner), value: p.number + extra, line: `${lbl}${who(p.owner)}: ${p.number}${extra}`, defaultOn: i === 0 });
   });
   c.emails.forEach((e, i) => {
-    f.push({ key: `mail:${e.email.toLowerCase()}`, label: e.label?.trim() || "E-Mail", value: e.email, line: `E-Mail: ${e.email}`, defaultOn: i === 0 });
+    const lbl = e.label?.trim() ? `E-Mail ${e.label.trim()}` : "E-Mail";
+    f.push({ key: `mail:${e.email.toLowerCase()}`, label: lbl + who(e.owner), value: e.email, line: `E-Mail${who(e.owner)}: ${e.email}`, defaultOn: i === 0 });
   });
   if (c.address) f.push({ key: "adresse", label: "Adresse", value: c.address, line: c.address, defaultOn: false });
   return f;

@@ -15,6 +15,9 @@ async function fetchAll<T>(build: (from: number, to: number) => PromiseLike<{ da
   return out;
 }
 
+const geschaeftlichZuerst = (a: string | null, b: string | null) =>
+  Number(/gesch/i.test(b || "")) - Number(/gesch/i.test(a || ""));
+
 const ROLLE: Record<string, string> = {
   eigentuemer: "Eigentümer",
   mieter: "Mieter",
@@ -98,13 +101,38 @@ export function useContactCards(enabled = true) {
           }))
           .filter((p) => p.name);
 
-        const em = (emails.get(c.id) || [])
-          .filter((e) => !e.person_id)
-          .sort((a, b) => Number(!!b.is_primary) - Number(!!a.is_primary))
-          .map((e) => ({ email: e.email, label: e.label }));
-        const ph = (phones.get(c.id) || [])
-          .filter((p) => !p.person_id)
-          .map((p) => ({ number: p.phone_number, label: p.label, note: p.note }));
+        // Telefon/E-Mail hängen meist an der Person (person_id) – alle übernehmen
+        const nameById = new Map(ps.map((p) => [p.id, p.name]));
+        const multi = ps.length > 1;
+        const em: ContactCard["emails"] = [];
+        const seenMail = new Set<string>();
+        for (const e of (emails.get(c.id) || [])
+          .slice()
+          .sort((x, y) => Number(!!y.is_primary) - Number(!!x.is_primary) || geschaeftlichZuerst(x.label, y.label))) {
+          const k = e.email.trim().toLowerCase();
+          if (!k || seenMail.has(k)) continue;
+          seenMail.add(k);
+          em.push({ email: e.email.trim(), label: e.label, owner: multi && e.person_id ? nameById.get(e.person_id) : null });
+        }
+        const ph: ContactCard["phones"] = [];
+        const seenTel = new Set<string>();
+        for (const p of phones.get(c.id) || []) {
+          const k = p.phone_number.replace(/\D/g, "");
+          if (!k || seenTel.has(k)) continue;
+          seenTel.add(k);
+          ph.push({ number: p.phone_number.trim(), label: p.label, note: p.note, owner: multi && p.person_id ? nameById.get(p.person_id) : null });
+        }
+        // Altdaten: Telefon/E-Mail direkt am Ansprechpartner
+        for (const p of ps) {
+          if (p.phone && !seenTel.has(p.phone.replace(/\D/g, ""))) {
+            seenTel.add(p.phone.replace(/\D/g, ""));
+            ph.push({ number: p.phone.trim(), label: null, note: null, owner: multi ? p.name : null });
+          }
+          if (p.email && !seenMail.has(p.email.trim().toLowerCase())) {
+            seenMail.add(p.email.trim().toLowerCase());
+            em.push({ email: p.email.trim(), label: null, owner: multi ? p.name : null });
+          }
+        }
 
         return {
           id: c.id,
