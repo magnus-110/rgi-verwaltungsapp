@@ -313,7 +313,7 @@ export default function SchrittLesen({ info, gelesen, setGelesen, onWeiter, onPa
     return (
       <>
         <Messer seite={seite} scale={sk} onMass={onMass} />
-        {unterschriften.length > 0 && <UnterschriftenEbene liste={unterschriften} seite={seite} scale={sk} />}
+        {unterschriften.length > 0 && <UnterschriftenEbene liste={unterschriften} seite={seite} scale={sk} lage={info.unterschrift_lage} />}
         {felder.length > 0 && (
           <FelderEbene
             felder={felder}

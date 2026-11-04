@@ -88,7 +88,11 @@ export type SignInfo = {
   ergaenzungen_andere?: SignErgaenzung[];
   /** Bereits geleistete Unterschriften anderer Unterzeichner (fester Inhalt) */
   unterschriften_andere?: SignUnterschrift[];
+  /** Lage der Unterschrift wie in der Endfassung (_shared/signatur/bild.ts) */
+  unterschrift_lage?: UnterschriftLage;
 };
+
+export type UnterschriftLage = { UEBERSTAND: number; EINZUG?: number; ZEILE_ABSTAND: number; ZEILE_GROESSE: number };
 
 /** Unterschrift eines anderen Unterzeichners, der schon unterschrieben hat (pt, oben links, page 0-basiert). */
 export type SignUnterschrift = Rechteck & {

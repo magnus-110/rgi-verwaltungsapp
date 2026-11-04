@@ -34,6 +34,7 @@ import {
   vorgangLaden,
 } from "../_shared/signatur/ablauf.ts";
 import { PDFDocument, istPng, seitenMasse } from "../_shared/signatur/pdf.ts";
+import { UNTERSCHRIFT, unterschriftZuschneiden } from "../_shared/signatur/bild.ts";
 import { Feld, eingabenPruefen, felderLaden, wertText } from "../_shared/signatur/felder.ts";
 import {
   ErgaenzungEingabe,
@@ -94,7 +95,8 @@ function unterschriftenAndere(signers: Signer[], selbst: Signer) {
           h: pl.h,
           name: x.name,
           typed_name: x.typed_name ?? null,
-          signature_png: x.signature_png ?? null,
+          // zugeschnitten wie in der Endfassung
+          signature_png: unterschriftZuschneiden(x.signature_png),
           signed_at: x.signed_at,
           ort: x.methode === "intern" && x.ort_datum !== false && x.ort ? String(x.ort) : null,
         }))
@@ -209,6 +211,8 @@ Deno.serve(async (req) => {
           : [],
         // Bereits geleistete Unterschriften anderer (sofort sichtbar, nicht erst in der Endfassung)
         unterschriften_andere: z === "ok" && !istEtv(v) ? unterschriftenAndere(signers, s) : [],
+        // Lage wie in der Endfassung (Überstand nach oben, Abstand der grauen Zeile)
+        unterschrift_lage: UNTERSCHRIFT,
       });
     }
 

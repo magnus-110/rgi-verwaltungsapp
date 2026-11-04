@@ -16,6 +16,7 @@ import {
   rgb,
 } from "https://esm.sh/pdf-lib@1.17.1";
 import { FIRMA_ZEILE, Fehler, LOGO_URL, base64ZuBytes, datum, datumZeit, geraet } from "./basis.ts";
+import { UNTERSCHRIFT, unterschriftZuschneiden } from "./bild.ts";
 import { ersetzungenSortieren, fussnotenText, helvSicher, seiteLayout, type Ersetzung, type Frei, type TextZeile } from "./ersetzung.ts";
 
 // Logo (728×274) einmal je Instanz von der öffentlichen Logo-Adresse laden; ohne Netz geht es ohne Logo weiter.
@@ -474,7 +475,7 @@ export async function stempeln(doc: Doc, signers: SignerPdf[], o: StempelOptione
         img = bilder.get(s.id);
         if (!img) {
           try {
-            img = await doc.embedPng(base64ZuBytes(s.signature_png));
+            img = await doc.embedPng(base64ZuBytes(unterschriftZuschneiden(s.signature_png)!));
             bilder.set(s.id, img);
           } catch (e) {
             console.error("[signatur] Unterschriftsbild nicht lesbar:", e);
@@ -492,18 +493,22 @@ export async function stempeln(doc: Doc, signers: SignerPdf[], o: StempelOptione
 
       imRechteck(page, pl, () => {
         if (img) {
-          const sk = Math.min(pl.w / img.width, pl.h / img.height);
+          // Zugeschnittenes Bild darf etwas über das Feld nach oben ragen (wie auf Papier)
+          // links beginnend (kleiner Einzug), nicht mittig
+          const ein = Math.min(UNTERSCHRIFT.EINZUG, pl.w / 4);
+          const sk = Math.min((pl.w - ein) / img.width, (pl.h * (1 + UNTERSCHRIFT.UEBERSTAND)) / img.height);
           const dw = img.width * sk;
           const dh = img.height * sk;
-          page.drawImage(img, { x: (pl.w - dw) / 2, y: 0, width: dw, height: dh });
+          page.drawImage(img, { x: ein, y: 0, width: dw, height: dh });
         } else {
           const text = sicher(f.kursiv, s.typed_name || s.name);
           let size = Math.min(pl.h * 0.7, 26);
-          while (size > 6 && f.kursiv.widthOfTextAtSize(text, size) > pl.w) size -= 0.5;
-          const tw = f.kursiv.widthOfTextAtSize(text, size);
-          page.drawText(text, { x: Math.max(0, (pl.w - tw) / 2), y: Math.max(1, pl.h * 0.18), size, font: f.kursiv, color: F.tinte });
+          const ein = Math.min(UNTERSCHRIFT.EINZUG, pl.w / 4);
+          while (size > 6 && f.kursiv.widthOfTextAtSize(text, size) > pl.w - ein) size -= 0.5;
+          page.drawText(text, { x: ein, y: Math.max(1, pl.h * 0.18), size, font: f.kursiv, color: F.tinte });
         }
-        page.drawText(sicher(f.normal, unterzeile), { x: 0, y: -7.5, size: 6, font: f.normal, color: F.grau });
+        // Unter der Beschriftung der Linie, nicht darauf
+        page.drawText(sicher(f.normal, unterzeile), { x: 0, y: -UNTERSCHRIFT.ZEILE_ABSTAND, size: UNTERSCHRIFT.ZEILE_GROESSE, font: f.normal, color: F.grau });
       });
     }
   }
