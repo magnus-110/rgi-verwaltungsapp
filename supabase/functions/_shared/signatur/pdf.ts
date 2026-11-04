@@ -17,6 +17,7 @@ import {
 } from "https://esm.sh/pdf-lib@1.17.1";
 import { FIRMA_ZEILE, Fehler, LOGO_URL, base64ZuBytes, datum, datumZeit, geraet } from "./basis.ts";
 import { UNTERSCHRIFT, unterschriftZuschneiden } from "./bild.ts";
+import { unterzeileLayout, unterzeileTexte, type Box } from "./unterzeile.ts";
 import { ersetzungenSortieren, fussnotenText, helvSicher, seiteLayout, type Ersetzung, type Frei, type TextZeile } from "./ersetzung.ts";
 
 // Logo (728×274) einmal je Instanz von der öffentlichen Logo-Adresse laden; ohne Netz geht es ohne Logo weiter.
@@ -230,6 +231,8 @@ export interface StempelOptionen {
   felder?: FeldPdf[];
   /** Ergänzungen/Korrekturen der Unterzeichner (sign_request_ergaenzungen): dunkelblau einsetzen */
   ergaenzungen?: ErgaenzungPdf[];
+  /** Text-/Linienboxen der Quelle je Seite (felderkennung.ts seitenHindernisse) – für die graue Zeile */
+  hindernisse?: Map<number, { boxen: Box[] }>;
 }
 
 /** Ergänzung/Korrektur fürs PDF (Auszug aus sign_request_ergaenzungen). */
@@ -457,6 +460,8 @@ export async function stempeln(doc: Doc, signers: SignerPdf[], o: StempelOptione
   const letzteUnterschrift = new Map<number, string>(); // Seite → späteste Zeit
   const bilder = new Map<string, unknown>();
 
+  // Alle Unterschriftsfelder (auch noch offene) – die graue Zeile soll keines davon überdecken
+  const alleFelder = signers.flatMap((x) => (x.placements ?? []).map((pl) => ({ s: x, pl })));
   for (const s of signers.filter(elektronisch)) {
     for (const pl of s.placements ?? []) {
       const page = pages[pl.page];
@@ -487,9 +492,15 @@ export async function stempeln(doc: Doc, signers: SignerPdf[], o: StempelOptione
       // Ort (interne Unterschrift) nur in der kleinen grauen Zeile unter der Unterschrift –
       // nicht mehr als eigener Text neben dem Feld (überlappte dort andere Unterschriften).
       const ort = s.methode === "intern" && s.ort_datum !== false ? (s.ort || o.standardOrt || "").trim() : "";
-      const unterzeile = ort
-        ? `${name} · elektronisch unterschrieben in ${sicher(f.normal, ort)} am ${zeit}`
-        : `${name} · elektronisch unterschrieben am ${zeit}`;
+      // Graue Zeile: Lage aus Feld + Dokumentinhalt (unterzeile.ts), gleich wie in der Vorschau
+      const andereFelder: Box[] = alleFelder.filter((x) => x.pl !== pl && x.pl.page === pl.page)
+        .map(({ pl: q }) => ({ x0: q.x, y0: q.y, x1: q.x + q.w, y1: q.y + q.h }));
+      const unterzeilen = unterzeileLayout(
+        pl,
+        ansichtsGroesse(page),
+        [...(o.hindernisse?.get(pl.page)?.boxen ?? []), ...andereFelder],
+        unterzeileTexte(s.name, zeit, ort || null),
+      );
 
       imRechteck(page, pl, () => {
         if (img) {
@@ -507,8 +518,10 @@ export async function stempeln(doc: Doc, signers: SignerPdf[], o: StempelOptione
           while (size > 6 && f.kursiv.widthOfTextAtSize(text, size) > pl.w - ein) size -= 0.5;
           page.drawText(text, { x: ein, y: Math.max(1, pl.h * 0.18), size, font: f.kursiv, color: F.tinte });
         }
-        // Unter der Beschriftung der Linie, nicht darauf
-        page.drawText(sicher(f.normal, unterzeile), { x: 0, y: -UNTERSCHRIFT.ZEILE_ABSTAND, size: UNTERSCHRIFT.ZEILE_GROESSE, font: f.normal, color: F.grau });
+        // Lokale Koordinaten: Ursprung links auf der Linie, y nach oben
+        for (const z of unterzeilen) {
+          page.drawText(sicher(f.normal, z.text), { x: z.x - pl.x, y: pl.y + pl.h - z.basis, size: z.groesse, font: f.normal, color: F.grau });
+        }
       });
     }
   }

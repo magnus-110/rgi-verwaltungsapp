@@ -11,10 +11,9 @@ import { base64ZuBytes, bytesZuBase64 } from "./basis.ts";
  * - Bild unten bündig auf der Linie, links mit EINZUG pt Abstand zum Linienanfang, höchstens Feldbreite
  * - darf um UEBERSTAND × Feldhöhe nach oben über das Feld hinausragen (0 = nicht: sonst stößt sie
  *   links an Beschriftungen darüber wie „Ort, Datum“)
- * - graue Zeile „Name · elektronisch unterschrieben …“ mit Grundlinie ZEILE_ABSTAND pt unter der Linie,
- *   also unter der Beschriftung („Hausverwaltung“, „Vertreter der GdW“ …), nicht darauf
+ * (Die graue Zeile „Name · elektronisch unterschrieben …“ setzt unterzeile.ts.)
  */
-export const UNTERSCHRIFT = { UEBERSTAND: 0, EINZUG: 6, ZEILE_ABSTAND: 17, ZEILE_GROESSE: 6 } as const;
+export const UNTERSCHRIFT = { UEBERSTAND: 0, EINZUG: 6 } as const;
 
 // deno-lint-ignore no-explicit-any
 const UPNG = UPNG_ as any;

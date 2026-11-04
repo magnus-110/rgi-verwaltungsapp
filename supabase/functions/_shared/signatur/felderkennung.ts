@@ -645,3 +645,40 @@ export async function seitenGroessen(bytes: Uint8Array): Promise<{ seite: number
   try { await (pdf as any).destroy?.(); } catch { /* egal */ }
   return out;
 }
+
+/**
+ * Text- und Linienboxen ausgewählter Seiten (0-basiert) – für die Lage der grauen Zeile unter
+ * Unterschriften (unterzeile.ts). Ansichtskoordinaten wie placements. Fehler → leere Liste.
+ */
+export async function seitenHindernisse(bytes: Uint8Array, seiten0: number[]): Promise<Map<number, { boxen: Box[]; w: number; h: number }>> {
+  const out = new Map<number, { boxen: Box[]; w: number; h: number }>();
+  if (!seiten0.length) return out;
+  // deno-lint-ignore no-explicit-any
+  let pdf: any = null;
+  try {
+    pdf = await getDocumentProxy(new Uint8Array(bytes));
+    // deno-lint-ignore no-explicit-any
+    const OPS = ((await getResolvedPDFJS()) as any).OPS;
+    for (const s of [...new Set(seiten0)]) {
+      if (s < 0 || s >= pdf.numPages) continue;
+      const page = await pdf.getPage(s + 1);
+      const vp = page.getViewport({ scale: 1 });
+      const zeilen = zeilenBilden((await page.getTextContent()).items, vp);
+      // Textboxen reichen nur von der Grundlinie bis zur Schriftgröße – Unterlängen (g, p, y) und
+      // Akzente kommen dazu, damit nichts knapp an Buchstaben stößt
+      const boxen: Box[] = zeilen.flatMap((z) => z.teile.map(({ box: b }) => {
+        const h = b.y1 - b.y0;
+        return { x0: b.x0, y0: b.y0 - h * 0.1, x1: b.x1, y1: b.y1 + h * 0.28 };
+      }));
+      try {
+        boxen.push(...(await vektorLinien(page, vp, OPS)).map(({ x0, y0, x1, y1 }) => ({ x0, y0, x1, y1 })));
+      } catch { /* ohne Linien weiter */ }
+      out.set(s, { boxen, w: vp.width, h: vp.height });
+    }
+  } catch (e) {
+    console.warn("[felderkennung] Hindernisse nicht lesbar:", e instanceof Error ? e.message : e);
+  } finally {
+    try { await pdf?.destroy?.(); } catch { /* egal */ }
+  }
+  return out;
+}

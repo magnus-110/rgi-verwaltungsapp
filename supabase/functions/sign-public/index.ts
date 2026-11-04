@@ -12,6 +12,7 @@ import {
   base64ZuBytes,
   corsHeaders,
   dateiname,
+  datumZeit,
   ereignis,
   ipAus,
   json,
@@ -35,6 +36,8 @@ import {
 } from "../_shared/signatur/ablauf.ts";
 import { PDFDocument, istPng, seitenMasse } from "../_shared/signatur/pdf.ts";
 import { UNTERSCHRIFT, unterschriftZuschneiden } from "../_shared/signatur/bild.ts";
+import { type UnterzeileZeile, unterzeileLayout, unterzeileTexte } from "../_shared/signatur/unterzeile.ts";
+import { seitenHindernisse } from "../_shared/signatur/felderkennung.ts";
 import { Feld, eingabenPruefen, felderLaden, wertText } from "../_shared/signatur/felder.ts";
 import {
   ErgaenzungEingabe,
@@ -81,26 +84,54 @@ function felderFuerSeite(felder: Feld[], signerId: string) {
  * sofort an ihrer Stelle zu sehen sind (quelle.pdf enthält sie noch nicht; eingesetzt werden sie
  * erst in der Endfassung). Lage wie stempeln() in pdf.ts: pt, oben links, page 0-basiert.
  */
-function unterschriftenAndere(signers: Signer[], selbst: Signer) {
-  return signers
-    .filter((x) => x.id !== selbst.id && x.status === "unterschrieben" && !!x.signed_at && Array.isArray(x.placements))
-    .flatMap((x) =>
-      (x.placements as { page: number; x: number; y: number; w: number; h: number }[])
-        .filter((pl) => Number.isFinite(pl.page) && pl.w > 0 && pl.h > 0)
-        .map((pl) => ({
-          page: pl.page,
-          x: pl.x,
-          y: pl.y,
-          w: pl.w,
-          h: pl.h,
-          name: x.name,
-          typed_name: x.typed_name ?? null,
-          // zugeschnitten wie in der Endfassung
-          signature_png: unterschriftZuschneiden(x.signature_png),
-          signed_at: x.signed_at,
-          ort: x.methode === "intern" && x.ort_datum !== false && x.ort ? String(x.ort) : null,
-        }))
-    );
+type Pl = { page: number; x: number; y: number; w: number; h: number };
+const platzierungen = (x: Signer): Pl[] =>
+  (Array.isArray(x.placements) ? (x.placements as Pl[]) : []).filter((pl) => Number.isFinite(pl.page) && pl.w > 0 && pl.h > 0);
+
+// Lage der grauen Zeilen je Vorgang und Stand merken (Quelle lesen kostet Zeit)
+const unterzeilenCache = new Map<string, Map<string, UnterzeileZeile[]>>();
+
+async function unterschriftenAndere(db: ReturnType<typeof adminClient>, v: Vorgang, signers: Signer[], selbst: Signer) {
+  const fertig = signers.filter((x) => x.id !== selbst.id && x.status === "unterschrieben" && !!x.signed_at && platzierungen(x).length);
+  if (!fertig.length) return [];
+  // Graue Zeile wie in der Endfassung (unterzeile.ts): Feldbreite, freie Lücke laut Dokumentinhalt
+  const key = `${v.id}:${fertig.map((x) => `${x.id}@${x.signed_at}`).join(",")}`;
+  let lagen = unterzeilenCache.get(key);
+  if (!lagen) {
+    lagen = new Map();
+    let hindernisse = new Map<number, { boxen: { x0: number; y0: number; x1: number; y1: number }[]; w: number; h: number }>();
+    try {
+      hindernisse = await seitenHindernisse(await laden(db, BUCKET, pfad.quelle(v.id)), fertig.flatMap((x) => platzierungen(x).map((p) => p.page)));
+    } catch (e) {
+      console.warn("[sign-public] Quelle für Unterzeile nicht lesbar:", e instanceof Error ? e.message : e);
+    }
+    const alle = signers.flatMap((x) => platzierungen(x));
+    for (const x of fertig) {
+      const ort = x.methode === "intern" && x.ort_datum !== false ? String(x.ort || v.buildings?.city || "Pfronten").trim() : "";
+      platzierungen(x).forEach((pl, i) => {
+        const h = hindernisse.get(pl.page);
+        const andere = alle.filter((q) => q !== pl && q.page === pl.page).map((q) => ({ x0: q.x, y0: q.y, x1: q.x + q.w, y1: q.y + q.h }));
+        lagen!.set(`${x.id}:${i}`, unterzeileLayout(pl, h ? { w: h.w, h: h.h } : null, [...(h?.boxen ?? []), ...andere], unterzeileTexte(x.name, datumZeit(x.signed_at), ort || null)));
+      });
+    }
+    if (unterzeilenCache.size > 200) unterzeilenCache.clear();
+    unterzeilenCache.set(key, lagen);
+  }
+  return fertig.flatMap((x) =>
+    platzierungen(x).map((pl, i) => ({
+      page: pl.page,
+      x: pl.x,
+      y: pl.y,
+      w: pl.w,
+      h: pl.h,
+      name: x.name,
+      typed_name: x.typed_name ?? null,
+      // zugeschnitten wie in der Endfassung
+      signature_png: unterschriftZuschneiden(x.signature_png),
+      signed_at: x.signed_at,
+      unterzeilen: lagen!.get(`${x.id}:${i}`) ?? [],
+    }))
+  );
 }
 
 const MAX_PNG = 600 * 1024;
@@ -210,7 +241,7 @@ Deno.serve(async (req) => {
             }))
           : [],
         // Bereits geleistete Unterschriften anderer (sofort sichtbar, nicht erst in der Endfassung)
-        unterschriften_andere: z === "ok" && !istEtv(v) ? unterschriftenAndere(signers, s) : [],
+        unterschriften_andere: z === "ok" && !istEtv(v) ? await unterschriftenAndere(db, v, signers, s) : [],
         // Lage wie in der Endfassung (Überstand nach oben, Abstand der grauen Zeile)
         unterschrift_lage: UNTERSCHRIFT,
       });

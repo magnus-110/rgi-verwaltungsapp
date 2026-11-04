@@ -92,7 +92,7 @@ export type SignInfo = {
   unterschrift_lage?: UnterschriftLage;
 };
 
-export type UnterschriftLage = { UEBERSTAND: number; EINZUG?: number; ZEILE_ABSTAND: number; ZEILE_GROESSE: number };
+export type UnterschriftLage = { UEBERSTAND: number; EINZUG?: number };
 
 /** Unterschrift eines anderen Unterzeichners, der schon unterschrieben hat (pt, oben links, page 0-basiert). */
 export type SignUnterschrift = Rechteck & {
@@ -102,7 +102,8 @@ export type SignUnterschrift = Rechteck & {
   /** data:image/png;base64,… – fehlt bei getipptem Namen */
   signature_png: string | null;
   signed_at: string;
-  ort: string | null;
+  /** Graue Zeile(n) „Name · elektronisch unterschrieben …“ – Lage vom Server wie in der Endfassung */
+  unterzeilen?: { text: string; x: number; basis: number; groesse: number }[];
 };
 
 export type SignErgebnis = {

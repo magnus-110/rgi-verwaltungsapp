@@ -47,6 +47,7 @@ import {
 } from "./pdf.ts";
 import { zeitstempelHolen } from "./zeitstempel.ts";
 import { felderLaden } from "./felder.ts";
+import { seitenHindernisse } from "./felderkennung.ts";
 import { ergaenzungenLaden } from "./ergaenzungen.ts";
 import { StandardFonts } from "https://esm.sh/pdf-lib@1.17.1";
 
@@ -360,8 +361,12 @@ export async function dokumentBauen(db: Db, req: Vorgang, signers: Signer[], o: 
   } else {
     doc = await PDFDocument.load(quelle, { ignoreEncryption: true, updateMetadata: false });
     // RGI-Vorab-Werte und Anker sind seit dem Anlegen fest in quelle.pdf (vorgang.ts) – hier nur die übrigen
+    // Was steht um die Unterschriftsfelder herum? (für die Lage der grauen Zeile)
+    const seiten = ps.filter(elektronisch).flatMap((s) => (s.placements ?? []).map((p) => p.page));
+    const hindernisse = await seitenHindernisse(quelle, seiten);
     await stempeln(doc, ps, {
       nummer: req.nummer,
+      hindernisse,
       standardOrt: req.buildings?.city || "Pfronten",
       felder: felder.filter((f) => f.ausfueller !== "rgi").map((f) => ({ ...f, anker: null })),
       ergaenzungen,
