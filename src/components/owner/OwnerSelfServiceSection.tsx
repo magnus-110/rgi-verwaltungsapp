@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
+import { PHONE_NOTE_MAX } from "@/lib/phone";
 import { Loader2, Plus, Trash2, User, Phone, Mail, CreditCard, MapPin, Building2, ChevronRight, Info } from "lucide-react";
 import { SALUTATIONS } from "@/lib/salutations";
 
@@ -43,7 +44,7 @@ interface AssignmentRow {
   address_street_override: string | null;
   address_zip_override: string | null;
   address_city_override: string | null;
-  phones_override: { phone_number: string }[] | null;
+  phones_override: { phone_number: string; note?: string }[] | null;
   emails_override: { email: string }[] | null;
   iban_override: string | null;
   iban_holder_override: string | null;
@@ -124,9 +125,9 @@ export const OwnerSelfServiceSection = () => {
 
     // Normalize phones/emails AND prefill empty override fields with global/contact data
     const normalized = (asg ?? []).map((row: any) => {
-      const phonesNorm: { phone_number: string }[] | null = Array.isArray(row.phones_override)
+      const phonesNorm: { phone_number: string; note?: string }[] | null = Array.isArray(row.phones_override)
         ? row.phones_override
-            .map((p: any) => ({ phone_number: p?.phone_number ?? p?.number ?? "" }))
+            .map((p: any) => ({ phone_number: p?.phone_number ?? p?.number ?? "", note: p?.note ?? "" }))
             .filter((p: any) => p.phone_number)
         : null;
       const emailsNorm: { email: string }[] | null = Array.isArray(row.emails_override)
@@ -281,7 +282,7 @@ function WohnungBlatt({
       address_city_override: a.address_city_override,
       // Gespeichert in der Form der Datenbank: Telefon {number, note}, E-Mail {address}
       phones_override: a.phones_override
-        ? a.phones_override.filter((p) => (p.phone_number ?? "").trim().length > 0).map((p) => ({ number: p.phone_number, note: "" })) as any
+        ? a.phones_override.filter((p) => (p.phone_number ?? "").trim().length > 0).map((p) => ({ number: p.phone_number, note: (p.note ?? "").trim() })) as any
         : null,
       emails_override: a.emails_override
         ? a.emails_override.filter((e) => (e.email ?? "").trim().length > 0).map((e) => ({ address: e.email })) as any
@@ -320,10 +321,24 @@ function WohnungBlatt({
               value={eintrag[schluessel]}
               onChange={(e) => {
                 const next = [...liste];
-                next[idx] = { [schluessel]: e.target.value };
+                next[idx] = { ...next[idx], [schluessel]: e.target.value };
                 update({ [art]: next } as any);
               }}
             />
+            {art === "phones_override" && (
+              <Input
+                aria-label="Notiz oder Name zur Nummer"
+                className={`${portalFeld} w-[40%]`}
+                placeholder="z. B. Handy Ehefrau"
+                maxLength={PHONE_NOTE_MAX}
+                value={eintrag.note ?? ""}
+                onChange={(e) => {
+                  const next = [...liste];
+                  next[idx] = { ...next[idx], note: e.target.value };
+                  update({ [art]: next } as any);
+                }}
+              />
+            )}
             <Button
               variant="ghost"
               size="icon"

@@ -53,7 +53,7 @@ import {
 } from "@/lib/contactTypes";
 import { Star, Siren, MapPin, Loader2 } from "lucide-react";
 import type { Contact } from "@/pages/Contacts";
-import { toTelHref } from "@/lib/phone";
+import { toTelHref, PHONE_NOTE_MAX } from "@/lib/phone";
 import { logOutgoingCall } from "@/components/calls/callLogUtils";
 import { useComposeEmail } from "@/contexts/ComposeEmailContext";
 
@@ -64,6 +64,7 @@ interface LocalPhone {
   id?: string;
   phone_number: string;
   label: string;
+  note?: string | null;
   person_id?: string | null;
   _deleted?: boolean;
 }
@@ -430,11 +431,11 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
           } else if (!ph._deleted && !ph.id && ph.phone_number.trim()) {
             await supabase
               .from("contact_phones")
-              .insert({ contact_id: contact.id, person_id: personId, phone_number: ph.phone_number, label: ph.label });
+              .insert({ contact_id: contact.id, person_id: personId, phone_number: ph.phone_number, label: ph.label, note: ph.note?.trim() || null });
           } else if (!ph._deleted && ph.id) {
             await supabase
               .from("contact_phones")
-              .update({ phone_number: ph.phone_number, label: ph.label, person_id: personId })
+              .update({ phone_number: ph.phone_number, label: ph.label, note: ph.note?.trim() || null, person_id: personId })
               .eq("id", ph.id);
           }
         }
@@ -913,6 +914,16 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
                                   updatePhoneInPerson(p._localId, ph._localId, "phone_number", e.target.value)
                                 }
                                 placeholder="Nummer"
+                              />
+                              <Input
+                                className="h-7 text-xs w-36"
+                                value={ph.note ?? ""}
+                                maxLength={PHONE_NOTE_MAX}
+                                onChange={(e) =>
+                                  updatePhoneInPerson(p._localId, ph._localId, "note", e.target.value)
+                                }
+                                placeholder="Notiz / Name"
+                                title="z. B. Handy Ehefrau, Büro – Frau Huber"
                               />
 
                               <Button

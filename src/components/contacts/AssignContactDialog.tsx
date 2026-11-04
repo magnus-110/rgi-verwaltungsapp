@@ -13,6 +13,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Search, User, Plus, ChevronRight, ChevronLeft, Mail, AlertCircle, Trash2, UserCog, ChevronDown } from "lucide-react";
 import { CreateContactDialog } from "./CreateContactDialog";
 import { UNIT_KIND_OPTIONS, type UnitKind } from "@/lib/secondaryUnits";
+import { PHONE_LABELS } from "@/lib/contactTypes";
+import { PHONE_NOTE_MAX } from "@/lib/phone";
 
 interface Props {
   open: boolean;
@@ -45,11 +47,10 @@ interface ContactOption {
   persons?: ContactPerson[];
 }
 
-interface PhoneEntry { phone_number: string; label: string }
+interface PhoneEntry { phone_number: string; label: string; note?: string | null; person_id?: string | null }
 interface EmailEntry { email: string; label: string }
 interface BankEntry { iban: string; bic: string; bank_name: string; account_holder: string }
 
-const PHONE_LABELS = ["Mobil", "Privat", "Geschäftlich", "Fax"];
 const EMAIL_LABELS = ["Privat", "Geschäftlich"];
 
 function formatIban(raw: string): string {
@@ -169,12 +170,12 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
 
     // Load phones, emails, banks
     const [phonesRes, emailsRes, banksRes] = await Promise.all([
-      supabase.from("contact_phones").select("phone_number, label").eq("contact_id", contactId),
+      supabase.from("contact_phones").select("phone_number, label, note, person_id").eq("contact_id", contactId),
       supabase.from("contact_emails").select("email, label").eq("contact_id", contactId),
       supabase.from("contact_bank_accounts").select("iban, bic, bank_name, account_holder").eq("contact_id", contactId),
     ]);
 
-    setEditPhones((phonesRes.data || []).map(p => ({ phone_number: p.phone_number, label: p.label || "Mobil" })));
+    setEditPhones((phonesRes.data || []).map(p => ({ phone_number: p.phone_number, label: p.label || "Mobil", note: p.note, person_id: p.person_id })));
     setEditEmails((emailsRes.data || []).map(e => ({ email: e.email, label: e.label || "Privat" })));
     setEditBanks((banksRes.data || []).map(b => ({ iban: b.iban || "", bic: b.bic || "", bank_name: b.bank_name || "", account_holder: b.account_holder || "" })));
 
@@ -257,7 +258,7 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
       await supabase.from("contact_phones").delete().eq("contact_id", selectedId);
       const validPhones = editPhones.filter(p => p.phone_number.trim());
       if (validPhones.length > 0) {
-        await supabase.from("contact_phones").insert(validPhones.map(p => ({ contact_id: selectedId, phone_number: p.phone_number, label: p.label })));
+        await supabase.from("contact_phones").insert(validPhones.map(p => ({ contact_id: selectedId, person_id: p.person_id ?? null, phone_number: p.phone_number, label: p.label, note: p.note?.trim() || null })));
       }
 
       // Replace emails
@@ -633,6 +634,14 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
                             onChange={(e) => { const u = [...editPhones]; u[i].phone_number = e.target.value; setEditPhones(u); }}
                             placeholder="Nummer"
                             className="flex-1 h-8 text-sm"
+                          />
+                          <Input
+                            value={p.note ?? ""}
+                            maxLength={PHONE_NOTE_MAX}
+                            onChange={(e) => { const u = [...editPhones]; u[i].note = e.target.value; setEditPhones(u); }}
+                            placeholder="Notiz / Name"
+                            title="z. B. Handy Ehefrau, Büro – Frau Huber"
+                            className="w-36 h-8 text-sm"
                           />
                           <Button type="button" size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditPhones(editPhones.filter((_, j) => j !== i))}>
                             <Trash2 className="h-3 w-3 text-destructive" />

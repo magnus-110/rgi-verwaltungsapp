@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Trash2, Wrench } from "lucide-react";
 import { ServiceProviderCategoryPicker } from "./ServiceProviderCategoryPicker";
+import { PHONE_NOTE_MAX } from "@/lib/phone";
 import {
   CONTACT_TYPES,
   SALUTATIONS,
@@ -20,7 +21,7 @@ import {
   isCompanyContactType,
 } from "@/lib/contactTypes";
 
-interface PhoneEntry { phone_number: string; label: string }
+interface PhoneEntry { phone_number: string; label: string; note?: string }
 interface EmailEntry { email: string; label: string }
 interface BankEntry { iban: string; bic: string; bank_name: string; account_holder: string }
 
@@ -165,7 +166,7 @@ export function CreateContactDialog({ open, onOpenChange, onCreated, prefill, ti
 
     await Promise.all([
       validPhones.length > 0
-        ? supabase.from("contact_phones").insert(validPhones.map(p => ({ contact_id: contact.id, person_id: personId, phone_number: p.phone_number, label: p.label })))
+        ? supabase.from("contact_phones").insert(validPhones.map(p => ({ contact_id: contact.id, person_id: personId, phone_number: p.phone_number, label: p.label, note: p.note?.trim() || null })))
         : Promise.resolve(),
       validEmails.length > 0
         ? supabase.from("contact_emails").insert(validEmails.map((e, i) => ({ contact_id: contact.id, person_id: personId, email: e.email, label: e.label, is_primary: i === 0 })))
@@ -315,6 +316,7 @@ export function CreateContactDialog({ open, onOpenChange, onCreated, prefill, ti
                   </SelectContent>
                 </Select>
                 <Input value={p.phone_number} onChange={(e) => { const u = [...phones]; u[i].phone_number = e.target.value; setPhones(u); }} placeholder="Telefonnummer" className="flex-1" />
+                <Input value={p.note ?? ""} maxLength={PHONE_NOTE_MAX} onChange={(e) => { const u = [...phones]; u[i].note = e.target.value; setPhones(u); }} placeholder="Notiz / Name" title="z. B. Handy Ehefrau, Büro – Frau Huber" className="w-40" />
                 {phones.length > 1 && (
                   <Button type="button" size="icon" variant="ghost" className="h-8 w-8" onClick={() => setPhones(phones.filter((_, j) => j !== i))}>
                     <Trash2 className="h-3.5 w-3.5 text-destructive" />

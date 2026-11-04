@@ -22,3 +22,13 @@ export function lastDigits(raw?: string | null, n = 8): string {
   if (!raw) return "";
   return String(raw).replace(/\D/g, "").slice(-n);
 }
+
+/** Anzeige „0171 … · Handy Ehefrau“ – Notiz/Name zur Nummer nur, wenn vorhanden. */
+export function phoneWithNote(number?: string | null, note?: string | null): string {
+  const n = String(number ?? "").trim();
+  const t = String(note ?? "").trim();
+  return t ? `${n} · ${t}` : n;
+}
+
+/** Maximale Länge der Notiz zu einer Telefonnummer. */
+export const PHONE_NOTE_MAX = 100;

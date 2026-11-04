@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { phoneWithNote } from "@/lib/phone";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { CheckCircle2, Circle, ExternalLink, Mail, Phone, UserPlus } from "lucide-react";
@@ -234,13 +235,13 @@ function EigentuemerDaten({ contactId }: { contactId: string }) {
     queryFn: async () => {
       const [m, t] = await Promise.all([
         db.from("contact_emails").select("id, email, label, is_primary").eq("contact_id", contactId).order("is_primary", { ascending: false }),
-        db.from("contact_phones").select("id, phone_number, label").eq("contact_id", contactId),
+        db.from("contact_phones").select("id, phone_number, label, note").eq("contact_id", contactId),
       ]);
       if (m.error) throw m.error;
       if (t.error) throw t.error;
       return {
         mails: (m.data ?? []) as { id: string; email: string; label: string | null }[],
-        tels: (t.data ?? []) as { id: string; phone_number: string; label: string | null }[],
+        tels: (t.data ?? []) as { id: string; phone_number: string; label: string | null; note: string | null }[],
       };
     },
   });
@@ -260,7 +261,7 @@ function EigentuemerDaten({ contactId }: { contactId: string }) {
       {data?.tels.map((t) => (
         <a key={t.id} href={`tel:${t.phone_number.replace(/\s/g, "")}`} className="flex items-center gap-2 text-sm min-h-9 hover:text-primary">
           <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
-          <span className="truncate">{t.phone_number}</span>
+          <span className="truncate">{phoneWithNote(t.phone_number, t.note)}</span>
           {t.label && <span className="text-xs text-muted-foreground">({t.label})</span>}
         </a>
       ))}

@@ -14,7 +14,7 @@ import { Briefcase, Plus, Phone, Mail, Trash2, ExternalLink, Search, Building2, 
 import { useToast } from "@/hooks/use-toast";
 import { CreateContactDialog } from "@/components/contacts/CreateContactDialog";
 import { Switch } from "@/components/ui/switch";
-import { toTelHref } from "@/lib/phone";
+import { toTelHref, phoneWithNote } from "@/lib/phone";
 
 interface Props {
   buildingId: string;
@@ -53,7 +53,7 @@ export function BuildingServiceProvidersTab({ buildingId }: Props) {
           contact:contacts(
             id, company_name, first_name, last_name, salutation, contact_type,
             address_street, address_zip, address_city,
-            contact_phones(phone_number, label),
+            contact_phones(phone_number, label, note),
             contact_emails(email, label, is_primary)
           )
         `)
@@ -166,7 +166,7 @@ export function BuildingServiceProvidersTab({ buildingId }: Props) {
                       <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-xs text-muted-foreground">
                         {primaryPhone && (
                           <a href={toTelHref(primaryPhone.phone_number) || undefined} className="flex items-center gap-1 hover:text-foreground">
-                            <Phone className="h-3 w-3" /> {primaryPhone.phone_number}
+                            <Phone className="h-3 w-3" /> {phoneWithNote(primaryPhone.phone_number, primaryPhone.note)}
                           </a>
                         )}
                         {primaryEmail && (

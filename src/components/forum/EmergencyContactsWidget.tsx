@@ -16,6 +16,7 @@ import {
 } from "@/lib/emergencyContactInfo";
 import { ListRow } from "@/components/dashboard/owner/ListRow";
 import { cn } from "@/lib/utils";
+import { phoneWithNote } from "@/lib/phone";
 
 interface Props {
   buildingIds: string[];
@@ -32,7 +33,7 @@ interface EmergencyAssignment {
     company_name: string | null;
     first_name: string | null;
     last_name: string | null;
-    contact_phones: { phone_number: string; label: string | null }[];
+    contact_phones: { phone_number: string; label: string | null; note?: string | null }[];
     contact_emails: { email: string; label: string | null; is_primary: boolean | null }[];
   } | null;
 }
@@ -47,6 +48,7 @@ interface EntryRow {
   key: string;
   title: string;
   phone?: string;
+  phoneNote?: string | null;
   email?: string;
   hint?: string | null;
   category?: string;
@@ -100,6 +102,7 @@ function ServiceProviderEntry({
             >
               <Phone className="h-4 w-4 text-orange-600 shrink-0" />
               <span className="text-[14px] font-medium text-foreground tabular-nums">{row.phone}</span>
+              {row.phoneNote && <span className="text-[13px] text-muted-foreground truncate">· {row.phoneNote}</span>}
             </a>
           )}
           {row.email && (
@@ -148,7 +151,7 @@ function PublicEmergencyEntry({
         iconBg={iconBg}
         iconColor={iconColor}
         title={row.title}
-        subtitle={row.phone}
+        subtitle={phoneWithNote(row.phone, row.phoneNote)}
         onClick={onToggle}
         right={
           <ChevronDown
@@ -168,6 +171,7 @@ function PublicEmergencyEntry({
             >
               <Phone className="h-4 w-4 text-red-600 shrink-0" />
               <span className="text-[14px] font-medium text-foreground tabular-nums">{row.phone}</span>
+              {row.phoneNote && <span className="text-[13px] text-muted-foreground truncate">· {row.phoneNote}</span>}
             </a>
           )}
           {row.hint && (
@@ -189,6 +193,7 @@ const buildRow = (a: EmergencyAssignment, fallbackCat: string): EntryRow | null 
   const c = a.contact;
   if (!c) return null;
   const phone = (c.contact_phones || [])[0]?.phone_number;
+  const phoneNote = (c.contact_phones || [])[0]?.note?.trim() || null;
   const primaryEmail =
     (c.contact_emails || []).find((e) => e.is_primary)?.email ||
     (c.contact_emails || [])[0]?.email;
@@ -200,6 +205,7 @@ const buildRow = (a: EmergencyAssignment, fallbackCat: string): EntryRow | null 
     title: getName(c),
     category: cat,
     phone,
+    phoneNote,
     email: primaryEmail,
     hint: a.emergency_note || getCategoryHint(cat),
   };
@@ -228,7 +234,7 @@ export function EmergencyContactsWidget({ buildingIds }: Props) {
             id, building_id, service_category, emergency_note, emergency_sort_order,
             contact:contacts(
               id, company_name, first_name, last_name,
-              contact_phones(phone_number, label),
+              contact_phones(phone_number, label, note),
               contact_emails(email, label, is_primary)
             )
           `)

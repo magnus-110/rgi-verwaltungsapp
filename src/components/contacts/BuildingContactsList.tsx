@@ -55,7 +55,7 @@ import { Switch } from "@/components/ui/switch";
 import { Calendar as CalendarIcon, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast as sonnerToast } from "sonner";
-import { toTelHref } from "@/lib/phone";
+import { toTelHref, PHONE_NOTE_MAX } from "@/lib/phone";
 import { logOutgoingCall } from "@/components/calls/callLogUtils";
 import { CallLogList as BuildingCallLogList } from "@/components/calls/CallLogList";
 import { SALUTATIONS } from "@/lib/salutations";
@@ -454,7 +454,7 @@ interface ContactAssignment {
     address_city: string | null;
   };
   shares: { id: string; share_type: string; share_value: number }[];
-  phones: { id: string; phone_number: string; label: string; contact_id: string }[];
+  phones: { id: string; phone_number: string; label: string; note?: string | null; contact_id: string }[];
   emails: { id: string; email: string; label: string; contact_id: string }[];
   costs: {
     id: string;
@@ -1226,9 +1226,10 @@ export function BuildingContactsList({ buildingId, managementMode = "weg" }: Pro
     refetch();
   };
   const updatePhone = async (id: string, field: string, value: string) => {
+    const v = field === "note" ? value.trim() || null : value;
     await supabase
       .from("contact_phones")
-      .update({ [field]: value } as any)
+      .update({ [field]: v } as any)
       .eq("id", id);
     refetch();
   };
@@ -1593,6 +1594,14 @@ export function BuildingContactsList({ buildingId, managementMode = "weg" }: Pro
                                 onSave={(val) => updatePhone(p.id, "phone_number", val)}
                                 placeholder="Nummer"
                                 className="h-7 text-sm flex-1"
+                              />
+                              <BufferedInput
+                                value={p.note ?? ""}
+                                onSave={(val) => updatePhone(p.id, "note", val)}
+                                maxLength={PHONE_NOTE_MAX}
+                                placeholder="Notiz / Name"
+                                title="z. B. Handy Ehefrau, Büro – Frau Huber"
+                                className="h-7 text-sm w-36"
                               />
                               <Select value={p.label || "Mobil"} onValueChange={(v) => updatePhone(p.id, "label", v)}>
                                 <SelectTrigger className="w-24 h-7 text-xs">

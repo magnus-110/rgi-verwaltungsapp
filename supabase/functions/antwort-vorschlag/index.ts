@@ -303,7 +303,7 @@ async function vorschlagFuer(db: any, KEY: string, id: string, eigene: Set<strin
     const [{ data: k }, { data: zu }, { data: tel }] = await Promise.all([
       db.from("contacts").select("salutation, first_name, last_name, company_name, address_street, address_zip, address_city, contact_type, notes").eq("id", m.contact_id).maybeSingle(),
       db.from("contact_building_assignments").select("building_id, unit_number, role_in_building, is_beirat, is_active, buildings(name)").eq("contact_id", m.contact_id),
-      db.from("contact_phones").select("phone_number, label").eq("contact_id", m.contact_id),
+      db.from("contact_phones").select("phone_number, label, note").eq("contact_id", m.contact_id),
     ]);
     if (k) {
       kontaktText = `${[k.salutation, k.first_name, k.last_name].filter(Boolean).join(" ")}${k.company_name ? ` (${k.company_name})` : ""}, ${[k.address_street, k.address_zip, k.address_city].filter(Boolean).join(" ")}; Typ: ${k.contact_type || "-"}`;
@@ -312,7 +312,7 @@ async function vorschlagFuer(db: any, KEY: string, id: string, eigene: Set<strin
         kontaktText += `\n- ${(z as any).buildings?.name || ""}: Einheit ${z.unit_number || "-"}, Rolle ${z.role_in_building || "-"}${z.is_beirat ? ", Beirat" : ""}${z.is_active === false ? " (nicht mehr aktiv)" : ""}`;
         if (z.building_id && !buildingIds.includes(z.building_id)) buildingIds.push(z.building_id);
       }
-      if (tel?.length) kontaktText += `\nTelefon: ${tel.map((t: any) => `${t.phone_number}${t.label ? ` (${t.label})` : ""}`).join(", ")}`;
+      if (tel?.length) kontaktText += `\nTelefon: ${tel.map((t: any) => `${t.phone_number}${t.label ? ` (${t.label})` : ""}${t.note?.trim() ? ` – ${t.note.trim()}` : ""}`).join(", ")}`;
     }
   }
   buildingIds = buildingIds.slice(0, 2);

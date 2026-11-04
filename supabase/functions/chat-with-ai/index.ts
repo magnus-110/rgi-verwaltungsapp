@@ -349,7 +349,7 @@ serve(async (req) => {
       const { data: notfallKontakte, error: notfallErr } = await supabase
         .from('contact_building_assignments')
         .select(`building_id, service_category, emergency_note, emergency_sort_order,
-          contact:contacts(company_name, first_name, last_name, contact_phones(phone_number, label))`)
+          contact:contacts(company_name, first_name, last_name, contact_phones(phone_number, label, note))`)
         .in('building_id', eigeneGebaeudeIds)
         .eq('is_active', true)
         .eq('is_emergency_contact', true);
@@ -369,7 +369,8 @@ serve(async (req) => {
         .map((a: any) => {
           const c = a.contact;
           const name = c.company_name || [c.first_name, c.last_name].filter(Boolean).join(' ') || 'Dienstleister';
-          const tel = (c.contact_phones || [])[0]?.phone_number;
+          const tel0 = (c.contact_phones || [])[0];
+          const tel = tel0?.phone_number ? `${tel0.phone_number}${tel0.note?.trim() ? ` (${tel0.note.trim()})` : ''}` : null;
           const wann = a.emergency_note || kategorieHinweis(a.service_category);
           const objekt = eigeneGebaeudeIds.length > 1 ? ` [${gebaeudeName.get(a.building_id) || 'Gebäude'}]` : '';
           return `- ${a.service_category || 'Notdienst'}: ${name}${tel ? `, Tel. ${tel}` : ''}${wann ? ` (anrufen ${wann})` : ''}${objekt}`;
