@@ -2,6 +2,19 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { buildSearchText, type ContactCard } from "@/lib/contactInsert";
 
+// Supabase liefert max. 1000 Zeilen je Abfrage – daher seitenweise laden.
+async function fetchAll<T>(build: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>): Promise<T[]> {
+  const out: T[] = [];
+  const size = 1000;
+  for (let from = 0; ; from += size) {
+    const { data, error } = await build(from, from + size - 1);
+    if (error) throw error;
+    out.push(...(data || []));
+    if (!data || data.length < size) break;
+  }
+  return out;
+}
+
 const ROLLE: Record<string, string> = {
   eigentuemer: "Eigentümer",
   mieter: "Mieter",
@@ -16,19 +29,32 @@ export function useContactCards(enabled = true) {
     enabled,
     staleTime: 5 * 60 * 1000,
     queryFn: async (): Promise<ContactCard[]> => {
-      const [cRes, eRes, pRes, apRes, aRes] = await Promise.all([
-        supabase
-          .from("contacts")
-          .select("id, first_name, last_name, company_name, short_name, salutation, address_street, address_zip, address_city, service_provider_categories"),
-        supabase.from("contact_emails").select("contact_id, email, label, is_primary, person_id"),
-        supabase.from("contact_phones").select("contact_id, phone_number, label, note, person_id"),
-        supabase.from("contact_persons").select("id, contact_id, first_name, last_name, salutation, position, phone, email, is_primary, sort_order"),
-        supabase
-          .from("contact_building_assignments")
-          .select("contact_id, role_in_building, unit_number, buildings(name)")
-          .eq("is_active", true),
+      const [contacts, emailRows, phoneRows, personRows, assignRows] = await Promise.all([
+        fetchAll((a, b) =>
+          supabase
+            .from("contacts")
+            .select("id, first_name, last_name, company_name, short_name, salutation, address_street, address_zip, address_city, service_provider_categories")
+            .order("id")
+            .range(a, b),
+        ),
+        fetchAll((a, b) => supabase.from("contact_emails").select("contact_id, email, label, is_primary, person_id").order("id").range(a, b)),
+        fetchAll((a, b) => supabase.from("contact_phones").select("contact_id, phone_number, label, note, person_id").order("id").range(a, b)),
+        fetchAll((a, b) =>
+          supabase
+            .from("contact_persons")
+            .select("id, contact_id, first_name, last_name, salutation, position, phone, email, is_primary, sort_order")
+            .order("id")
+            .range(a, b),
+        ),
+        fetchAll((a, b) =>
+          supabase
+            .from("contact_building_assignments")
+            .select("contact_id, role_in_building, unit_number, buildings(name)")
+            .eq("is_active", true)
+            .order("id")
+            .range(a, b),
+        ),
       ]);
-      if (cRes.error) throw cRes.error;
 
       const group = <T extends { contact_id: string }>(rows: T[] | null) => {
         const m = new Map<string, T[]>();
@@ -39,12 +65,12 @@ export function useContactCards(enabled = true) {
         }
         return m;
       };
-      const emails = group(eRes.data);
-      const phones = group(pRes.data);
-      const persons = group(apRes.data);
-      const assigns = group((aRes.data || []) as Array<{ contact_id: string; role_in_building: string | null; unit_number: string | null; buildings: { name: string } | null }>);
+      const emails = group(emailRows);
+      const phones = group(phoneRows);
+      const persons = group(personRows);
+      const assigns = group(assignRows as unknown as Array<{ contact_id: string; role_in_building: string | null; unit_number: string | null; buildings: { name: string } | null }>);
 
-      return (cRes.data || []).map((c) => {
+      return contacts.map((c) => {
         const personName = [c.first_name, c.last_name].filter(Boolean).join(" ").trim() || null;
         const companyName = c.company_name?.trim() || null;
         const displayName = companyName || personName || c.short_name || "Unbenannt";
