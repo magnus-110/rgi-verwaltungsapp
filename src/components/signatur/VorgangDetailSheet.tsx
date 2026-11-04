@@ -5,7 +5,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Check, ExternalLink, FolderInput, FolderOpen, Link2, Loader2 } from "lucide-react";
+import { Check, ExternalLink, FolderInput, FolderOpen, Link2, Loader2, Mail } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useIsRgiAdmin } from "@/hooks/useRgiAdmin";
 import { toast } from "sonner";
@@ -28,6 +28,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Pill } from "./SignaturStatusBadge";
 import { Abschnitt, SigButton } from "./ui";
 import { StammdatenBereich } from "./UebernahmeDialog";
+import { PapierPostDialog, kannPapierPost } from "./PapierPostDialog";
 
 interface Props {
   requestId: string | null;
@@ -59,6 +60,7 @@ export function VorgangDetail({ requestId, onClose, imSheet }: { requestId: stri
   const [zurueckFrage, setZurueckFrage] = useState(false);
   const [linkSigner, setLinkSigner] = useState<SignSigner | null>(null);
   const [internSigner, setInternSigner] = useState<SignSigner | null>(null);
+  const [papierSigner, setPapierSigner] = useState<SignSigner | null>(null);
   const { user } = useAuth();
   const istAdmin = useIsRgiAdmin();
   const [ablegenOffen, setAblegenOffen] = useState(false);
@@ -202,10 +204,19 @@ export function VorgangDetail({ requestId, onClose, imSheet }: { requestId: stri
                 {s.methode === "intern" && s.status === "offen" && r.status === "offen" && s.user_id && s.user_id !== user?.id && (
                   <div className="mt-0.5 text-[12px] text-[#6B6B6B]">Unterschreibt {s.name} selbst in der App</div>
                 )}
-                {kannNeuenLink(r, s) && (
-                  <SigButton klein className="mt-1.5" onClick={() => setLinkSigner(s)}>
-                    <Link2 className="h-3.5 w-3.5" /> {s.token_hash ? "Neuen Link erstellen" : "Link erstellen"}
-                  </SigButton>
+                {(kannNeuenLink(r, s) || kannPapierPost(r, s)) && (
+                  <div className="mt-1.5 flex flex-wrap gap-2">
+                    {kannNeuenLink(r, s) && (
+                      <SigButton klein onClick={() => setLinkSigner(s)}>
+                        <Link2 className="h-3.5 w-3.5" /> {s.token_hash ? "Neuen Link erstellen" : "Link erstellen"}
+                      </SigButton>
+                    )}
+                    {kannPapierPost(r, s) && (
+                      <SigButton klein onClick={() => setPapierSigner(s)}>
+                        <Mail className="h-3.5 w-3.5" /> Papier per Post erhalten
+                      </SigButton>
+                    )}
+                  </div>
                 )}
                 </div>
               );
@@ -398,6 +409,7 @@ export function VorgangDetail({ requestId, onClose, imSheet }: { requestId: stri
         </AlertDialogContent>
       </AlertDialog>
       <NeuerLinkDialog request={r} signer={linkSigner} onClose={() => setLinkSigner(null)} />
+      <PapierPostDialog request={r} signer={papierSigner} onClose={() => setPapierSigner(null)} />
 
       <AlertDialog open={zurueckFrage} onOpenChange={setZurueckFrage}>
         <AlertDialogContent className="font-sans">

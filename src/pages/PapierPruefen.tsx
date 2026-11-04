@@ -20,6 +20,7 @@ import {
 import { Abschnitt, Karte, SigButton } from "@/components/signatur/ui";
 import { LinksAnzeigenDialog } from "@/components/signatur/LinkKopieren";
 import { PdfDocument, PdfPage, useElementBreite } from "@/components/signatur/pdf";
+import { PapierAngaben, papierWerteFuerServer, usePapierFelder, type PapierWerte } from "@/components/signatur/PapierAngaben";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -70,9 +71,13 @@ export default function PapierPruefen() {
   const [neuerLink, setNeuerLink] = useState<{ name: string; url: string } | null>(null);
   const [grund, setGrund] = useState("");
   const gross = useElementBreite<HTMLDivElement>();
+  // Handschriftliche Angaben vom Papier (Ausfüllfelder dieses Unterzeichners)
+  const { data: papierFelder = [] } = usePapierFelder(id, signerId);
+  const [werte, setWerte] = useState<PapierWerte>({});
 
   useEffect(() => {
     setHaken({ feld: false, seiten: false, keine_aenderungen: false });
+    setWerte({});
     setSeite(1);
     setAnzahl(0);
   }, [signerId]);
@@ -102,7 +107,8 @@ export default function PapierPruefen() {
   const uebernehmen = async () => {
     setBusy("accept");
     try {
-      await signAction("accept_paper", { signer_id: signer.id, pruefung: haken });
+      const w = papierWerteFuerServer(papierFelder, werte);
+      await signAction("accept_paper", { signer_id: signer.id, pruefung: haken, ...(w ? { werte: w } : {}) });
       toast.success(`Papier-Unterschrift von ${signer.name} übernommen`);
       await invalidate();
       navigate(zurueck);
@@ -271,6 +277,10 @@ export default function PapierPruefen() {
                 </Haken>
               </div>
             </div>
+
+            {papierFelder.length > 0 && (
+              <PapierAngaben felder={papierFelder} werte={werte} setWerte={setWerte} disabled={!offen} />
+            )}
 
             <div className="rounded-lg bg-[#FFF7ED] px-3.5 py-3 text-[13px] leading-relaxed text-[#2B2B2B]">
               Nach dem Übernehmen wird der vollständige Scan dem Vorgang beigefügt und im Nachweis als „Papier, eingegangen
