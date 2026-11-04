@@ -26,7 +26,9 @@ export default function Unterschreiben() {
   const [versuch, setVersuch] = useState(0);
   const [schritt, setSchritt] = useState<Schritt>(papierDirekt ? "papier" : "lesen");
 
-  const [gelesen, setGelesen] = useState(false);
+  // Kein Zwang mehr, bis ganz nach unten zu scrollen (Wunsch RGI, 04.11.2026) –
+  // die Bestätigung „gelesen und zugestimmt“ erfolgt beim Unterschreiben.
+  const [gelesen, setGelesen] = useState(true);
   const [name, setName] = useState("");
   const [png, setPng] = useState<string | null>(null);
   const [zustimmung, setZustimmung] = useState(false);

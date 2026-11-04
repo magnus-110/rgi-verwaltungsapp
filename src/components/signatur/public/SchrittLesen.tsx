@@ -497,9 +497,7 @@ export default function SchrittLesen({ info, gelesen, setGelesen, onWeiter, onPa
       )}
       <div className="flex items-center justify-between gap-3 pb-[20px] pt-[11px] text-[13px] leading-[18px] min-[641px]:text-[14px] min-[1024px]:pb-3">
         {gelesen ? (
-          <span className="flex items-center gap-1 font-semibold text-[#1E6B34]">
-            <Haken className="h-[13px] w-[13px]" strich={3} /> Bis zum Ende gelesen
-          </span>
+          <span className="text-[#6B6B6B]">Bitte lesen Sie das Dokument vor dem Unterschreiben.</span>
         ) : (
           <span className={`flex items-center gap-1 ${hinweis ? "font-semibold text-[#B35300]" : "text-[#6B6B6B]"}`}>
             <ArrowDown className="h-[13px] w-[13px]" /> Bitte zuerst bis zum Ende lesen
