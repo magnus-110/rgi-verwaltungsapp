@@ -86,6 +86,19 @@ export type SignInfo = {
   darf_ergaenzen?: boolean;
   /** Ergänzungen anderer Unterzeichner (fester Inhalt) */
   ergaenzungen_andere?: SignErgaenzung[];
+  /** Bereits geleistete Unterschriften anderer Unterzeichner (fester Inhalt) */
+  unterschriften_andere?: SignUnterschrift[];
+};
+
+/** Unterschrift eines anderen Unterzeichners, der schon unterschrieben hat (pt, oben links, page 0-basiert). */
+export type SignUnterschrift = Rechteck & {
+  page: number;
+  name: string;
+  typed_name: string | null;
+  /** data:image/png;base64,… – fehlt bei getipptem Namen */
+  signature_png: string | null;
+  signed_at: string;
+  ort: string | null;
 };
 
 export type SignErgebnis = {

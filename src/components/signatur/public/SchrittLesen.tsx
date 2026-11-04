@@ -10,6 +10,7 @@ import { FelderEbene, type Werte } from "./Felder";
 import {
   A4, ErgaenzenLeiste, ErgaenzungenEbene, MAX_ERGAENZUNGEN, MAX_ZEILEN, neueErgaenzung, textHoehe, textSauber, type Modus,
 } from "./Ergaenzungen";
+import { UnterschriftenEbene } from "./Unterschriften";
 import Formular, { ErsetzungenSvg, eintraege, eintragFehler, ersetzungenVorschau } from "./Formular";
 import {
   abschnittVon, angrenzend, auswahlMit, auswahlText, auswahlZeilen, freiBerechnen, hatText, textLaden, wortBei,
@@ -170,6 +171,7 @@ export default function SchrittLesen({ info, gelesen, setGelesen, onWeiter, onPa
 
   // ---- Ergänzungen/Korrekturen (nur mit Freigabe durch RGI)
   const andere = info.ergaenzungen_andere ?? [];
+  const unterschriften = info.unterschriften_andere ?? [];
   const [modus, setModusRoh] = useState<Modus>(null);
   const [korrArt, setKorrArt] = useState<"wort" | "zeile">("wort");
   const [markierId, setMarkierId] = useState<string | null>(null);
@@ -311,6 +313,7 @@ export default function SchrittLesen({ info, gelesen, setGelesen, onWeiter, onPa
     return (
       <>
         <Messer seite={seite} scale={sk} onMass={onMass} />
+        {unterschriften.length > 0 && <UnterschriftenEbene liste={unterschriften} seite={seite} scale={sk} />}
         {felder.length > 0 && (
           <FelderEbene
             felder={felder}

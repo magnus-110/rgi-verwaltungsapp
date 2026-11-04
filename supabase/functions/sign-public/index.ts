@@ -75,6 +75,32 @@ function felderFuerSeite(felder: Feld[], signerId: string) {
   }));
 }
 
+/**
+ * Unterschriften anderer Unterzeichner, die schon unterschrieben haben – damit sie auf der Seite
+ * sofort an ihrer Stelle zu sehen sind (quelle.pdf enthält sie noch nicht; eingesetzt werden sie
+ * erst in der Endfassung). Lage wie stempeln() in pdf.ts: pt, oben links, page 0-basiert.
+ */
+function unterschriftenAndere(signers: Signer[], selbst: Signer) {
+  return signers
+    .filter((x) => x.id !== selbst.id && x.status === "unterschrieben" && !!x.signed_at && Array.isArray(x.placements))
+    .flatMap((x) =>
+      (x.placements as { page: number; x: number; y: number; w: number; h: number }[])
+        .filter((pl) => Number.isFinite(pl.page) && pl.w > 0 && pl.h > 0)
+        .map((pl) => ({
+          page: pl.page,
+          x: pl.x,
+          y: pl.y,
+          w: pl.w,
+          h: pl.h,
+          name: x.name,
+          typed_name: x.typed_name ?? null,
+          signature_png: x.signature_png ?? null,
+          signed_at: x.signed_at,
+          ort: x.methode === "intern" && x.ort_datum !== false && x.ort ? String(x.ort) : null,
+        }))
+    );
+}
+
 const MAX_PNG = 600 * 1024;
 const MAX_BODY = 56 * 1024 * 1024; // 40 MB Dateien als base64 + Rand
 
@@ -88,7 +114,7 @@ async function aufloesen(db: ReturnType<typeof adminClient>, token: unknown) {
   if (!s) return null;
   const { req, signers } = await vorgangLaden(db, s.request_id);
   const signer = signers.find((x: Signer) => x.id === s.id);
-  return signer ? { req, signer } : null;
+  return signer ? { req, signer, signers: signers as Signer[] } : null;
 }
 
 function zustand(req: Vorgang, s: Signer): Zustand {
@@ -138,7 +164,7 @@ Deno.serve(async (req) => {
     // ------------------------------------------------------------ get
     if (action === "get") {
       if (!r) return json({ zustand: "unbekannt", telefon: FIRMA.telefon, papier_erlaubt: true });
-      const { req: v, signer: s } = r;
+      const { req: v, signer: s, signers } = r;
       const z = zustand(v, s);
       if (z === "ok" && !s.geoeffnet_at) {
         await db.from("sign_request_signers").update({
@@ -181,6 +207,8 @@ Deno.serve(async (req) => {
               original_text: e.original_text ?? null, zeilen: e.zeilen ?? null, frei: e.frei ?? null,
             }))
           : [],
+        // Bereits geleistete Unterschriften anderer (sofort sichtbar, nicht erst in der Endfassung)
+        unterschriften_andere: z === "ok" && !istEtv(v) ? unterschriftenAndere(signers, s) : [],
       });
     }
 
