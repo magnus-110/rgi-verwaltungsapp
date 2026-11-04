@@ -46,6 +46,10 @@ export interface SignVorlageInfo {
   uebernommen_am?: string | null;
   uebernommen_von?: string | null;
   uebernommen?: string[];
+  /** SEPA: automatisch übernommen (mit Vorher-Stand zum Rückgängigmachen) */
+  auto?: { am: string; rueckgaengig_am?: string | null } | null;
+  /** SEPA: warum nicht automatisch übernommen (Sonderfall) */
+  auto_grund?: string | null;
 }
 export type SignerStatus =
   | "wartet" | "offen" | "geoeffnet" | "unterschrieben" | "papier_eingegangen"
@@ -809,7 +813,7 @@ export type SignActionName =
   | "create" | "preview_mail" | "sign_internal" | "remind" | "withdraw"
   | "accept_paper" | "reject_paper" | "assign_paper_email" | "urls" | "nachweis"
   | "create_incoming" | "complete_incoming" | "neuer_link" | "dms_ablegen" | "felder_erkennen" | "ergaenzungen_geprueft"
-  | "vorlage_eigentuemer" | "vorlage_vorschau" | "aus_vorlage" | "stammdaten_vorschau" | "stammdaten_uebernehmen";
+  | "vorlage_eigentuemer" | "vorlage_vorschau" | "aus_vorlage" | "stammdaten_vorschau" | "stammdaten_uebernehmen" | "stammdaten_rueckgaengig";
 
 /**
  * Abgeschlossener ausgehender Vorgang, dessen Endfassung noch nicht im DMS liegt

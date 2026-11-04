@@ -590,6 +590,16 @@ export async function abschliessen(db: Db, requestId: string, userId?: string | 
       `${req.nummer} · alle ${signers.length} Unterschriften liegen vor${req.buildings?.name ? ` · ${req.buildings.name}` : ""}`,
       req.id,
     );
+    // SEPA-Mandat aus der Vorlage: ohne Klick in die Stammdaten (Sonderfälle → Meldung, Übernahme von Hand).
+    // Dynamischer Import: vorlagen.ts → vorgang.ts → ablauf.ts wäre sonst ein Kreis.
+    if (!etv && req.vorlage?.art === "sepa_mandat") {
+      try {
+        const { sepaAutomatisch } = await import("./vorlagen.ts");
+        await sepaAutomatisch(db, req.id);
+      } catch (err) {
+        console.error("[signatur] SEPA automatisch übernehmen:", err);
+      }
+    }
     return true;
   } catch (err) {
     console.error("[signatur] Abschluss fehlgeschlagen:", err);

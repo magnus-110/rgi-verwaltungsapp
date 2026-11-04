@@ -13,7 +13,7 @@
 //   stammdaten_uebernehmen → ausgewählte Angaben in die Stammdaten schreiben (nur von Hand, mit Protokoll)
 import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
 import {
-  BUCKET, DATENSCHUTZ_URL, EMAIL_RE, FIRMA, Fehler, LOGO_URL, TZ, datum, ereignis, heuteIso, laden, objektLabel, speichern,
+  BUCKET, DATENSCHUTZ_URL, EMAIL_RE, FIRMA, Fehler, LOGO_URL, TZ, datum, ereignis, heuteIso, laden, melden, objektLabel, speichern,
   uuidOderNull, zeile,
 } from "./basis.ts";
 import type { Db } from "./basis.ts";
@@ -1242,6 +1242,157 @@ export async function stammdatenUebernehmen(db: Db, b: Body, userId: string | nu
     userId, details: { keys: auswahl.map((a) => a.key), angaben: auswahl.map((a) => ({ key: a.key, alt: a.alt, neu: a.neu })) },
   });
   return { ok: true, uebernommen: erledigt };
+}
+
+// ================================================================ SEPA-Mandat automatisch übernehmen
+//
+// Beim Abschluss eines SEPA-Vorgangs aus der Vorlage (abschliessen → sepaAutomatisch) werden Mandat
+// und Bankverbindung ohne Klick übernommen – außer in Sonderfällen, dann bleibt es beim Dialog
+// „In Stammdaten übernehmen“ und der Ersteller bekommt eine Meldung mit dem Grund:
+//  - Eigentümer gehört nicht mehr zum Objekt
+//  - IBAN fehlt oder ist ungültig
+//  - es gibt schon ein aktives (oder zu prüfendes) Mandat mit einem anderen Konto
+//  - Kontoinhaber ist nicht der Eigentümer (bzw. keine der hinterlegten Personen)
+// Vorher-Stand wird in sign_requests.vorlage.auto gesichert → stammdaten_rueckgaengig stellt ihn wieder her.
+
+/** Namen vergleichbar machen: klein, ohne Akzente/Titel/Bindewörter. */
+function namensTeile(s: string | null | undefined): string[] {
+  const OHNE = new Set(["dr", "prof", "herr", "frau", "hr", "fr", "und", "u", "eheleute", "ehel", "familie", "fam", "von", "van", "der", "den", "de"]);
+  return norm(s).toLowerCase().replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").normalize("NFD").replace(/\p{Diacritic}/gu, "").replace(/ß/g, "ss")
+    .replace(/[^a-z0-9& -]/g, " ").split(/[\s&-]+/).filter((t) => t.length >= 2 && !OHNE.has(t));
+}
+
+/** Ist der Kontoinhaber der Eigentümer (oder eine hinterlegte Person)? Teilmenge der Namensteile genügt. */
+export function gleichePerson(inhaber: string | null, namen: (string | null | undefined)[]): boolean {
+  const a = namensTeile(inhaber);
+  if (!a.length) return false;
+  return namen.some((n) => {
+    const b = namensTeile(n);
+    if (!b.length) return false;
+    return a.every((t) => b.includes(t)) || b.every((t) => a.includes(t));
+  });
+}
+
+type Zeile = Record<string, unknown> & { id: string };
+const MANDAT_SPALTEN = ["status", "kontoinhaber", "iban", "bic", "unterschrieben_am", "dokument_pfad", "dokument_name", "quelle", "notiz", "sign_request_id", "assignment_id", "contact_id"];
+const KONTO_SPALTEN = ["account_holder", "iban", "bic", "bank_name", "is_default"];
+const auswahlVon = (z: Zeile, spalten: string[]) => Object.fromEntries(spalten.filter((k) => k in z).map((k) => [k, z[k]]));
+
+async function sepaStand(db: Db, objektId: string, contactId: string, ids: string[], referenz: string) {
+  const [{ data: m1 }, { data: m2 }, { data: konten }, { data: zuordnungen }] = await Promise.all([
+    db.from("sepa_mandates").select("*").eq("building_id", objektId).in("assignment_id", ids),
+    db.from("sepa_mandates").select("*").eq("building_id", objektId).eq("mandatsreferenz", referenz),
+    db.from("contact_bank_accounts").select("*").eq("contact_id", contactId),
+    db.from("contact_building_assignments").select("id, bank_account_id, iban_override, iban_holder_override").in("id", ids),
+  ]);
+  const mandate = new Map<string, Zeile>();
+  for (const m of [...(m1 ?? []), ...(m2 ?? [])] as Zeile[]) mandate.set(m.id, m);
+  return { mandate: [...mandate.values()], konten: (konten ?? []) as Zeile[], zuordnungen: (zuordnungen ?? []) as Zeile[] };
+}
+
+/** Sonderfall? Liefert den Grund (Text) oder null, wenn automatisch übernommen werden darf. */
+async function sepaSonderfall(db: Db, r: Body): Promise<{ grund: string } | { grund: null; daten: Awaited<ReturnType<typeof angabenBerechnen>> }> {
+  let daten: Awaited<ReturnType<typeof angabenBerechnen>>;
+  try {
+    daten = await angabenBerechnen(db, r);
+  } catch (e) {
+    return { grund: e instanceof Error ? e.message : "Angaben konnten nicht gelesen werden" };
+  }
+  const { e, objekt, felder } = daten;
+  const iban = feldWert(felder, "iban");
+  if (!iban) return { grund: "Es wurde keine IBAN angegeben." };
+  if (ibanFehler(iban)) return { grund: `IBAN ungültig: ${ibanFehler(iban)}` };
+  const roh = ibanRoh(iban);
+  const { data: vorh } = await db.from("sepa_mandates").select("mandatsreferenz, iban, status")
+    .eq("building_id", objekt.id).in("assignment_id", e.einheiten.map((u) => u.assignment_id)).in("status", ["aktiv", "pruefen"]);
+  const anders = (vorh ?? []).filter((m: Body) => m.iban && ibanRoh(m.iban) !== roh);
+  if (anders.length) {
+    return { grund: `Es gibt schon ein ${anders[0].status === "pruefen" ? "zu prüfendes" : "aktives"} Mandat mit einem anderen Konto (${anders.map((m: Body) => `${m.mandatsreferenz}: ${ibanGruppiert(m.iban)}`).join(", ")}). Soll es ersetzt werden?` };
+  }
+  const inhaber = feldWert(felder, "kontoinhaber");
+  if (!gleichePerson(inhaber, [e.name, ...e.personen.map((p) => p.name)])) {
+    return { grund: `Kontoinhaber „${inhaber ?? "–"}“ ist nicht der Eigentümer (${e.name}).` };
+  }
+  return { grund: null, daten };
+}
+
+/**
+ * Nach dem Abschluss aufgerufen (ablauf.ts abschliessen). Wirft nie – Fehler landen im Protokoll
+ * und als Meldung; dann bleibt das Übernehmen von Hand.
+ */
+export async function sepaAutomatisch(db: Db, requestId: string): Promise<void> {
+  const { data: r } = await db.from("sign_requests").select("*, signers:sign_request_signers(*)").eq("id", requestId).maybeSingle();
+  if (!r || r.status !== "abgeschlossen" || r.vorlage?.art !== "sepa_mandat" || r.vorlage?.uebernommen_am || r.vorlage?.auto) return;
+  const wer = r.vorlage.name || "Eigentümer";
+  const vonHand = async (grund: string) => {
+    await db.from("sign_requests").update({ vorlage: { ...r.vorlage, auto_grund: grund.slice(0, 500) } }).eq("id", r.id);
+    await ereignis(db, r.id, "stammdaten_pruefen", `SEPA-Mandat nicht automatisch übernommen: ${grund}`.slice(0, 900), {});
+    await melden(db, r.created_by, "review_due", `SEPA-Mandat bitte prüfen: ${wer}`, `${r.nummer} · ${grund} Bitte unter „In Stammdaten übernehmen“ entscheiden.`, r.id);
+  };
+  try {
+    const p = await sepaSonderfall(db, r);
+    if (!("daten" in p)) return await vonHand(p.grund);
+    const { e, objekt, angaben } = p.daten;
+    const ids = e.einheiten.map((u) => u.assignment_id);
+    const vorher = await sepaStand(db, objekt.id, e.contact_id, ids, r.vorlage.mandatsreferenz);
+    const keys = angaben.filter((a) => a.anwendbar && ["mandat", "bankkonto"].includes(a.key)).map((a) => a.key);
+    const erg = await stammdatenUebernehmen(db, { request_id: r.id, keys }, null);
+    const nachher = await sepaStand(db, objekt.id, e.contact_id, ids, r.vorlage.mandatsreferenz);
+    const neu = (alt: Zeile[], jetzt: Zeile[]) => jetzt.filter((x) => !alt.some((y) => y.id === x.id)).map((x) => x.id);
+    const { data: akt } = await db.from("sign_requests").select("vorlage").eq("id", r.id).maybeSingle();
+    await db.from("sign_requests").update({
+      vorlage: {
+        ...(akt?.vorlage ?? r.vorlage),
+        auto: {
+          am: new Date().toISOString(),
+          contact_id: e.contact_id,
+          vorher: {
+            mandate: vorher.mandate.map((m) => ({ id: m.id, ...auswahlVon(m, MANDAT_SPALTEN) })),
+            konten: vorher.konten.map((k) => ({ id: k.id, ...auswahlVon(k, KONTO_SPALTEN) })),
+            zuordnungen: vorher.zuordnungen,
+          },
+          neu: { mandate: neu(vorher.mandate, nachher.mandate), konten: neu(vorher.konten, nachher.konten) },
+        },
+      },
+    }).eq("id", r.id);
+    await melden(db, r.created_by, "subtask_done", `SEPA-Mandat übernommen: ${wer}`,
+      `${r.nummer} · ${erg.uebernommen.join("; ")}. Falls etwas nicht stimmt: im Vorgang „Rückgängig“.`, r.id);
+  } catch (err) {
+    console.error("[signatur] SEPA automatisch übernehmen:", err);
+    await vonHand(`Automatische Übernahme fehlgeschlagen (${String(err instanceof Error ? err.message : err).slice(0, 200)}).`);
+  }
+}
+
+/** stammdaten_rueckgaengig: automatische Übernahme zurücknehmen (Vorher-Stand wiederherstellen). */
+export async function stammdatenRueckgaengig(db: Db, b: Body, userId: string | null) {
+  const r = await vorgangMitVorlage(db, b.request_id);
+  const a = r.vorlage?.auto;
+  if (!a || a.rueckgaengig_am) throw new Fehler(409, "Hier gibt es keine automatische Übernahme zum Zurücknehmen.");
+  const neuM: string[] = a.neu?.mandate ?? [];
+  if (neuM.length) {
+    const { data: genutzt } = await db.from("sepa_mandates").select("id").in("id", neuM).not("zuletzt_genutzt", "is", null);
+    if (genutzt?.length) throw new Fehler(409, "Das Mandat wurde schon für einen Einzug genutzt – bitte von Hand ändern.");
+  }
+  const jetzt = new Date().toISOString();
+  // Zuordnungen zuerst (verweisen evtl. auf neue Konten)
+  for (const z of a.vorher?.zuordnungen ?? []) {
+    await db.from("contact_building_assignments").update({ bank_account_id: z.bank_account_id, iban_override: z.iban_override, iban_holder_override: z.iban_holder_override }).eq("id", z.id);
+  }
+  if (neuM.length) await db.from("sepa_mandates").delete().in("id", neuM);
+  for (const m of a.vorher?.mandate ?? []) {
+    const { id, ...rest } = m;
+    await db.from("sepa_mandates").update({ ...rest, updated_at: jetzt }).eq("id", id);
+  }
+  const neuK: string[] = a.neu?.konten ?? [];
+  if (neuK.length) await db.from("contact_bank_accounts").delete().in("id", neuK);
+  for (const k of a.vorher?.konten ?? []) {
+    const { id, ...rest } = k;
+    await db.from("contact_bank_accounts").update({ ...rest, updated_at: jetzt }).eq("id", id);
+  }
+  const { uebernommen_am: _a, uebernommen_von: _v, uebernommen: _u, ...vorlage } = r.vorlage;
+  await db.from("sign_requests").update({ vorlage: { ...vorlage, auto: { ...a, rueckgaengig_am: jetzt, rueckgaengig_von: uuidOderNull(userId) } } }).eq("id", r.id);
+  await ereignis(db, r.id, "stammdaten_rueckgaengig", "Automatische Übernahme des SEPA-Mandats zurückgenommen – vorheriger Stand wiederhergestellt", { userId });
+  return { ok: true };
 }
 
 // Für Tests ohne Datenbank (z. B. Layout prüfen)

@@ -1,11 +1,12 @@
 /**
  * „In Stammdaten übernehmen“ für Vorgänge aus einer fertigen Vorlage (SEPA-Mandat, Stammdatenblatt).
- * Nichts passiert automatisch: Der Mitarbeiter sieht je Angabe Vorher/Nachher, wählt per Haken aus
- * und übernimmt. Geschrieben wird über sign-request (stammdaten_uebernehmen), mit Eintrag im Protokoll.
+ * SEPA-Mandate übernimmt der Server beim Abschluss automatisch (außer Sonderfälle – dann steht hier der
+ * Grund); das lässt sich mit „Rückgängig“ zurücknehmen. Stammdatenblätter bleiben von Hand: Der
+ * Mitarbeiter sieht je Angabe Vorher/Nachher, wählt per Haken aus und übernimmt (sign-request).
  */
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, ArrowRight, DatabaseZap, Loader2 } from "lucide-react";
+import { AlertCircle, ArrowRight, DatabaseZap, Loader2, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -33,8 +34,25 @@ interface Vorschau {
 /** Bereich in der Vorgangs-Seitenleiste (nur bei Vorgängen aus einer Vorlage). */
 export function StammdatenBereich({ r }: { r: SignRequest }) {
   const [offen, setOffen] = useState(false);
+  const [zurueck, setZurueck] = useState(false);
+  const invalidate = useSignInvalidate();
   if (!r.vorlage?.art) return null;
   const fertig = r.status === "abgeschlossen";
+  // automatisch übernommen und noch nicht zurückgenommen
+  const automatisch = !!r.vorlage.auto && !r.vorlage.auto.rueckgaengig_am && !!r.vorlage.uebernommen_am;
+  const rueckgaengig = async () => {
+    if (!window.confirm("Automatische Übernahme zurücknehmen? Mandat und Bankverbindung werden auf den vorherigen Stand gesetzt.")) return;
+    setZurueck(true);
+    try {
+      await signAction("stammdaten_rueckgaengig", { request_id: r.id });
+      toast.success("Zurückgenommen – vorheriger Stand ist wiederhergestellt.");
+      invalidate();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Zurücknehmen hat nicht geklappt.");
+    } finally {
+      setZurueck(false);
+    }
+  };
   return (
     <div>
       <Abschnitt className="mb-2">Stammdaten</Abschnitt>
@@ -45,13 +63,31 @@ export function StammdatenBereich({ r }: { r: SignRequest }) {
           {r.vorlage.einheiten?.length ? ` · Einheit ${r.vorlage.einheiten.join(", ")}` : ""}
         </div>
         {r.vorlage.uebernommen_am ? (
-          <div className="mt-1 font-semibold text-[#1E6B34]">Übernommen am {formatDateTime(r.vorlage.uebernommen_am)}</div>
+          <div className="mt-1 font-semibold text-[#1E6B34]">
+            {automatisch ? "Automatisch übernommen" : "Übernommen"} am {formatDateTime(r.vorlage.uebernommen_am)}
+          </div>
         ) : (
           <div className="mt-1 text-[#6B6B6B]">
-            {fertig ? "Angaben noch nicht übernommen – bitte prüfen und übernehmen." : "Übernehmen geht, sobald alle unterschrieben haben."}
+            {fertig ? "Angaben noch nicht übernommen – bitte prüfen und übernehmen." : r.vorlage.art === "sepa_mandat"
+              ? "Wird automatisch übernommen, sobald alle unterschrieben haben."
+              : "Übernehmen geht, sobald alle unterschrieben haben."}
           </div>
         )}
-        {fertig && (
+        {fertig && !r.vorlage.uebernommen_am && r.vorlage.auto_grund && (
+          <div className="mt-2 flex gap-2 rounded-lg bg-[#FFF7ED] p-2.5 text-[12.5px] leading-snug text-[#7A3B00]">
+            <AlertCircle className="mt-[1px] h-4 w-4 shrink-0" />
+            <span>Nicht automatisch übernommen: {r.vorlage.auto_grund}</span>
+          </div>
+        )}
+        {r.vorlage.auto?.rueckgaengig_am && !r.vorlage.uebernommen_am && (
+          <div className="mt-1 text-[12.5px] text-[#6B6B6B]">Automatische Übernahme am {formatDateTime(r.vorlage.auto.rueckgaengig_am)} zurückgenommen.</div>
+        )}
+        {fertig && automatisch && (
+          <SigButton klein variante="sekundaer" className="mt-2.5 w-full" disabled={zurueck} onClick={rueckgaengig}>
+            {zurueck ? <Loader2 className="h-4 w-4 animate-spin" /> : <Undo2 className="h-4 w-4" />} Rückgängig
+          </SigButton>
+        )}
+        {fertig && !automatisch && (
           <SigButton klein variante={r.vorlage.uebernommen_am ? "sekundaer" : "primaer"} className="mt-2.5 w-full" onClick={() => setOffen(true)}>
             <DatabaseZap className="h-4 w-4" /> In Stammdaten übernehmen
           </SigButton>

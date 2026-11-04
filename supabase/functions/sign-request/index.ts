@@ -10,7 +10,7 @@
 //           felder_erkennen (Ausfüllfelder: Vorlagen-Anker bzw. Vorschläge in fremden PDFs, _shared/signatur/felderkennung.ts) ·
 //           ergaenzungen_geprueft (Hinweis „Ergänzt – prüfen“ zurücksetzen, Ereignis ergaenzungen_geprueft) ·
 //           vorlage_eigentuemer · vorlage_vorschau · aus_vorlage (fertige Vorlagen SEPA-Mandat/Stammdatenblatt) ·
-//           stammdaten_vorschau · stammdaten_uebernehmen (nach Abschluss von Hand in die Stammdaten, _shared/signatur/vorlagen.ts)
+//           stammdaten_vorschau · stammdaten_uebernehmen · stammdaten_rueckgaengig (Stammdaten aus Vorlagen; SEPA geht automatisch, _shared/signatur/vorlagen.ts)
 //
 // Testmodus (nur mit x-cron-secret): body.test_user_id handelt als dieser Mitarbeiter,
 // body.test = true liefert bei create/remind/reject_paper die Klartext-Links zurück.
@@ -64,7 +64,8 @@ import { ergaenzungenLaden } from "../_shared/signatur/ergaenzungen.ts";
 import { ausfuellfelderErkennen } from "../_shared/signatur/felderkennung.ts";
 import { ERLAUBTE_BUCKETS } from "../_shared/signatur/vorgang.ts";
 import {
-  ausVorlageAnlegen, stammdatenUebernehmen, stammdatenVorschau, vorlageEigentuemer, vorlageVorschau,
+  ausVorlageAnlegen, stammdatenUebernehmen,
+  stammdatenRueckgaengig, stammdatenVorschau, vorlageEigentuemer, vorlageVorschau,
 } from "../_shared/signatur/vorlagen.ts";
 
 type Db = ReturnType<typeof adminClient>;
@@ -126,6 +127,8 @@ Deno.serve(async (req) => {
         return json(await stammdatenVorschau(db, body));
       case "stammdaten_uebernehmen":
         return json(await stammdatenUebernehmen(db, body, userId));
+      case "stammdaten_rueckgaengig":
+        return json(await stammdatenRueckgaengig(db, body, userId));
       case "cron":
         if (!istCron) return json({ error: "Nur für den Zeitplan." }, 403);
         return json(await zeitplan(db));
