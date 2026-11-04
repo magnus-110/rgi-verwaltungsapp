@@ -5,7 +5,7 @@ import { textToHtmlWithLinks } from "@/lib/emailHtml";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { ContactInsertTextarea } from "./ContactInsertTextarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -557,10 +557,10 @@ export const ComposeEmailDialog = ({
             )}
 
             {/* Nachricht */}
-            <Textarea
+            <ContactInsertTextarea
               value={bodyText}
-              onChange={(e) => setBodyText(e.target.value)}
-              placeholder="E-Mail verfassen"
+              onValueChange={setBodyText}
+              placeholder="E-Mail verfassen  (Tipp: # + Name fügt Kontaktdaten ein)"
               className="min-h-[40vh] w-full border-0 rounded-none px-4 py-3 shadow-none focus-visible:ring-0 text-base resize-none"
             />
           </div>
@@ -798,10 +798,10 @@ export const ComposeEmailDialog = ({
 
           <div className="space-y-1.5">
             <Label className="text-xs">Nachricht</Label>
-            <Textarea
+            <ContactInsertTextarea
               value={bodyText}
-              onChange={(e) => setBodyText(e.target.value)}
-              placeholder="Ihre Nachricht..."
+              onValueChange={setBodyText}
+              placeholder="Ihre Nachricht … (# + Name fügt Kontaktdaten ein)"
               className="min-h-[200px] resize-none"
             />
           </div>
