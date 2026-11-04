@@ -14,6 +14,17 @@ export type Werte = Record<string, string | null>;
 
 const ORANGE = "#ee7202";
 const TINTE = "#14142B";
+/**
+ * Felder nur als Hintergrundfarbe, ohne Rahmen: ein Rahmen ragt über das Feld hinaus und
+ * überdeckt bei eng gesetzten Dokumenten die Nachbarzeilen. Die Farbe bleibt exakt im Feld.
+ */
+const FARBE = {
+  leer: "rgba(238,114,2,0.18)", // noch auszufüllen
+  gefuellt: "rgba(238,114,2,0.07)", // ausgefüllt – dezent, Text bleibt gut lesbar
+  aktiv: "rgba(238,114,2,0.32)", // gerade in Bearbeitung
+  kaestchenLeer: "rgba(238,114,2,0.30)",
+  inaktiv: "rgba(0,0,0,0.045)", // nur nötig, wenn die passende Möglichkeit gewählt ist
+};
 
 /** Aktueller Wert eines Feldes (eigene Eingabe, sonst gespeicherter Wert). */
 export const wertVon = (f: SignFeld, werte: Werte) => (f.eigen ? werte[f.id] ?? null : f.wert);
@@ -95,13 +106,8 @@ export function FelderEbene({
               id={`sig-feld-${f.id}`}
               onClick={() => onBearbeiten(f)}
               aria-label={`${f.beschriftung || "Angabe"}: ändern`}
-              className="pointer-events-auto absolute rounded-[3px] outline-none focus-visible:ring-2 focus-visible:ring-[#ee7202]"
-              style={{
-                left: box.left - 2, top: box.top - 2, width: box.width + 4, height: box.height + 4,
-                border: `1.5px dashed ${ORANGE}`,
-                backgroundColor: markiert ? "rgba(238,114,2,0.12)" : "transparent",
-                boxShadow: markiert ? `0 0 0 2px ${ORANGE}` : undefined,
-              }}
+              className="pointer-events-auto absolute rounded-[2px] outline-none focus-visible:ring-2 focus-visible:ring-[#ee7202]"
+              style={{ ...box, backgroundColor: markiert ? FARBE.aktiv : FARBE.gefuellt }}
             />
           );
         }
@@ -123,8 +129,8 @@ export function FelderEbene({
           return (
             <div
               key={f.id}
-              className="absolute rounded-[2px] border border-dashed border-[#BDBDBD]"
-              style={box}
+              className="absolute rounded-[2px]"
+              style={{ ...box, backgroundColor: FARBE.inaktiv }}
               title={`${f.beschriftung} – nur nötig, wenn die passende Möglichkeit gewählt ist`}
             />
           );
@@ -152,11 +158,11 @@ export function FelderEbene({
               style={{ left: box.left + box.width / 2 - hit / 2, top: box.top + box.height / 2 - hit / 2, width: hit, height: hit }}
             >
               <span
-                className={cn("relative block rounded-[2px] border-2", leer && f.pflicht && "animate-[pulse_2s_ease-in-out_infinite]")}
+                className={cn("relative block rounded-[2px]", leer && f.pflicht && "animate-[pulse_2s_ease-in-out_infinite]")}
                 style={{
-                  width: Math.max(box.width, 10), height: Math.max(box.height, 10),
-                  borderColor: ORANGE, backgroundColor: w === "ja" ? "#FFF7ED" : "rgba(238,114,2,0.18)",
-                  boxShadow: markiert ? `0 0 0 2px #fff, 0 0 0 3px ${ORANGE}` : undefined,
+                  // genau so groß wie das Kästchen im Dokument
+                  width: box.width, height: box.height,
+                  backgroundColor: markiert ? FARBE.aktiv : w === "ja" ? FARBE.gefuellt : FARBE.kaestchenLeer,
                 }}
               >
                 {w === "ja" && <Kreuz />}
@@ -171,22 +177,28 @@ export function FelderEbene({
             id={`sig-feld-${f.id}`}
             onClick={() => onBearbeiten(f)}
             aria-label={`${f.beschriftung}${w ? `: ${anzeige(f, w)}` : " – bitte ausfüllen"}`}
-            className="pointer-events-auto absolute flex items-center overflow-hidden rounded-[3px] border-2 px-[2px] text-left outline-none focus-visible:ring-2 focus-visible:ring-[#ee7202]"
+            className="pointer-events-auto absolute text-left outline-none focus-visible:ring-2 focus-visible:ring-[#ee7202]"
             style={{
               ...box,
-              // Auf dem Handy mind. 14 px hoch – mittig um die Linie, damit nichts darunter verdeckt wird
+              // Tippfläche auf dem Handy mind. 14 px hoch (unsichtbar) – die Farbe bleibt genau im Feld
               top: box.top - Math.max(0, 14 - box.height) / 2,
               height: Math.max(14, box.height),
-              borderColor: ORANGE,
-              backgroundColor: w ? "rgba(255,247,237,0.92)" : "rgba(238,114,2,0.16)",
-              boxShadow: markiert ? `0 0 0 2px ${ORANGE}` : undefined,
             }}
           >
             <span
-              className={cn("truncate font-sans leading-none", !w && "text-[#B35300]")}
-              style={{ color: w ? TINTE : undefined, fontSize: Math.max(7, Math.min(f.h * 0.72, 12) * scale) }}
+              className="absolute inset-x-0 flex items-center overflow-hidden rounded-[2px] px-[2px]"
+              style={{
+                top: Math.max(0, 14 - box.height) / 2,
+                height: box.height,
+                backgroundColor: markiert ? FARBE.aktiv : w ? FARBE.gefuellt : FARBE.leer,
+              }}
             >
-              {w ? anzeige(f, w) : f.typ === "datum" ? "Datum" : f.beschriftung || "Text"}
+              <span
+                className={cn("truncate font-sans leading-none", !w && "text-[#B35300]")}
+                style={{ color: w ? TINTE : undefined, fontSize: Math.max(6, Math.min(f.h * 0.72, 12) * scale) }}
+              >
+                {w ? anzeige(f, w) : f.typ === "datum" ? "Datum" : f.beschriftung || "Text"}
+              </span>
             </span>
           </button>
         );
