@@ -1,6 +1,7 @@
 // Approve or reject an onboarding submission. Admin/employee only.
 // On approve: merges payload into target tables based on category.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.1";
+import { sichererKontakt } from "../_shared/kontakt-dubletten.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -183,6 +184,8 @@ Deno.serve(async (req) => {
             const phone = item?.phone || null;
             const email = item?.email || null;
             const notes = item?.notes || null;
+            // Nur bei sicherem Treffer mit vorhandenem Kontakt verknüpfen (Text bleibt)
+            const vorhandenId = await sichererKontakt(admin, { name, telefon: phone, email });
 
             // Check existing entry to bump suggested_by_count
             const { data: existing } = await admin
@@ -202,6 +205,7 @@ Deno.serve(async (req) => {
                   phone: phone || undefined,
                   email: email || undefined,
                   notes: notes || undefined,
+                  ...(vorhandenId ? { contact_id: vorhandenId } : {}),
                 })
                 .eq("id", existing.id);
             } else {
@@ -213,16 +217,28 @@ Deno.serve(async (req) => {
                 email,
                 notes,
                 source: "onboarding",
+                contact_id: vorhandenId,
               });
             }
 
             if (mark_as_global_suggestion) {
-              await admin.from("contacts").insert({
-                contact_type: "company",
-                company_name: name,
-                suggest_in_onboarding: true,
-                onboarding_category: category,
-              } as any);
+              if (vorhandenId) {
+                // Kontakt gibt es schon: nur als Vorschlag markieren, keine Dublette anlegen
+                await admin.from("contacts").update({ suggest_in_onboarding: true } as any).eq("id", vorhandenId);
+                await admin
+                  .from("contacts")
+                  .update({ onboarding_category: category } as any)
+                  .eq("id", vorhandenId)
+                  .is("onboarding_category", null);
+              } else {
+                await admin.from("contacts").insert({
+                  contact_type: "company",
+                  company_name: name,
+                  short_name: name.slice(0, 40),
+                  suggest_in_onboarding: true,
+                  onboarding_category: category,
+                } as any);
+              }
             }
           }
           break;

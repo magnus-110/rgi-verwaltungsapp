@@ -804,7 +804,7 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
       <CreateContactDialog
         open={showCreate}
         onOpenChange={setShowCreate}
-        onCreated={() => { loadContacts(); setShowCreate(false); }}
+        onCreated={async (id) => { await loadContacts(); setShowCreate(false); if (id) setSelectedId(id); }}
       />
     </>
   );

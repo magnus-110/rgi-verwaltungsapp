@@ -1240,7 +1240,9 @@ export const Inbox = () => {
     const fromName = (selectedEmail.from_name || "").trim();
     const parts = fromName.split(/\s+/).filter(Boolean);
     // Enthält der Absendername einen Firmenhinweis, gleich als Firma vorbelegen
-    const companyHint = /\b(gmbh|ag|kg|ohg|mbh|ug|e\.?k\.?|gbr|se|ltd|inc|e\.?v\.?|gmbh & co)\b/i.test(fromName);
+    const companyHint =
+      /\b(gmbh|ag|kg|ohg|mbh|ug|e\.?k\.?|gbr|se|ltd|inc|e\.?v\.?|gmbh & co)\b/i.test(fromName) ||
+      /^(fa\.?|firma)\s/i.test(fromName);
     setNewContactPrefill({
       contactType: companyHint ? "company" : "person",
       companyName: companyHint ? fromName : "",
@@ -2589,6 +2591,7 @@ export const Inbox = () => {
         onOpenChange={setNewContactDialogOpen}
         prefill={newContactPrefill}
         onCreated={handleContactCreatedFromEmail}
+        onExistingSelected={addEmailToExistingContact}
       />
 
       {isAdmin && (

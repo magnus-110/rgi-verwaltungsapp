@@ -34,12 +34,13 @@ import {
 import type { AbrechnungErgebnis, Pruefhinweis } from '@/lib/heizkosten/typen';
 
 import { HeizkostenZuordnungDialog } from './HeizkostenZuordnungDialog';
+import { KontaktAuswahl } from '@/components/contacts/KontaktAuswahl';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import {
   ENERGIE_LABEL, GERAETEART_EINHEIT, GERAETEART_LABEL, eurFormat, zahlFormat,
-  speichereAblesungen, speichereUmlageSchluessel, useGeraeteMitAblesung,
+  speichereAblesefirma, speichereAblesungen, speichereUmlageSchluessel, useGeraeteMitAblesung,
   useHeizkostenAktualisieren, useUmlageSchluessel, useZuordnungen,
   type AblesungEingabe, type AnlageStatus,
 } from './heizkostenQueries';
@@ -57,6 +58,20 @@ export function HeizkostenAnlage({
   anlage, periodFrom, periodTo, fiscalYear, billingPeriodId, onZurueck,
 }: Props) {
   const aktualisieren = useHeizkostenAktualisieren();
+  const [ablesefirmaId, setAblesefirmaId] = useState<string | null>(anlage.provider_contact_id ?? null);
+  useEffect(() => setAblesefirmaId(anlage.provider_contact_id ?? null), [anlage.id, anlage.provider_contact_id]);
+  const ablesefirmaSpeichern = async (id: string | null) => {
+    const vorher = ablesefirmaId;
+    setAblesefirmaId(id);
+    try {
+      await speichereAblesefirma(anlage.id, id);
+      aktualisieren();
+      toast.success(id ? 'Ablesefirma verknüpft' : 'Verknüpfung gelöst');
+    } catch (e: any) {
+      setAblesefirmaId(vorher);
+      toast.error('Konnte nicht gespeichert werden: ' + (e?.message ?? ''));
+    }
+  };
   const { data: stamm, isLoading } = useGeraeteMitAblesung(anlage.id, periodFrom, periodTo);
   const { data: zuord } = useZuordnungen(anlage);
   const { data: schluessel } = useUmlageSchluessel(anlage.building_id);
@@ -289,6 +304,18 @@ export function HeizkostenAnlage({
             {' · '}{ENERGIE_LABEL[anlage.energy_source] ?? anlage.energy_source}
             {' · '}{periodFrom.split('-').reverse().join('.')} – {periodTo.split('-').reverse().join('.')}
           </p>
+          <div className="mt-1.5 flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Ablesefirma:</span>
+            <KontaktAuswahl
+              className="h-8 w-64 text-xs"
+              value={ablesefirmaId}
+              freitext={anlage.provider}
+              onChange={(id) => ablesefirmaSpeichern(id)}
+              placeholder="Aus Adressen wählen …"
+              neuTitel="Neue Ablesefirma"
+              neuVorbelegung={{ contactType: 'company', isServiceProvider: true }}
+            />
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">{anlage.geraete} Geräte</Badge>

@@ -56,6 +56,11 @@ import type { Contact } from "@/pages/Contacts";
 import { toTelHref, PHONE_NOTE_MAX } from "@/lib/phone";
 import { logOutgoingCall } from "@/components/calls/callLogUtils";
 import { useComposeEmail } from "@/contexts/ComposeEmailContext";
+import { useAuth } from "@/hooks/useAuth";
+import { useQuery } from "@tanstack/react-query";
+import { GitMerge } from "lucide-react";
+import { KontakteZusammenfuehrenDialog } from "./KontakteZusammenfuehrenDialog";
+import { kontaktAnzeigename } from "@/lib/kontaktSuche";
 
 
 
@@ -127,10 +132,32 @@ interface Props {
   onBack?: () => void;
   onUpdate: () => void;
   onDeleted?: () => void;
+  /** Nach dem Zusammenführen: ID des Kontakts, der bleibt */
+  onMerged?: (hauptId: string) => void;
 }
 
-export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
+export function ContactDetail({ contact, onBack, onUpdate, onDeleted, onMerged }: Props) {
   const { toast } = useToast();
+  const { profile } = useAuth();
+  const istBuero = profile?.role === "admin" || profile?.role === "employee";
+  const [zusammenOffen, setZusammenOffen] = useState(false);
+  const { data: zusammengefuehrt = [] } = useQuery({
+    queryKey: ["kontakt-zusammengefuehrt-aus", contact.id],
+    enabled: istBuero,
+    queryFn: async () => {
+      const { data } = await (supabase as any)
+        .from("kontakt_zusammenfuehrungen")
+        .select("id, alt_id, am, details")
+        .eq("neu_id", contact.id)
+        .order("am", { ascending: false });
+      return ((data ?? []) as any[]).map((z) => ({
+        id: z.id as number,
+        name: kontaktAnzeigename(z.details?.dublette),
+        am: z.am as string,
+        von: (z.details?.ausfuehrender_name as string | undefined) ?? null,
+      }));
+    },
+  });
   const { openCompose } = useComposeEmail();
   const [form, setForm] = useState({ ...contact });
   const [persons, setPersons] = useState<LocalPerson[]>([]);
@@ -542,6 +569,17 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
           )}
         </div>
         <div className="flex items-center gap-2">
+          {istBuero && (
+            <Button
+              variant="ghost"
+              size="icon"
+              title="Mit anderem Kontakt zusammenführen …"
+              aria-label="Mit anderem Kontakt zusammenführen"
+              onClick={() => setZusammenOffen(true)}
+            >
+              <GitMerge className="h-4 w-4" />
+            </Button>
+          )}
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
@@ -575,6 +613,20 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
       </div>
 
       <div className="p-6">
+        {zusammengefuehrt.length > 0 && (
+          <p className="mb-4 flex items-start gap-2 rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
+            <GitMerge className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span>
+              Zusammengeführt aus:{" "}
+              {zusammengefuehrt
+                .map(
+                  (z) =>
+                    `„${z.name}“ (${new Date(z.am).toLocaleDateString("de-DE")}${z.von ? `, ${z.von}` : ""})`,
+                )
+                .join(", ")}
+            </span>
+          </p>
+        )}
         <Tabs defaultValue="personen">
           <TabsList variant="segment" className="w-full grid grid-cols-4">
             <TabsTrigger variant="segment" value="stammdaten">
@@ -1211,6 +1263,17 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
           </TabsContent>
         </Tabs>
       </div>
+      {istBuero && (
+        <KontakteZusammenfuehrenDialog
+          open={zusammenOffen}
+          onOpenChange={setZusammenOffen}
+          startKontaktId={contact.id}
+          onFertig={(hauptId) => {
+            if (onMerged) onMerged(hauptId);
+            else onUpdate();
+          }}
+        />
+      )}
     </div>
   );
 }

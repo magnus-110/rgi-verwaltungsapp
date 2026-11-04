@@ -24,6 +24,8 @@ export interface AnlageZeile {
   building_id: string;
   name: string;
   provider: string | null;
+  /** Ablesefirma als Kontakt aus „Adressen“ (provider bleibt als alter Text) */
+  provider_contact_id?: string | null;
   provider_property_no: string | null;
   energy_source: string;
   billing_area_m2: number | null;
@@ -341,6 +343,14 @@ export async function speichereZuordnung(
 export async function speichereUmlageSchluessel(anlageId: string, wert: string) {
   const { error } = await hk('heating_systems')
     .update({ common_area_share_type: wert })
+    .eq('id', anlageId);
+  if (error) throw new Error(error.message);
+}
+
+/** Ablesefirma einer Anlage mit einem Kontakt aus „Adressen“ verknüpfen (Text bleibt). */
+export async function speichereAblesefirma(anlageId: string, contactId: string | null) {
+  const { error } = await hk('heating_systems')
+    .update({ provider_contact_id: contactId })
     .eq('id', anlageId);
   if (error) throw new Error(error.message);
 }

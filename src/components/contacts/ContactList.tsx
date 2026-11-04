@@ -578,7 +578,14 @@ export function ContactList({
         </div>
       )}
 
-      <CreateContactDialog open={showCreate} onOpenChange={setShowCreate} onCreated={onCreated} />
+      <CreateContactDialog
+        open={showCreate}
+        onOpenChange={setShowCreate}
+        onCreated={(id) => {
+          onCreated();
+          if (id) onSelect(id);
+        }}
+      />
       <ImportContactsCsvDialog open={showImport} onOpenChange={setShowImport} onImported={onCreated} />
     </div>
   );

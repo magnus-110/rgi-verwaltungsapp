@@ -10,9 +10,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Briefcase, Plus, Phone, Mail, Trash2, ExternalLink, Search, Building2, Settings2, Bell, BellRing, ShieldAlert, Pencil } from "lucide-react";
+import { Briefcase, Plus, Phone, Mail, Trash2, ExternalLink, Settings2, Link2, Bell, BellRing, ShieldAlert, Pencil } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { CreateContactDialog } from "@/components/contacts/CreateContactDialog";
+import { KontaktAuswahl } from "@/components/contacts/KontaktAuswahl";
 import { Switch } from "@/components/ui/switch";
 import { toTelHref, phoneWithNote } from "@/lib/phone";
 
@@ -226,6 +226,8 @@ export function BuildingServiceProvidersTab({ buildingId }: Props) {
         </div>
       )}
 
+      <FreitextDienstleister buildingId={buildingId} categories={categories} />
+
       <AddProviderDialog
         open={showAdd}
         onOpenChange={setShowAdd}
@@ -271,48 +273,14 @@ function AddProviderDialog({
   onAdded: () => void;
 }) {
   const { toast } = useToast();
-  const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [showList, setShowList] = useState(true);
   const [category, setCategory] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
-  const [showCreate, setShowCreate] = useState(false);
-
-  const { data: contacts = [], refetch } = useQuery({
-    queryKey: ["contacts-service-providers"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("contacts")
-        .select("id, company_name, first_name, last_name, salutation, contact_type, address_city")
-        .order("company_name", { nullsFirst: false });
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: open,
-  });
-
-  const filteredContacts = contacts.filter((c) => {
-    const term = search.toLowerCase();
-    if (!term) return true;
-    return (
-      (c.company_name || "").toLowerCase().includes(term) ||
-      (c.first_name || "").toLowerCase().includes(term) ||
-      (c.last_name || "").toLowerCase().includes(term)
-    );
-  });
 
   const reset = () => {
-    setSearch(""); setSelectedId(null); setShowList(true);
+    setSelectedId(null);
     setCategory(categories[0]?.name || ""); setNotes("");
-  };
-
-  const getName = (c: any) =>
-    c.company_name || [c.salutation, c.first_name, c.last_name].filter(Boolean).join(" ") || "Unbenannt";
-
-  const selectContact = (id: string) => {
-    setSelectedId(id);
-    setShowList(false); // close list after selection
   };
 
   const handleSave = async () => {
@@ -336,7 +304,8 @@ function AddProviderDialog({
     onAdded();
   };
 
-  const selectedContact = contacts.find((c) => c.id === selectedId);
+  const schonZugeordnet =
+    !!selectedId && !!category && existingAssignments.some((a) => a.contactId === selectedId && a.category === category);
 
   return (
     <>
@@ -359,66 +328,17 @@ function AddProviderDialog({
             </div>
 
             <div>
-              <Label className="text-xs">Kontakt</Label>
-              {selectedContact && !showList ? (
-                <div className="flex items-center justify-between gap-2 mt-1 p-2 border rounded-md bg-muted/40">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Building2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                    <span className="text-sm truncate">{getName(selectedContact)}</span>
-                  </div>
-                  <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setShowList(true)}>
-                    Ändern
-                  </Button>
-                </div>
-              ) : (
-                <>
-                  <div className="relative mt-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      placeholder="Firma oder Name suchen..."
-                      className="pl-9 h-9 text-sm"
-                    />
-                  </div>
-                  <div className="mt-2 max-h-56 overflow-y-auto border rounded-md">
-                    {filteredContacts.length === 0 ? (
-                      <p className="p-3 text-xs text-center text-muted-foreground">Keine Treffer</p>
-                    ) : (
-                      filteredContacts.map((c) => {
-                        const assignedCats = existingAssignments
-                          .filter((a) => a.contactId === c.id)
-                          .map((a) => a.category);
-                        const duplicate = !!category && assignedCats.includes(category);
-                        return (
-                          <div
-                            key={c.id}
-                            onClick={() => !duplicate && selectContact(c.id)}
-                            className={`flex items-center gap-2 px-3 py-2 text-sm transition-colors ${
-                              duplicate
-                                ? "opacity-50 cursor-not-allowed"
-                                : "hover:bg-muted cursor-pointer"
-                            }`}
-                          >
-                            <Building2 className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                            <span className="flex-1 truncate">{getName(c)}</span>
-                            {c.address_city && (
-                              <span className="text-xs text-muted-foreground">{c.address_city}</span>
-                            )}
-                            {assignedCats.length > 0 && (
-                              <Badge variant="secondary" className="text-[10px]" title={assignedCats.join(", ")}>
-                                {duplicate ? "Schon in dieser Kategorie" : `${assignedCats.length}× zugeordnet`}
-                              </Badge>
-                            )}
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                  <Button variant="outline" size="sm" className="w-full mt-2" onClick={() => setShowCreate(true)}>
-                    <Plus className="h-3 w-3 mr-1" /> Neuen Dienstleister anlegen
-                  </Button>
-                </>
+              <Label className="text-xs">Kontakt aus Adressen</Label>
+              <KontaktAuswahl
+                className="mt-1"
+                value={selectedId}
+                onChange={(id) => setSelectedId(id)}
+                placeholder="Firma oder Name suchen …"
+                neuTitel="Neuer Dienstleister"
+                neuVorbelegung={{ contactType: "company", isServiceProvider: true }}
+              />
+              {schonZugeordnet && (
+                <p className="mt-1 text-xs text-destructive">Dieser Kontakt ist hier schon als „{category}“ eingetragen.</p>
               )}
             </div>
 
@@ -434,20 +354,12 @@ function AddProviderDialog({
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => onOpenChange(false)}>Abbrechen</Button>
-            <Button onClick={handleSave} disabled={!selectedId || !category || saving}>
+            <Button onClick={handleSave} disabled={!selectedId || !category || saving || schonZugeordnet}>
               {saving ? "Speichern..." : "Zuordnen"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <CreateContactDialog
-        open={showCreate}
-        onOpenChange={setShowCreate}
-        title="Neuer Dienstleister"
-        prefill={{ contactType: "company", isServiceProvider: true }}
-        onCreated={() => { refetch(); }}
-      />
     </>
   );
 }
@@ -747,5 +659,110 @@ function EditProviderDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * Dienstleister, die nur als Text am Gebäude stehen (building_service_providers, z. B. aus dem Eigentümer-Fragebogen).
+ * Verknüpfen mit einem Kontakt aus „Adressen“: setzt contact_id und trägt den Kontakt als Dienstleister am Gebäude ein.
+ * Der Text bleibt erhalten.
+ */
+function FreitextDienstleister({ buildingId, categories }: { buildingId: string; categories: { id: string; name: string }[] }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const { data: zeilen = [] } = useQuery({
+    queryKey: ["building-service-providers-freitext", buildingId],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("building_service_providers")
+        .select("id, name, category, phone, email, notes, source, contact_id")
+        .eq("building_id", buildingId)
+        .is("contact_id", null)
+        .order("created_at");
+      if (error) throw error;
+      return (data ?? []) as {
+        id: string; name: string; category: string | null; phone: string | null; email: string | null;
+        notes: string | null; source: string | null; contact_id: string | null;
+      }[];
+    },
+  });
+
+  if (!zeilen.length) return null;
+
+  const verknuepfen = async (z: (typeof zeilen)[number], contactId: string | null) => {
+    if (!contactId) return;
+    const kat =
+      categories.find((c) => c.name.toLowerCase() === (z.category ?? "").toLowerCase())?.name || z.category || "Sonstiges";
+    const { error } = await (supabase as any).from("building_service_providers").update({ contact_id: contactId }).eq("id", z.id);
+    if (error) {
+      toast({ title: "Fehler", description: error.message, variant: "destructive" });
+      return;
+    }
+    const { data: schon } = await supabase
+      .from("contact_building_assignments")
+      .select("id")
+      .eq("building_id", buildingId)
+      .eq("contact_id", contactId)
+      .eq("role_in_building", "dienstleister" as any)
+      .eq("service_category", kat)
+      .limit(1);
+    if (!schon?.length) {
+      const { error: e2 } = await supabase.from("contact_building_assignments").insert({
+        contact_id: contactId,
+        building_id: buildingId,
+        role_in_building: "dienstleister" as any,
+        service_category: kat,
+        notes: z.notes || null,
+      });
+      if (e2) {
+        toast({ title: "Fehler", description: e2.message, variant: "destructive" });
+        return;
+      }
+    }
+    queryClient.invalidateQueries({ queryKey: ["building-service-providers-freitext", buildingId] });
+    queryClient.invalidateQueries({ queryKey: ["building-service-providers", buildingId] });
+    toast({ title: "Mit Kontakt verknüpft", description: `„${z.name}“ ist jetzt als ${kat} eingetragen.` });
+  };
+
+  return (
+    <Card className="border-dashed">
+      <CardContent className="space-y-3 px-4 py-3">
+        <div>
+          <p className="flex items-center gap-1.5 text-sm font-medium">
+            <Link2 className="h-4 w-4 text-muted-foreground" /> Nur als Text erfasst
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Diese Angaben stammen z. B. aus dem Eigentümer-Fragebogen. Bitte mit einem Kontakt aus „Adressen“ verknüpfen.
+          </p>
+        </div>
+        {zeilen.map((z) => (
+          <div key={z.id} className="grid gap-2 border-t border-border pt-3 sm:grid-cols-2 sm:items-center">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="truncate text-sm">{z.name}</span>
+                {z.category && <Badge variant="secondary" className="text-[10px]">{z.category}</Badge>}
+              </div>
+              {(z.phone || z.email || z.notes) && (
+                <p className="truncate text-xs text-muted-foreground">{[z.phone, z.email, z.notes].filter(Boolean).join(" · ")}</p>
+              )}
+            </div>
+            <KontaktAuswahl
+              value={null}
+              freitext={z.name}
+              onChange={(id) => verknuepfen(z, id)}
+              placeholder="Kontakt wählen …"
+              neuTitel="Neuer Dienstleister"
+              neuVorbelegung={{
+                contactType: "company",
+                isServiceProvider: true,
+                phone: z.phone,
+                email: z.email,
+                notes: z.notes,
+              }}
+            />
+          </div>
+        ))}
+      </CardContent>
+    </Card>
   );
 }

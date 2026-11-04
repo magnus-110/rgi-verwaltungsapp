@@ -5,15 +5,14 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Command, CommandInput, CommandList, CommandEmpty, CommandItem } from "@/components/ui/command";
-import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { KontaktAuswahl } from "@/components/contacts/KontaktAuswahl";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { KeyTag } from "./types";
 import { KeySignatureOverlay } from "./KeySignatureOverlay";
 import { useAuth } from "@/hooks/useAuth";
-import { ChevronDown, PenLine, CheckCircle2 } from "lucide-react";
+import { PenLine, CheckCircle2 } from "lucide-react";
 import { format } from "date-fns";
 
 interface Props { open: boolean; onClose: () => void; tag: KeyTag; buildingId: string; }
@@ -23,7 +22,6 @@ export const KeyLoanDialog = ({ open, onClose, tag, buildingId }: Props) => {
   const { user } = useAuth();
   const [contactId, setContactId] = useState<string | null>(null);
   const [contactLabel, setContactLabel] = useState<string>("");
-  const [contactSearch, setContactSearch] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [openReturn, setOpenReturn] = useState(false);
@@ -35,7 +33,6 @@ export const KeyLoanDialog = ({ open, onClose, tag, buildingId }: Props) => {
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [signOpen, setSignOpen] = useState(false);
-  const [contactPopoverOpen, setContactPopoverOpen] = useState(false);
 
   useEffect(() => { if (open) { setContactId(null); setContactLabel(""); setName(""); setEmail(""); setSignature(null); setNotes(""); setRequiresSignature(false); setSendConfirmation(false); setSendOverdueReminder(false); setOpenReturn(false); setDueDate(format(new Date(Date.now() + 7 * 86400000), "yyyy-MM-dd")); }}, [open]);
 
@@ -46,19 +43,24 @@ export const KeyLoanDialog = ({ open, onClose, tag, buildingId }: Props) => {
   });
   const buildingLabel = building?.name || "";
 
-  const { data: contacts = [] } = useQuery({
-    queryKey: ["contacts-search", contactSearch],
-    queryFn: async () => {
-      const q = supabase
-        .from("contacts")
-        .select("id, company_name, contact_persons(first_name, last_name, is_primary, contact_emails(email))")
-        .limit(20)
-        .order("is_primary", { foreignTable: "contact_persons", ascending: false });
-      if (contactSearch) q.ilike("company_name", `%${contactSearch}%`);
-      return (await q).data ?? [];
-    },
-    enabled: open,
-  });
+  // Kontakt gewählt: Name und E-Mail der Hauptperson übernehmen
+  const kontaktGewaehlt = async (id: string | null, k?: { name: string }) => {
+    setContactId(id);
+    setContactLabel(k?.name ?? "");
+    if (!id) return;
+    const { data: c } = await supabase
+      .from("contacts")
+      .select("id, company_name, first_name, last_name, contact_persons(first_name, last_name, is_primary, email), contact_emails(email, is_primary)")
+      .eq("id", id)
+      .maybeSingle();
+    const persons = ((c as any)?.contact_persons ?? []) as any[];
+    const primary = persons.find((p) => p.is_primary) ?? persons[0];
+    const personName = primary ? [primary.first_name, primary.last_name].filter(Boolean).join(" ") : "";
+    const mails = ((c as any)?.contact_emails ?? []) as any[];
+    const mail = primary?.email || (mails.find((m) => m.is_primary) ?? mails[0])?.email || "";
+    setName(personName || k?.name || "");
+    setEmail(mail);
+  };
 
   const persistLoan = async (sig: string | null) => {
     if (!contactId && !name) { toast.error("Kontakt oder Name angeben"); return; }
@@ -103,45 +105,14 @@ export const KeyLoanDialog = ({ open, onClose, tag, buildingId }: Props) => {
           <DialogHeader><DialogTitle>Schlüssel ausgeben · <span className="font-mono">{tag.tag_number}</span></DialogTitle></DialogHeader>
           <div className="space-y-3">
           <div>
-            <Label>Kontakt (optional)</Label>
-            <Popover open={contactPopoverOpen} onOpenChange={setContactPopoverOpen}>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className="w-full justify-between font-normal">
-                  {contactLabel || "Kontakt suchen…"}
-                  <ChevronDown className="h-3 w-3" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="p-0 w-[--radix-popover-trigger-width]">
-                <Command shouldFilter={false}>
-                  <CommandInput placeholder="Suchen…" value={contactSearch} onValueChange={setContactSearch} />
-                  <CommandList>
-                    <CommandEmpty>Keine Treffer</CommandEmpty>
-                    {contacts.map((c: any) => {
-                      const persons = (c.contact_persons ?? []) as any[];
-                      const primary = persons.find((p) => p.is_primary) ?? persons[0];
-                      const personName = primary ? [primary.first_name, primary.last_name].filter(Boolean).join(" ") : "";
-                      const displayLabel = personName || c.company_name || "—";
-                      const subLabel = personName && c.company_name ? c.company_name : "";
-                      const mail = primary?.contact_emails?.[0]?.email;
-                      return (
-                        <CommandItem key={c.id} value={c.id} onSelect={() => {
-                          setContactId(c.id);
-                          setContactLabel(displayLabel + (subLabel ? ` (${subLabel})` : ""));
-                          setName(personName || c.company_name || "");
-                          setEmail(mail || "");
-                          setContactPopoverOpen(false);
-                        }}>
-                          <div className="flex flex-col">
-                            <span>{displayLabel}{mail && <span className="text-xs text-muted-foreground ml-2">{mail}</span>}</span>
-                            {subLabel && <span className="text-xs text-muted-foreground">{subLabel}</span>}
-                          </div>
-                        </CommandItem>
-                      );
-                    })}
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
+            <Label>Kontakt aus Adressen (optional)</Label>
+            <KontaktAuswahl
+              value={contactId}
+              onChange={kontaktGewaehlt}
+              placeholder="Kontakt suchen …"
+              neuTitel="Neuer Kontakt (Schlüssel)"
+              neuVorbelegung={{ contactType: "person" }}
+            />
           </div>
           <div className="grid grid-cols-2 gap-2 min-w-0">
             <div className="min-w-0"><Label>Name *</Label><Input value={name} onChange={(e) => setName(e.target.value)} /></div>

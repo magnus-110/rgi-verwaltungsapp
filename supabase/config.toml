@@ -220,3 +220,6 @@ verify_jwt = false
 
 [functions.sign-public]
 verify_jwt = false
+
+[functions.kontakte-zusammenfuehren]
+verify_jwt = false

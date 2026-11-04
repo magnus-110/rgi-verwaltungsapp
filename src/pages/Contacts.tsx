@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
-import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { ContactList } from "@/components/contacts/ContactList";
@@ -60,6 +60,8 @@ export function Contacts() {
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const [searchParams, setSearchParams] = useSearchParams();
+  const queryClient = useQueryClient();
+  const [ansicht, setAnsicht] = useState(0);
 
   // Server-Side Pagination + Suche + Filter
   const { data, isLoading, refetch } = useQuery({
@@ -177,6 +179,14 @@ export function Contacts() {
     refetch();
   };
 
+  // Nach dem Zusammenführen: Liste neu laden und zum Kontakt springen, der bleibt
+  const handleMerged = async (hauptId: string) => {
+    await queryClient.invalidateQueries({ queryKey: ["contact-by-id"] });
+    await refetch();
+    setAnsicht((n) => n + 1);
+    handleSelect(hauptId);
+  };
+
   const selectedContact =
     contacts.find((c) => c.id === selectedContactId) || selectedFromUrl || null;
 
@@ -185,10 +195,12 @@ export function Contacts() {
       return (
         <div className="h-full">
           <ContactDetail
+            key={`${selectedContact.id}-${ansicht}`}
             contact={selectedContact}
             onBack={() => handleSelect(null)}
             onUpdate={refetch}
             onDeleted={handleDeleted}
+            onMerged={handleMerged}
           />
         </div>
       );
@@ -240,9 +252,11 @@ export function Contacts() {
         <ResizablePanel defaultSize={70}>
           {selectedContact ? (
             <ContactDetail
+              key={`${selectedContact.id}-${ansicht}`}
               contact={selectedContact}
               onUpdate={refetch}
               onDeleted={handleDeleted}
+              onMerged={handleMerged}
             />
           ) : (
             <div className="h-full flex items-center justify-center text-muted-foreground">

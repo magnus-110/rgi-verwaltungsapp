@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { KontaktAuswahl } from "@/components/contacts/KontaktAuswahl";
 
 interface Loan {
   id: string;
@@ -36,6 +37,24 @@ export const EditKeyLoanDialog = ({ open, onClose, loan, buildingId, tagNumber }
   );
   const [notes, setNotes] = useState(loan.notes ?? "");
   const [saving, setSaving] = useState(false);
+  const [contactId, setContactId] = useState<string | null>(null);
+
+  // Verknüpften Kontakt nachladen (nicht jede Liste lädt borrower_contact_id mit)
+  useEffect(() => {
+    if (!open) return;
+    let ab = false;
+    supabase
+      .from("key_loans")
+      .select("borrower_contact_id")
+      .eq("id", loan.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!ab) setContactId((data as any)?.borrower_contact_id ?? null);
+      });
+    return () => {
+      ab = true;
+    };
+  }, [open, loan.id]);
 
   useEffect(() => {
     if (open) {
@@ -56,6 +75,7 @@ export const EditKeyLoanDialog = ({ open, onClose, loan, buildingId, tagNumber }
     const { error } = await supabase
       .from("key_loans")
       .update({
+        borrower_contact_id: contactId,
         borrower_name: name.trim(),
         borrower_email: email.trim() || null,
         due_at: openReturn ? null : new Date(dueDate + "T23:59:59").toISOString(),
@@ -84,6 +104,20 @@ export const EditKeyLoanDialog = ({ open, onClose, loan, buildingId, tagNumber }
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
+          <div>
+            <Label>Kontakt aus Adressen</Label>
+            <KontaktAuswahl
+              value={contactId}
+              freitext={contactId ? null : loan.borrower_name}
+              onChange={(id, k) => {
+                setContactId(id);
+                if (id && k?.name && !name.trim()) setName(k.name);
+              }}
+              placeholder="Kontakt suchen …"
+              neuTitel="Neuer Kontakt (Schlüssel)"
+              neuVorbelegung={{ contactType: "person", email: email || null }}
+            />
+          </div>
           <div className="grid grid-cols-2 gap-2 min-w-0">
             <div className="min-w-0">
               <Label>Name *</Label>

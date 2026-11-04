@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
+import { KontaktAuswahl } from "@/components/contacts/KontaktAuswahl";
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   draft: { label: "Entwurf", color: "bg-muted text-muted-foreground" },
@@ -46,6 +47,7 @@ export function BillingPeriodSelector({
   const [newPeriodFrom, setNewPeriodFrom] = useState("");
   const [newPeriodTo, setNewPeriodTo] = useState("");
   const [newProvider, setNewProvider] = useState("");
+  const [newProviderContactId, setNewProviderContactId] = useState<string | null>(null);
 
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-billing", managementMode],
@@ -110,6 +112,7 @@ export function BillingPeriodSelector({
     setNewPeriodFrom(`${year}-01-01`);
     setNewPeriodTo(`${year}-12-31`);
     setNewProvider("");
+    setNewProviderContactId(null);
     setIsEditOpen(true);
   };
 
@@ -121,6 +124,7 @@ export function BillingPeriodSelector({
     setNewPeriodFrom(selectedPeriod.period_from);
     setNewPeriodTo(selectedPeriod.period_to);
     setNewProvider((selectedPeriod as any).heating_provider || "");
+    setNewProviderContactId((selectedPeriod as any).heating_provider_contact_id ?? null);
     setIsEditOpen(true);
   };
 
@@ -136,7 +140,8 @@ export function BillingPeriodSelector({
         period_from: newPeriodFrom,
         period_to: newPeriodTo,
         heating_provider: newProvider || null,
-      }).eq("id", editingId);
+        heating_provider_contact_id: newProviderContactId,
+      } as any).eq("id", editingId);
       if (error) {
         if (error.code === "23505") toast.error("Abrechnungszeitraum für dieses Jahr existiert bereits");
         else toast.error("Fehler: " + error.message);
@@ -154,8 +159,9 @@ export function BillingPeriodSelector({
       period_from: newPeriodFrom,
       period_to: newPeriodTo,
       heating_provider: newProvider || null,
+      heating_provider_contact_id: newProviderContactId,
       status: "draft",
-    }).select().single();
+    } as any).select().single();
 
     if (error) {
       if (error.code === "23505") toast.error("Abrechnungszeitraum für dieses Jahr existiert bereits");
@@ -313,7 +319,17 @@ export function BillingPeriodSelector({
             </p>
             <div>
               <Label>Ablesefirma (optional)</Label>
-              <Input value={newProvider} onChange={(e) => setNewProvider(e.target.value)} placeholder="z.B. Brunata, Techem, ista..." />
+              <KontaktAuswahl
+                value={newProviderContactId}
+                freitext={newProvider}
+                onChange={(id, k) => {
+                  setNewProviderContactId(id);
+                  if (id && k?.name) setNewProvider(k.name);
+                }}
+                placeholder="z.B. Brunata, Techem, ista … aus Adressen wählen"
+                neuTitel="Neue Ablesefirma"
+                neuVorbelegung={{ contactType: "company", isServiceProvider: true }}
+              />
             </div>
           </div>
           <DialogFooter>

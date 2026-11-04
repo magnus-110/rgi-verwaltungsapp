@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Trash2, Wrench } from "lucide-react";
+import { useDublettenPruefung } from "./useDublettenPruefung";
 import { ServiceProviderCategoryPicker } from "./ServiceProviderCategoryPicker";
 import { PHONE_NOTE_MAX } from "@/lib/phone";
 import {
@@ -54,13 +55,19 @@ interface Props {
   /** Vorbelegte Felder (werden bei jedem Öffnen neu übernommen). */
   prefill?: CreateContactPrefill;
   title?: string;
+  /**
+   * Wird aufgerufen, wenn in der Dubletten-Warnung ein vorhandener Kontakt gewählt wurde.
+   * Ohne diese Angabe wird onCreated mit der vorhandenen Kontakt-ID aufgerufen.
+   */
+  onExistingSelected?: (contactId: string) => void | Promise<void>;
 }
 
 function formatIban(raw: string): string {
   return raw.replace(/\s/g, '').replace(/(.{4})/g, '$1 ').trim();
 }
 
-export function CreateContactDialog({ open, onOpenChange, onCreated, prefill, title }: Props) {
+export function CreateContactDialog({ open, onOpenChange, onCreated, prefill, title, onExistingSelected }: Props) {
+  const { pruefe, dialog: dublettenDialog } = useDublettenPruefung();
   const [contactType, setContactType] = useState("person");
   const [isServiceProvider, setIsServiceProvider] = useState(false);
   const [categories, setCategories] = useState<string[]>([]);
@@ -123,6 +130,31 @@ export function CreateContactDialog({ open, onOpenChange, onCreated, prefill, ti
       return;
     }
     setSaving(true);
+
+    // Vor dem Anlegen: gibt es den Kontakt schon?
+    const pruefName =
+      (isCompanyType && companyName.trim()) ||
+      [firstName.trim(), lastName.trim()].filter(Boolean).join(" ") ||
+      companyName.trim() ||
+      shortName.trim();
+    const erg = await pruefe({
+      name: pruefName,
+      telefon: phones.find((p) => p.phone_number.trim())?.phone_number,
+      email: emails.find((e) => e.email.trim())?.email,
+      iban: banks.find((b) => b.iban.trim())?.iban,
+    });
+    if (erg === "abbruch") {
+      setSaving(false);
+      return;
+    }
+    if (erg !== "neu") {
+      setSaving(false);
+      toast({ title: "Vorhandener Kontakt verwendet", description: erg.kontakt.anzeige });
+      applyPrefill(undefined);
+      onOpenChange(false);
+      await (onExistingSelected ?? onCreated)(erg.contactId);
+      return;
+    }
 
     // Create contact
     const { data: contact, error } = await supabase.from("contacts").insert({
@@ -409,6 +441,7 @@ export function CreateContactDialog({ open, onOpenChange, onCreated, prefill, ti
           <Button variant="outline" onClick={() => onOpenChange(false)}>Abbrechen</Button>
           <Button onClick={handleSave} disabled={saving}>{saving ? "Speichern..." : "Erstellen"}</Button>
         </DialogFooter>
+        {dublettenDialog}
       </DialogContent>
     </Dialog>
   );

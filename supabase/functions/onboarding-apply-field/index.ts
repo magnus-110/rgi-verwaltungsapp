@@ -3,6 +3,7 @@
 // IMPORTANT: For Step-2-fields (qm/mea/hausgeld) the per-unit assignment_id MUST
 // be respected so multi-unit owners get their data on the correct unit.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.1";
+import { sichererKontakt } from "../_shared/kontakt-dubletten.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -350,19 +351,16 @@ Deno.serve(async (req) => {
           const phone = value?.phone ? String(value.phone).trim() : null;
           const email = value?.email ? String(value.email).trim() : null;
 
-          // 1) Find or create a contact (company) with this name
+          // 1) Vorhandenen Kontakt verwenden: gewählter Kontakt oder sicherer Treffer
+          //    (gleiche E-Mail, gleiche Telefonnummer oder normalisiert gleicher Name – Rechtsform/Schreibweise egal)
           let providerContactId: string | null = null;
-          const { data: existingContact } = await admin
-            .from("contacts")
-            .select("id")
-            .ilike("company_name", name)
-            .in("contact_type", ["company", "service_provider"])
-            .limit(1)
-            .maybeSingle();
+          if (value?.contact_id) {
+            const { data: gewaehlt } = await admin.from("contacts").select("id").eq("id", String(value.contact_id)).maybeSingle();
+            providerContactId = (gewaehlt as any)?.id ?? null;
+          }
+          if (!providerContactId) providerContactId = await sichererKontakt(admin, { name, telefon: phone, email });
 
-          if (existingContact) {
-            providerContactId = (existingContact as any).id;
-          } else {
+          if (!providerContactId) {
             const { data: newContact, error: cErr } = await admin
               .from("contacts")
               .insert({
@@ -427,11 +425,11 @@ Deno.serve(async (req) => {
           if (bsp) {
             await admin
               .from("building_service_providers")
-              .update({ suggested_by_count: ((bsp as any).suggested_by_count || 1) + 1 })
+              .update({ suggested_by_count: ((bsp as any).suggested_by_count || 1) + 1, contact_id: providerContactId })
               .eq("id", (bsp as any).id);
           } else {
             await admin.from("building_service_providers").insert({
-              building_id: buildingId, name, category, phone, email, source: "onboarding",
+              building_id: buildingId, name, category, phone, email, source: "onboarding", contact_id: providerContactId,
             });
           }
 

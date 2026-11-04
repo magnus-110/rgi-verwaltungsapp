@@ -14,6 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DL_KATEGORIEN, kategorieZuLabel, labelZuKategorie, type AufnahmeAntworten } from "@/lib/aufnahme";
 import { Chip, Karte } from "./teile";
+import { aehnlicheKontakte, sucheAusText } from "@/lib/kontaktSuche";
+import { useDublettenPruefung } from "@/components/contacts/useDublettenPruefung";
 
 export interface Firma {
   contactId: string;
@@ -259,6 +261,7 @@ export function DienstleisterDialog({
   const [gewaehlt, setGewaehlt] = useState<string | null>(null);
   const [laeuft, setLaeuft] = useState(false);
   const [offenFuer, setOffenFuer] = useState<string | undefined>(undefined);
+  const { pruefe, dialog: dublettenDialog } = useDublettenPruefung();
 
   // Beim Öffnen zurücksetzen
   if (open && offenFuer !== (startKategorie ?? "")) {
@@ -274,21 +277,24 @@ export function DienstleisterDialog({
     queryKey: ["aufnahme-firmensuche", suche],
     enabled: open && suche.length >= 2,
     queryFn: async (): Promise<Vorschlag[]> => {
-      const q = suche.replace(/[%,()]/g, " ");
+      // gleiche Suche wie überall: Name (auch Personen, Rechtsform egal), Telefon, E-Mail
+      const tr = await aehnlicheKontakte(sucheAusText(suche), 8);
+      if (!tr.length) return [];
       const { data, error } = await supabase
         .from("contacts")
-        .select("id, company_name, first_name, last_name, address_city, service_provider_categories, contact_building_assignments(role_in_building, service_category, buildings(name))")
-        .or(`company_name.ilike.%${q}%,last_name.ilike.%${q}%,short_name.ilike.%${q}%`)
-        .limit(8);
+        .select("id, service_provider_categories, contact_building_assignments(role_in_building, service_category, buildings(name))")
+        .in("id", tr.map((t) => t.contact_id));
       if (error) throw error;
-      return (data ?? []).map((c: any) => {
+      const zusatz = new Map((data ?? []).map((c: any) => [c.id, c]));
+      return tr.map((t) => {
+        const c: any = zusatz.get(t.contact_id) ?? {};
         const dl = (c.contact_building_assignments ?? []).filter((z: any) => z.role_in_building === "dienstleister");
         const haeuser = [...new Set(dl.map((z: any) => z.buildings?.name).filter(Boolean))] as string[];
         const aufgaben = [...new Set([...dl.map((z: any) => kategorieZuLabel(z.service_category)), ...((c.service_provider_categories ?? []) as string[]).map(kategorieZuLabel)])];
         return {
-          id: c.id,
-          name: firmenName(c),
-          info: [c.address_city, aufgaben.slice(0, 3).join(", "), haeuser.length ? `bei ${haeuser.slice(0, 3).join(", ")}${haeuser.length > 3 ? " …" : ""}` : null]
+          id: t.contact_id,
+          name: t.anzeige,
+          info: [t.ort, aufgaben.slice(0, 3).join(", "), haeuser.length ? `bei ${haeuser.slice(0, 3).join(", ")}${haeuser.length > 3 ? " …" : ""}` : null]
             .filter(Boolean)
             .join(" · "),
         };
@@ -305,9 +311,21 @@ export function DienstleisterDialog({
     try {
       let contactId = gewaehlt;
       if (!contactId) {
+        // Vor dem Anlegen: gibt es die Firma schon?
+        const erg = await pruefe({ name: suche });
+        if (erg === "abbruch") return;
+        if (erg !== "neu") contactId = erg.contactId;
+      }
+      if (!contactId) {
         const { data, error } = await supabase
           .from("contacts")
-          .insert({ company_name: suche, contact_type: "company" as any, notes: "Bei der Aufnahme angelegt – Kontaktdaten ergänzen" } as any)
+          .insert({
+            company_name: suche,
+            short_name: suche.slice(0, 40),
+            contact_type: "company" as any,
+            is_service_provider_pool: true,
+            notes: "Bei der Aufnahme angelegt – Kontaktdaten ergänzen",
+          } as any)
           .select("id")
           .single();
         if (error) throw error;
@@ -418,6 +436,7 @@ export function DienstleisterDialog({
             Übernehmen
           </Button>
         </DialogFooter>
+        {dublettenDialog}
       </DialogContent>
     </Dialog>
   );

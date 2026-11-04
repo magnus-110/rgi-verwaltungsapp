@@ -11,7 +11,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { Plus, Flame, Zap, Droplets, Thermometer, Pencil, Trash2 } from "lucide-react";
+import { Plus, Flame, Zap, Droplets, Thermometer, Pencil, Trash2, Link2 } from "lucide-react";
+import { KontaktAuswahl } from "@/components/contacts/KontaktAuswahl";
 
 const UTILITY_TYPES = [
   { value: "gas", label: "Gas", icon: Flame, color: "text-orange-500" },
@@ -30,6 +31,7 @@ export function UtilityContractsTab({ buildingId }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({
     vendor_name: "",
+    vendor_contact_id: null as string | null,
     vendor_iban: "",
     utility_type: "gas" as string,
     contract_number: "",
@@ -69,7 +71,7 @@ export function UtilityContractsTab({ buildingId }: Props) {
   const [expenseAccountId, setExpenseAccountId] = useState<string>("");
 
   const resetForm = () => {
-    setForm({ vendor_name: "", vendor_iban: "", utility_type: "gas", contract_number: "", meter_number: "", installment_amount: "", installment_interval: "monatlich", notes: "" });
+    setForm({ vendor_name: "", vendor_contact_id: null, vendor_iban: "", utility_type: "gas", contract_number: "", meter_number: "", installment_amount: "", installment_interval: "monatlich", notes: "" });
     setPrepaymentAccountId("");
     setExpenseAccountId("");
     setEditingId(null);
@@ -81,6 +83,7 @@ export function UtilityContractsTab({ buildingId }: Props) {
     const payload: any = {
       building_id: buildingId,
       vendor_name: form.vendor_name,
+      vendor_contact_id: form.vendor_contact_id,
       vendor_iban: form.vendor_iban || null,
       utility_type: form.utility_type,
       contract_number: form.contract_number || null,
@@ -110,6 +113,7 @@ export function UtilityContractsTab({ buildingId }: Props) {
   const handleEdit = (contract: any) => {
     setForm({
       vendor_name: contract.vendor_name || "",
+      vendor_contact_id: contract.vendor_contact_id ?? null,
       vendor_iban: contract.vendor_iban || "",
       utility_type: contract.utility_type || "gas",
       contract_number: contract.contract_number || "",
@@ -183,7 +187,14 @@ export function UtilityContractsTab({ buildingId }: Props) {
                         <span className="text-sm">{info.label}</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-sm font-medium">{contract.vendor_name}</TableCell>
+                    <TableCell className="text-sm font-medium">
+                      <span className="inline-flex items-center gap-1">
+                        {contract.vendor_name}
+                        {(contract as any).vendor_contact_id && (
+                          <Link2 className="h-3 w-3 text-muted-foreground" aria-label="mit Adressen verknüpft" />
+                        )}
+                      </span>
+                    </TableCell>
                     <TableCell className="text-xs font-mono text-muted-foreground">{contract.contract_number || "–"}</TableCell>
                     <TableCell className="text-xs font-mono text-muted-foreground">{contract.meter_number || "–"}</TableCell>
                     <TableCell className="text-right text-sm font-medium">
@@ -239,7 +250,16 @@ export function UtilityContractsTab({ buildingId }: Props) {
               </div>
               <div>
                 <Label>Lieferant *</Label>
-                <Input value={form.vendor_name} onChange={e => setForm(p => ({ ...p, vendor_name: e.target.value }))} placeholder="z.B. Stadtwerke" />
+                <KontaktAuswahl
+                  value={form.vendor_contact_id}
+                  freitext={form.vendor_name}
+                  onChange={(id, k) =>
+                    setForm(p => ({ ...p, vendor_contact_id: id, vendor_name: id && k?.name ? k.name : p.vendor_name }))
+                  }
+                  placeholder="z.B. Stadtwerke – aus Adressen wählen"
+                  neuTitel="Neuer Versorger"
+                  neuVorbelegung={{ contactType: "company" }}
+                />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
