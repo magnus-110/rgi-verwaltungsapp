@@ -4,7 +4,8 @@
 // (sign_request_events) immer zusammenpassen. Vertrag: /home/claude/esig/API.md
 //
 // Aktionen: create · preview_mail · sign_internal · remind · withdraw · accept_paper ·
-//           reject_paper · assign_paper_email · urls · nachweis · neuer_link · cron ·
+//           reject_paper · assign_paper_email · paper_upload (Papier per Post, Büro lädt den Scan hoch) ·
+//           urls · nachweis · neuer_link · cron ·
 //           create_incoming · complete_incoming (Fall B, eingehende Dokumente selbst unterschreiben) ·
 //           dms_ablegen (Endfassung eines ausgehenden Vorgangs von Hand im DMS ablegen, _shared/signatur/ablage.ts) ·
 //           felder_erkennen (Ausfüllfelder: Vorlagen-Anker bzw. Vorschläge in fremden PDFs, _shared/signatur/felderkennung.ts) ·
@@ -25,6 +26,7 @@ import {
   ZUSTIMMUNG_INTERN,
   addTage,
   adminClient,
+  base64ZuBytes,
   corsHeaders,
   dateiname,
   ereignis,
@@ -48,6 +50,7 @@ import {
   einladen,
   istEtv,
   linkErstellen,
+  MAX_PAPIER,
   nachUnterschrift,
   nurLink,
   papierSpeichern,
@@ -58,8 +61,8 @@ import { absenderKontoId, einladungMail } from "../_shared/signatur/mail.ts";
 import { anlegen, erinnern, mitarbeiterName, neuerLink, selbstErinnern } from "../_shared/signatur/vorgang.ts";
 import { eingehendAbschliessen, eingehendAnlegen } from "../_shared/signatur/eingehend.ts";
 import { dmsAblegen } from "../_shared/signatur/ablage.ts";
-import { istHeic, istJpg, istPdf, istPng, nachweisPdf } from "../_shared/signatur/pdf.ts";
-import { felderLaden } from "../_shared/signatur/felder.ts";
+import { istHeic, istJpg, istPdf, istPng, nachweisPdf, papierZusammenfuegen } from "../_shared/signatur/pdf.ts";
+import { eingabenPruefen, felderLaden, wertText } from "../_shared/signatur/felder.ts";
 import { ergaenzungenLaden } from "../_shared/signatur/ergaenzungen.ts";
 import { ausfuellfelderErkennen } from "../_shared/signatur/felderkennung.ts";
 import { ERLAUBTE_BUCKETS } from "../_shared/signatur/vorgang.ts";
@@ -101,6 +104,8 @@ Deno.serve(async (req) => {
         return json(await papierAblehnen(db, body, userId, test));
       case "assign_paper_email":
         return json(await papierMailZuordnen(db, body, userId));
+      case "paper_upload":
+        return json(await papierPostHochladen(db, body, userId));
       case "urls":
         return json(await urls(db, body));
       case "nachweis":
@@ -234,6 +239,11 @@ async function papierUebernehmen(db: Db, b: Body, userId: string | null) {
   if (v.status !== "offen") throw new Fehler(409, "Der Vorgang ist nicht mehr offen.");
   if (s.status !== "papier_eingegangen") throw new Fehler(409, "Es liegt keine ungeprüfte Papier-Unterschrift vor.");
   const jetzt = new Date().toISOString();
+  // Handschriftliche Angaben (z. B. IBAN im SEPA-Mandat) vom Büro übertragen – vor dem Abschluss,
+  // damit Endfassung, Nachweis und die automatische Stammdaten-Übernahme sie kennen.
+  if (b.werte && typeof b.werte === "object" && !Array.isArray(b.werte)) {
+    await papierWerteSpeichern(db, v, s, b.werte, userId, jetzt);
+  }
   const { data: upd } = await db.from("sign_request_signers").update({
     status: "papier_uebernommen",
     signed_at: s.paper_eingang_at || jetzt,
@@ -244,6 +254,88 @@ async function papierUebernehmen(db: Db, b: Body, userId: string | null) {
   await ereignis(db, v.id, "uebernommen", `Papier-Unterschrift von ${s.name} übernommen`, { signerId: s.id, userId });
   const r = await nachUnterschrift(db, v.id, userId);
   return { ok: true, abgeschlossen: r.abgeschlossen };
+}
+
+/** Werte der Ausfüllfelder dieses Unterzeichners vom Papier übernehmen (Prüfung wie beim Online-Ausfüllen). */
+async function papierWerteSpeichern(db: Db, v: Body, s: Signer, roh: Record<string, unknown>, userId: string | null, jetzt: string) {
+  const felder = await felderLaden(db, v.id);
+  if (!felder.some((f) => f.ausfueller === "unterzeichner" && f.signer_id === s.id)) return;
+  const werte = eingabenPruefen(felder, s.id, roh);
+  const wer = await mitarbeiterName(db, userId);
+  const von = `${s.name} (Papier, übertragen${wer ? ` von ${wer.replace(/ \(RGI Immobilien\)$/, "")}` : " durch RGI"})`;
+  const gesetzt: string[] = [];
+  for (const [id, wert] of werte) {
+    const { error } = await db.from("sign_request_fields").update({
+      wert,
+      wert_gesetzt_von: wert ? von : null,
+      wert_gesetzt_signer_id: wert ? s.id : null,
+      wert_gesetzt_user_id: wert ? uuidOderNull(userId) : null,
+      wert_gesetzt_am: wert ? jetzt : null,
+    }).eq("id", id).eq("signer_id", s.id);
+    if (error) throw new Fehler(500, `Angaben konnten nicht gespeichert werden: ${error.message}`);
+    const f = felder.find((x) => x.id === id)!;
+    if (wert) gesetzt.push(`${f.beschriftung || f.feld_key}: ${wertText({ typ: f.typ, wert })}`);
+  }
+  if (gesetzt.length) {
+    await ereignis(db, v.id, "felder_ausgefuellt", `Angaben von ${s.name} vom Papier übertragen: ${gesetzt.join("; ")}`.slice(0, 900), {
+      signerId: s.id, userId, details: { felder: gesetzt, am: jetzt, quelle: "papier" },
+    });
+  }
+}
+
+/** paper_upload: Papier kam per Post – das Büro lädt den Scan (PDF/JPG/PNG) hoch; danach „Papier-Unterschrift prüfen“. */
+async function papierPostHochladen(db: Db, b: Body, userId: string | null) {
+  const { req: v, signer: s } = await signerLaden(db, b.signer_id);
+  if (v.status !== "offen") throw new Fehler(409, "Der Vorgang ist nicht mehr offen.");
+  if (![...UNTERSCHREIBBAR, "wartet", "papier_eingegangen"].includes(s.status)) {
+    throw new Fehler(409, "Für diesen Unterzeichner ist keine Papier-Unterschrift möglich.");
+  }
+  const roh = Array.isArray(b.dateien) ? b.dateien : [];
+  if (!roh.length) throw new Fehler(400, "Bitte den Scan hinzufügen (PDF, JPG oder PNG).");
+  if (roh.length > 80) throw new Fehler(400, "Zu viele Dateien (höchstens 80).");
+  const dateien: { name: string; bytes: Uint8Array }[] = [];
+  for (const d of roh) {
+    const name = zeile(d?.name || "Scan", 120);
+    const mime = String(d?.mime || "").toLowerCase();
+    if (/heic|heif/.test(mime) || /\.(heic|heif)$/i.test(name)) throw new Fehler(400, `„${name}“: HEIC wird nicht unterstützt, bitte als PDF oder JPG.`);
+    if (typeof d?.base64 !== "string" || !d.base64) throw new Fehler(400, `„${name}“ ist leer.`);
+    let bytes: Uint8Array;
+    try {
+      bytes = base64ZuBytes(d.base64);
+    } catch {
+      throw new Fehler(400, `„${name}“ konnte nicht gelesen werden.`);
+    }
+    if (!istPdf(bytes) && !istJpg(bytes) && !istPng(bytes)) throw new Fehler(400, `„${name}“ ist kein PDF, JPG oder PNG.`);
+    dateien.push({ name, bytes });
+  }
+  const summe = dateien.reduce((a, d) => a + d.bytes.byteLength, 0);
+  if (summe > MAX_PAPIER) throw new Fehler(413, "Die Dateien sind zusammen größer als 40 MB. Bitte mit geringerer Auflösung scannen.");
+  const p = await papierZusammenfuegen(dateien);
+  const soll = v.seitenzahl ?? p.seiten;
+  const warnung = p.seiten !== soll ? `Das Dokument hat ${soll} Seiten, eingescannt wurden ${p.seiten}.` : null;
+  const ziel = pfad.papier(v.id, s.id);
+  await speichern(db, ziel, p.bytes);
+  const jetzt = new Date().toISOString();
+  // paper_eingang bleibt „upload“ (Scan wurde hochgeladen); dass das Papier per Post kam, steht im Protokoll.
+  const { error } = await db.from("sign_request_signers").update({
+    methode: "papier",
+    status: "papier_eingegangen",
+    paper_bucket: BUCKET,
+    paper_path: ziel,
+    paper_page_count: p.seiten,
+    paper_eingang: "upload",
+    paper_email_id: null,
+    paper_eingang_at: jetzt,
+    paper_pruefung: null,
+  }).eq("id", s.id);
+  if (error) throw new Fehler(500, `Papier-Unterschrift konnte nicht gespeichert werden: ${error.message}`);
+  const wer = await mitarbeiterName(db, userId);
+  await ereignis(db, v.id, "scan_eingegangen", `Papier-Unterschrift von ${s.name} per Post eingegangen, Scan hochgeladen${wer ? ` von ${wer}` : ""} (${p.seiten} ${p.seiten === 1 ? "Seite" : "Seiten"})`, {
+    signerId: s.id,
+    userId,
+    details: { eingang: "post", seiten: p.seiten, soll, dateien: dateien.length, ...(warnung ? { warnung } : {}) },
+  });
+  return { ok: true, seiten: p.seiten, warnung };
 }
 
 async function papierAblehnen(db: Db, b: Body, userId: string | null, test: boolean) {
