@@ -1473,10 +1473,10 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
                 {isImproving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
               </Button>
             </div>
-            <Textarea
+            <ContactInsertTextarea
               value={compose.bodyText}
-              onChange={(e) => update({ bodyText: e.target.value })}
-              placeholder="Ihre Nachricht..."
+              onValueChange={(v) => update({ bodyText: v })}
+              placeholder="Ihre Nachricht … (# + Name fügt Kontaktdaten ein)"
               className={cn("resize-y text-sm", isFullscreen ? "min-h-[65vh]" : "min-h-[min(340px,32vh)]")}
             />
             <ComposeSignatureBlock
