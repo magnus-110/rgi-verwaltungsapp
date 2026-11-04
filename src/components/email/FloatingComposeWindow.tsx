@@ -7,6 +7,7 @@ import { ComposeSignatureBlock } from "./SignaturePreview";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { ContactInsertTextarea } from "./ContactInsertTextarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -1177,10 +1178,11 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
             </div>
           )}
 
-          <Textarea
+          <ContactInsertTextarea
             value={compose.bodyText}
-            onChange={(e) => update({ bodyText: e.target.value })}
-            placeholder="E-Mail verfassen"
+            onValueChange={(v) => update({ bodyText: v })}
+            placeholder="E-Mail verfassen  (Tipp: # + Name fügt Kontaktdaten ein)"
+            wrapperClassName="flex-1"
             className="flex-1 min-h-[60vh] w-full border-0 rounded-none px-4 py-3 shadow-none focus-visible:ring-0 text-base resize-none"
           />
           <ComposeSignatureBlock
