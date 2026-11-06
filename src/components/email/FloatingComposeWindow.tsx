@@ -1010,7 +1010,7 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
   // Shared dialog rendered alongside both mobile + desktop returns
   const closeDialog = (
     <AlertDialog open={closeConfirmOpen} onOpenChange={setCloseConfirmOpen}>
-      <AlertDialogContent>
+      <AlertDialogContent className="z-[70]">
         <AlertDialogHeader>
           <AlertDialogTitle>E-Mail als Entwurf speichern?</AlertDialogTitle>
           <AlertDialogDescription>
@@ -1162,8 +1162,22 @@ const ComposeWindow = ({ compose }: { compose: ComposeState }) => {
             </div>
           )}
 
-          {compose.attachments.length > 0 && (
+          {((compose.existingAttachments?.length || 0) > 0 || compose.attachments.length > 0) && (
             <div className="px-4 py-2 space-y-1.5 border-b bg-muted/30">
+              {(compose.existingAttachments || []).map((att: any, idx: number) => (
+                <div key={`ex-${idx}`} className="flex items-center gap-2 text-sm bg-background rounded-md px-2.5 py-2 border cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => openAttachment(att)} title="Vorschau öffnen">
+                  <Paperclip className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  <span className="truncate flex-1">{att.filename || att.name || "Anhang"}</span>
+                  {att.size ? <span className="text-xs text-muted-foreground shrink-0">{formatFileSize(att.size)}</span> : null}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); update({ existingAttachments: (compose.existingAttachments || []).filter((_: any, i: number) => i !== idx) }); }}
+                    className="text-muted-foreground hover:text-destructive p-1"
+                    aria-label="Anhang entfernen"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
               {compose.attachments.map((att, idx) => (
                 <div key={idx} className="flex items-center gap-2 text-sm bg-background rounded-md px-2.5 py-2 border cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => openAttachment(att)} title="Vorschau öffnen">
                   <Paperclip className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
