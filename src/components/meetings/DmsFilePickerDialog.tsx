@@ -568,7 +568,7 @@ export const DmsFilePickerDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl h-[85dvh] flex flex-col overflow-hidden p-0 gap-0">
+      <DialogContent overlayClassName="z-[70]" className="z-[70] max-w-2xl h-[85dvh] flex flex-col overflow-hidden p-0 gap-0">
         <DialogHeader className="p-4 pb-3 border-b shrink-0">
           <div className="flex items-center gap-2">
             {!showBuildingStep && !buildingId && (

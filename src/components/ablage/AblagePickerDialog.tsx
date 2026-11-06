@@ -54,7 +54,7 @@ export function AblagePickerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent overlayClassName="z-[70]" className="z-[70] max-w-lg">
         <DialogHeader>
           <DialogTitle>Aus der Ablage anhängen</DialogTitle>
         </DialogHeader>
